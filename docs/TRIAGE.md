@@ -15,7 +15,7 @@ Discovery mode: **nothing here is scheduled for a fix.** Every item below is log
 | ~~B-03~~ | ~~Chunked processing shifts host output pointers, overruns buffer~~ **fixed 2026-11-12**, test `tests/note_off` | reproduced and verified in the real code |
 | B-05, B-18 | Same-sample off/on reorder (mostly harmless); note-off lost in retrigger fade → hanging note when gate < ~21 ms on a still-sounding repeated pitch | code + model, see 06 |
 | B-06 | Velocity is a coarse step curve (velocities 64-127 all equal) | code + test |
-| B-17 | Voices never leave the active list | code |
+| ~~B-17~~ | ~~Voices never leave the active list~~ **fixed 2026-11-12** (also enforces the 32-voice limit), test `tests/note_off` | reproduced and verified in the real code |
 | B-21 | TRI shape discontinuity / overshoot with width | math; audibility unknown |
 | B-20 | `recalcWidth` writes wrong variable | code |
 | B-28 | NanoVG GL context deleted without context current (+30 MB per open?) | code; unmeasured |

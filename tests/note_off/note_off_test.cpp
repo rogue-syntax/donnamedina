@@ -65,6 +65,7 @@ struct Options {
 	double tempo2 = 0.0, tempo2At = 0.0;  // if tempo2 > 0: host tempo changes at tempo2At seconds
 	std::vector<std::pair<double, std::pair<ParamID, double>>> params;  // {seconds, {id, normalized}}
 	std::function<void(rs::DX10Processor&)> inspect;  // called after the last block
+	std::function<void(rs::DX10Processor&, double)> perBlock;  // after each block, with end time (s)
 };
 
 struct Settings {
@@ -178,6 +179,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		g_inProcess = true;
 		proc->process(data);
 		g_inProcess = false;
+		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + kBlock) / kSampleRate);
 
 		if (chans[0] != left.data() || chans[1] != right.data()) {
 			g_pointerDrift++;
@@ -366,6 +368,80 @@ int main() {
 			            g_audioThreadMsgs, t.maxMsgs, rate);
 			if (t.expectRate >= 0.0) std::printf(" (expect %.4f)", t.expectRate);
 			std::printf("  %s\n", ok ? "PASS" : "FAIL");
+		}
+	}
+
+	// ---- B-17: finished voices leave the render list ----
+	{
+		std::printf("\n");
+		struct VCase {
+			const char* name;
+			std::vector<NoteEvent> events;
+			Options o;
+			double sizeAt;   // time at which the render-list size is checked
+			int maxSize;     // allowed size at sizeAt
+			int minSize;     // required size at sizeAt
+			double soundAt;  // < 0: not checked; else must be sounding (> 1% of peak) here
+			double silentAt; // < 0: not checked; else must have ended (< -60 dB) here
+			double seconds = 5.0;
+		};
+		std::vector<VCase> vcases;
+		{  // 60 different pitches, 30 ms each, one after another; all released by 1.8 s
+			VCase v{"60 distinct pitches, all released", {}, {}, 4.5, 0, 0, -1, 4.5};
+			for (int k = 0; k < 60; k++) {
+				v.events.push_back({at(0.03 * k), true, static_cast<int16>(30 + k)});
+				v.events.push_back({at(0.03 * k + 0.02), false, static_cast<int16>(30 + k)});
+			}
+			vcases.push_back(v);
+		}
+		{  // one note held (decay = hold) while 20 other pitches come and go
+			VCase v{"1 held note among 20 released pitches", {{0, true, 40}}, {}, 4.5, 1, 1, 4.5, -1};
+			for (int k = 0; k < 20; k++) {
+				v.events.push_back({at(0.05 * k + 0.1), true, static_cast<int16>(60 + k)});
+				v.events.push_back({at(0.05 * k + 0.13), false, static_cast<int16>(60 + k)});
+			}
+			vcases.push_back(v);
+		}
+		{  // slow attack: the voice must not be dropped while cenv is still tiny
+			VCase v{"slow attack (ENV_1_ATTACK 0.8), held", {{0, true, kPitch}}, {}, 0.02, 1, 1, 1.5, -1};
+			v.o.params = {{0.0, {ENV_1_ATTACK, 0.8}}};
+			vcases.push_back(v);
+		}
+		{  // replay a pitch after its voice was removed: fresh note, sounds, ends
+			VCase v{"replay pitch after its voice was removed",
+			        {{0, true, kPitch}, {at(0.1), false, kPitch}, {at(2.5), true, kPitch}, {at(2.6), false, kPitch}},
+			        {}, 2.45, 0, 0, 2.55, 4.9};
+			vcases.push_back(v);
+		}
+		{  // 40 held notes in one block: voice limit (POLYCOUNT = 32) must hold
+			VCase v{"40 held notes (limit 32)", {}, {}, 1.0, 32, 32, 1.0, -1};
+			for (int k = 0; k < 40; k++) v.events.push_back({0, true, static_cast<int16>(40 + k)});
+			vcases.push_back(v);
+		}
+
+		for (auto& v : vcases) {
+			int sizeSeen = -1;
+			int maxSeen = 0;
+			v.o.perBlock = [&](rs::DX10Processor& p, double t) {
+				const int n = static_cast<int>(p.generators[0].notes.size());
+				maxSeen = std::max(maxSeen, n);
+				if (sizeSeen < 0 && t >= v.sizeAt) sizeSeen = n;
+			};
+			std::fflush(stdout);
+			const auto t0 = GetTickCount64();
+			auto peaks = render(settings[0], v.events, v.seconds, v.o);
+			const auto ms = GetTickCount64() - t0;
+			const float ref = maxPeak(peaks);
+			bool ok = sizeSeen >= v.minSize && sizeSeen <= v.maxSize;
+			float sLvl = -1, eLvl = -1;
+			if (v.soundAt >= 0) { sLvl = ref > 0 ? peakAround(peaks, v.soundAt) / ref : 0; ok = ok && sLvl > 0.01f; }
+			if (v.silentAt >= 0) { eLvl = ref > 0 ? peakAround(peaks, v.silentAt) / ref : 0; ok = ok && eLvl < 0.001f; }
+			if (!ok) failures++;
+			std::printf("B-17  %-40s voices @%.2fs = %3d (want %d..%d, max seen %3d)", v.name, v.sizeAt, sizeSeen,
+			            v.minSize, v.maxSize, maxSeen);
+			if (sLvl >= 0) std::printf("  sounding @%.2fs %.4f", v.soundAt, sLvl);
+			if (eLvl >= 0) std::printf("  ended @%.2fs %.4f", v.silentAt, eLvl);
+			std::printf("  [%llu ms]  %s\n", ms, ok ? "PASS" : "FAIL");
 		}
 	}
 

@@ -45,7 +45,7 @@ Oscillators: `CQBLimitedOscillator` (quasi-bandlimited). `m_uWaveform` enum is `
 
 `noteOff(note)` (`:563`, `cutNote` branch): for envs 1..3 either switch the decay to the release rate (`cdec = crel`, when `decayReleaseToggle < 0.5`) or leave decay as is; then `env = cenv; catt = 1` (release starts from the current smoothed level) and `noteActive = false`. **`noteActive` is written in three places and never read** (grep), so it has no effect.
 
-Voices are removed from `notes` **only** by `DXGenerator::detectSilence` (`:630`), and that function is **never called**: its only call site is inside a commented-out block of the old `doProcessing`. See B-17.
+Voices are removed from `notes` only by `DXGenerator::detectSilence`. Until 2026-11-12 it was never called (B-17); now `doProcessing` calls it after every chunk, and it drops a voice once it is not fading (`rampingDown`) and its env 1 `env` and `cenv` are both below -80 dB. Voice stealing (`POLYCOUNT` 32) counts only live voices.
 
 ## Things that are shared vs per voice
 - Global (one copy): `controls[GPARAMS]` (float, normalised/recalculated control values), `ctrlValues[NPARAMS]` (int step values, set by `PMSG_STEP_SWITCH` messages), `rampedParams[]`, `EnvLfoCtrls[7]` (settings object, `Env` = `CLFO` with extra fields).
@@ -54,7 +54,7 @@ Voices are removed from `notes` **only** by `DXGenerator::detectSilence` (`:630`
 
 ## Memory/cost notes
 - `RVoicesMap` is allocated in `DXGenerator::init()` and never freed (destructor frees `ddMap`, log-scale objects and `doRecalc`, not the voices): B-24.
-- Because voices never leave `notes`, per-sample cost should grow with the number of *distinct pitches played* (up to 128 voices, each doing two oscillators, filter, 3 LFOs, a log-scale lookup): B-17. Unmeasured.
+- Before the B-17 fix voices never left `notes`, so per-sample cost grew with the number of *distinct pitches played* (up to 128 voices, each doing two oscillators, filter, 3 LFOs, a log-scale lookup). Measured in `tests/note_off`: 5 s render after 60 pitches took 2328 ms before, 1078 ms after.
 
 ## Filter and oscillator helpers (pass 5, read)
 - `CSEMFilter` (`SEMFilter.h`): a trapezoidal (TPT) state-variable filter. `update()` per voice per sample: `g = tan(pi*fc/sr)`, `R = 1/(2Q)`, then `doFilter2` does the HP->BP->LP chain and returns **LP**. Cutoff range comes from the log map 80-18000 Hz (`DXGenerator.cpp:43-47`); Q from `cookVSTGUIVariable(MIN_FILTER_Q=1.0, MAX_FILTER_Q=2.5, ...)` then `setQControl` maps 1..10 -> Q 0.5..25, so the knob only reaches Q ~= 0.5..4.6 (B-41). No clamp of fc to Nyquist (B-42). A second "Butterworth" path (`updateButterworth/doButterworth`) is unused; its `b3` default initializer reads uninitialised `K`/`norm` (harmless) and `b2` is never set.

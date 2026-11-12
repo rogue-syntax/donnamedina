@@ -1220,8 +1220,10 @@ void DX10Processor::doProcessing(ProcessData& data) {
 			else EnvLfoCtrls[6].BPM = bpm;
 		}
 
-		// Check if we've gone silent
-		//generators[0].detectSilence(&activevoices);
+		// B-17: drop finished voices from the render list (was commented out, so every pitch ever
+		// played stayed in the list and was rendered every sample).
+		activevoices = 0;
+		generators[0].detectSilence(&activevoices);
 	/* }
 	else {
 		// Empty block, output silence

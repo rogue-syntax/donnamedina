@@ -348,15 +348,22 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 
 		if (pushNote == false) {
 
-			if (notesSize >= POLYCOUNT) {
-				float leastFloat = 1.0f;
-				int leastNote = 0;
-				for (int i = 0; i < notesSize; i++) {
-					if (RVoicesMap[notes[i]].voiceEnvLfo[1].cenv < leastFloat) {
-						leastFloat = RVoicesMap[notes[i]].voiceEnvLfo[1].cenv;
-						leastNote = i;
-					}
+			// B-17: count and steal only live voices. A voice already fading out from an earlier
+			// steal (killIt + rampingDown) is the quietest, so it used to be "stolen" again and the
+			// voice limit was never enforced.
+			int liveCount = 0;
+			int leastNote = -1;
+			float leastFloat = 0.0f;
+			for (int i = 0; i < notesSize; i++) {
+				const RVoice& v = RVoicesMap[notes[i]];
+				if (v.killIt && v.rampingDown) continue;
+				liveCount++;
+				if (leastNote < 0 || v.voiceEnvLfo[1].cenv < leastFloat) {
+					leastFloat = v.voiceEnvLfo[1].cenv;
+					leastNote = i;
 				}
+			}
+			if (liveCount >= POLYCOUNT && leastNote >= 0) {
 				retriggerVoice(RVoicesMap[notes[leastNote]], true);// kill voice
 				notes.push_back((*note));
 				RVoicesMap[vl].noteIdx = notesSize - 1;
@@ -663,21 +670,26 @@ void DXGenerator::detectSilence( int32* activeVoices ) {
 		*/
 	
 		
-		for (int i = 0; i < notes.size(); i++) { //for each voice
-			int x = notes[i];
-			if (RVoicesMap[x].voiceEnvLfo[1].cenv < 0.0003f) {
-				//reset all envs
-				RVoicesMap[x].voiceEnvLfo[1].env = 1.0f;
-				RVoicesMap[x].voiceEnvLfo[1].cenv = 0.0f;
-				//(*activeVoices) = (*activeVoices)-1;//check this
-				//if (RVoicesMap[x].noteActive == false) {//this just creates a repeat effect
-					notes.erase(notes.begin() + i);
-					i -= 1;
-				//}
-				
-
+		// B-17: drop voices that have gone silent from the render list `notes`, so only sounding
+		// voices are processed. A voice's output is gainerTemp * env1.cenv * osc, so it is silent when
+		// both the amp-envelope target (env) and the smoothed level (cenv) are below the threshold.
+		// - Checking env as well as cenv keeps a note in its attack (cenv starts at 0.0003, env at
+		//   the velocity level) and a held note at full sustain.
+		// - A voice in its retrigger/steal fade (rampingDown) is kept: its env passes through 0 at
+		//   the end of the fade, where it restarts the note (and applies a pending release, B-18).
+		// The voice itself stays in RVoicesMap (one per pitch); a later note-on on this pitch takes
+		// the fresh-note path (processNoteOn) instead of the retrigger fade.
+		const float kSilent = 0.0001f;  // -80 dB
+		for (int i = 0; i < (int)notes.size(); i++) {
+			RVoice& v = RVoicesMap[notes[i]];
+			if (!v.rampingDown && v.voiceEnvLfo[1].env < kSilent && v.voiceEnvLfo[1].cenv < kSilent) {
+				v.voiceEnvLfo[1].env = 0.0f;
+				v.voiceEnvLfo[1].cenv = 0.0f;
+				v.killIt = false;
+				v.releasePending = false;
+				notes.erase(notes.begin() + i);
+				i -= 1;
 			}
-
 		}
 		(*activeVoices) += notes.size();
 	
