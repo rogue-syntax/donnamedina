@@ -29,7 +29,7 @@ for each voice n in notes:
 7. Filter: cutoff = `m_pFilterLogParam->toPlain(clamp(ramped FILTER + FILTER_ENV*env, 0.01, 1))` (log-scale mapping evaluated **per voice per sample**), `m_Filter1.update()`, `doFilter2(o)` (in place; `CSEMFilter`).
 8. Pan (equal-ish linear): `o1 = (pan+1)/2*o`, `o2 = (1-pan)/2*o`. The pan "smoothing" block is a no-op (`prePan = pan` immediately before computing the difference).
 
-Oscillators: `CQBLimitedOscillator` (quasi-bandlimited). `m_uWaveform` enum is `SINE,SAW1,TRI,SQUARE,SAW2,SAW3,NOISE,PNOISE,RSINE` (0..8); the GUI's OSC_/MOD_OSC_ lists have 4 steps (sine, saw, tri, square). **TRI (`doTriangle2`) and SQUARE (`doSquareO`) use the width (`triCutoff`)**: TRI as a shape morph (see B-21), SQUARE as pulse width via sum-of-saws (`m_dPulseWidth = triCutoff`, zero-mean, levels -1 / +(1-p)/p, so extreme widths are quieter). SINE and SAW ignore it. (Corrected in pass 5: earlier text said square ignored width.)
+Oscillators: `CQBLimitedOscillator` (quasi-bandlimited). `m_uWaveform` enum is `SINE,SAW1,TRI,SQUARE,SAW2,SAW3,NOISE,PNOISE,RSINE` (0..8); the GUI's OSC_/MOD_OSC_ lists have 4 steps (sine, saw, tri, square). **TRI (`doTriangle2`) and SQUARE (`doSquareO`) use the width (`triCutoff`)**: TRI as a shape morph (since the B-21 fix: width 0.1 rising saw <- 0.5 triangle -> 0.9 falling saw, always within +-1, polyBLEP on the edge), SQUARE as pulse width via sum-of-saws (`m_dPulseWidth = triCutoff`, zero-mean, levels -1 / +(1-p)/p, so extreme widths are quieter). SINE and SAW ignore it. (Corrected in pass 5: earlier text said square ignored width.)
 
 ## Note lifecycle
 

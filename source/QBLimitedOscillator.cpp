@@ -160,13 +160,32 @@ void CQBLimitedOscillator::doTriangle() {
 	
 }
 
+namespace {
+// 2-sample polyBLEP residual for a step of height -2 at phase 0/1 (standard form; scale by h/2).
+inline double polyBlep(double t, double dt) {
+	if (dt <= 0.0) return 0.0;
+	if (t < dt) { t /= dt; return t + t - t * t - 1.0; }
+	if (t > 1.0 - dt) { t = (t - 1.0) / dt; return t * t + t + t + 1.0; }
+	return 0.0;
+}
+}
+
 void CQBLimitedOscillator::doTriangle2() {
 
-	//double tempModulo = (tanh(1.5*dCalcModulo) / tanh(1.5));
+	// TRI with width morph (B-21, 2026-11-12).
+	// width (triCutoff) 0.5 = triangle. Below 0.5 it morphs toward a rising saw, exactly as before:
+	//   t = phase * (w + 0.5), folded at 0.5, out = 4 * fold - 1, which ends a cycle at 1 - 4w and
+	//   jumps down to -1 at the wrap (step height 2 - 4w).
+	// Above 0.5 the old formula folded past 1 (out down to 1 - 4w = -2.6 at 0.9, DC shift). It is
+	// now the mirror image: the w' = 1 - w shape played backwards (tri -> falling saw), so the
+	// output always stays within [-1, 1] and the step at the wrap goes up instead of down.
+	// The step was not anti-aliased (BLEP call commented out); a polyBLEP now corrects it.
+	const bool mirrored = triCutoff > 0.5;
+	const double w = mirrored ? 1.0 - triCutoff : triCutoff;
+	const double phase = mirrored ? 1.0 - dCalcModulo : dCalcModulo;
 
-	double tempModulo = dCalcModulo;
-	tempModulo = tempModulo * (triCutoff + 0.5);
-	if (tempModulo > 0.5) {//??
+	double tempModulo = phase * (w + 0.5);
+	if (tempModulo > 0.5) {
 		triSample = 1.0 - tempModulo;
 		fallingEdge = false;
 	}
@@ -175,10 +194,15 @@ void CQBLimitedOscillator::doTriangle2() {
 		fallingEdge = true;
 	}
 
-	
-	//c = (*m_dSampleRate) / (4.0*2.0*m_dFo*(1 - m_dInc));
-
 	doOscOut = 2 * (2.0*triSample - 1.0) + 1;
+
+	// step at the wrap (phase 1 -> 0): from 1 - 4w down to -1 (normal) or from -1 up to 1 - 4w
+	// (mirrored); height 2 - 4w, zero at w = 0.5 (pure triangle, no step).
+	const double stepHalf = (2.0 - 4.0 * w) * 0.5;
+	if (stepHalf > 0.0) {
+		const double blep = polyBlep(dCalcModulo, fabs(m_dInc));
+		doOscOut += mirrored ? stepHalf * blep : -stepHalf * blep;
+	}
 	//dSqMod = 2 * (2.0*triSample - 1.0) + 1;
 	//dSqMod = 2.0*triSample - 1.0;
 	//dDifferentiatedSqMod = dSqMod - m_dDPW_z1;

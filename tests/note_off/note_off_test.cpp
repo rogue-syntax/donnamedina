@@ -17,6 +17,7 @@
 #include "pluginterfaces/vst/ivstprocesscontext.h"
 
 #include <cmath>
+#include <complex>
 #include <cstdio>
 #include <vector>
 #include <algorithm>
@@ -657,6 +658,71 @@ int main() {
 			if (g_audioThreadMsgs) std::printf("      in process by id:%s\n", byId(g_msgsIn));
 			if (g_deliveredMsgs) std::printf("      delivered by id:  %s\n", byId(g_msgsOut));
 			if (!ok) heapwatch::report("      ");
+		}
+	}
+
+	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----
+	{
+		std::printf("\nB-21 TRI waveshape, CQBLimitedOscillator alone, 44.1 kHz\n");
+		const int N = 65536;
+		auto fft = [](std::vector<std::complex<double>>& a) {  // iterative radix-2
+			const size_t n = a.size();
+			for (size_t i = 1, j = 0; i < n; i++) {
+				size_t bit = n >> 1;
+				for (; j & bit; bit >>= 1) j ^= bit;
+				j ^= bit;
+				if (i < j) std::swap(a[i], a[j]);
+			}
+			for (size_t len = 2; len <= n; len <<= 1) {
+				const double ang = -2.0 * 3.14159265358979323846 / static_cast<double>(len);
+				const std::complex<double> wl(std::cos(ang), std::sin(ang));
+				for (size_t i = 0; i < n; i += len) {
+					std::complex<double> w(1.0);
+					for (size_t k = 0; k < len / 2; k++) {
+						const auto u = a[i + k], v = a[i + k + len / 2] * w;
+						a[i + k] = u + v;
+						a[i + k + len / 2] = u - v;
+						w *= wl;
+					}
+				}
+			}
+		};
+		// f0 = fs * m / N: every harmonic sits exactly on a bin that is a multiple of m; aliased
+		// (folded) harmonics land on other bins. alias = power off the harmonic bins / harmonic power.
+		const int bins[] = {327, 2229};  // ~220 Hz and ~1500 Hz
+		const double widths[] = {0.1, 0.3, 0.5, 0.7, 0.9};
+		for (int m : bins) {
+			for (double w : widths) {
+				double fs = kSampleRate;
+				CQBLimitedOscillator osc;
+				osc.setSampleRate(&fs);
+				osc.m_uWaveform = 2;  // TRI (doTriangle2)
+				osc.triCutoff = w;
+				osc.m_dOscFo = fs * m / N;
+				osc.update();
+				osc.startOscillator();
+				osc.update();
+				std::vector<std::complex<double>> x(N);
+				double mn = 1e9, mx = -1e9, sum = 0.0;
+				for (int i = 0; i < N; i++) {
+					const double v = osc.doOscillate();
+					x[i] = v;
+					mn = std::min(mn, v);
+					mx = std::max(mx, v);
+					sum += v;
+				}
+				fft(x);
+				double harm = 0.0, inh = 0.0;
+				for (int b = 1; b < N / 2; b++) {
+					const double p = std::norm(x[b]);
+					if (b % m == 0) harm += p; else inh += p;
+				}
+				const double aliasDb = 10.0 * std::log10(std::max(inh, 1e-30) / std::max(harm, 1e-30));
+				const bool bounded = mx <= 1.0 + 1e-9 && mn >= -1.0 - 1e-9;
+				if (!bounded) failures++;
+				std::printf("  f0 %6.1f Hz  width %.1f  min %6.3f  max %6.3f  DC %6.3f  alias %7.1f dB  %s\n",
+				            fs * m / N, w, mn, mx, sum / N, aliasDb, bounded ? "PASS" : "FAIL (outside +-1)");
+			}
 		}
 	}
 

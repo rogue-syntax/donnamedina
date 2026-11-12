@@ -22,7 +22,7 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 | B-18 | Medium-High | Code read + Python model of my reading (not the real code); host-dependent trigger; symptom differs from "drops out". |
 | B-19 | Withdrawn | `catt = 1.0` in `retriggerVoice` (line 405) refutes it. |
 | B-20 | High | Header comment documents intent; no live assignment of `widthPole`. |
-| B-21 | Math High / cause of buzz unproven | Numeric check; "waveshape mod" is ambiguous in your todo. |
+| B-21 | High | **FIXED 2026-11-12.** Measured on the real oscillator: width 0.7/0.9 reached -1.8/-2.6; alias -16..-32 dB at widths != 0.5. After: within +-1 at all widths, alias 15-16 dB lower. Link to the "buzz" still unproven. |
 | B-22 | Medium | Range depends on step lists I did not inspect; clamp at ±20480 Hz limits damage. |
 | B-23 | Write certain; effect Med | Layout computed (pass 5): lands on `rampedParams[0..3]` fields; likely minor audio effect (MOD_GAIN thresh→0). Not heard. |
 | B-24 | High | Single `init()` call site, no delete. |
@@ -133,7 +133,7 @@ My first version assumed `cenv` lags `env` during the fade. Wrong: `retriggerVoi
 ### B-20  `recalcWidth` writes the wrong variable (copy-paste)  · MED · CONFIRMED in code
 `DXGenerator.cpp:1058-1062`: the main oscillator's width handler sets `modWidthPole`/`modWidthEdge` (the *modulator's*), while the main oscillator reads `widthPole` (`:868`), which is never assigned anywhere (stays 1.0). Intent is documented: `DXGenerator.h:162` says "widthPole is set on width recalc to represent width level sign", and no live code assigns it (whole-source grep). Effects: the main width env polarity logic is disabled, and the modulator's polarity is overwritten by the main WIDTH knob (`WIDTH_ < 0.5` flips it) until `recalcModWidth` runs again.
 
-### B-21  TRI waveshape has a wrap discontinuity and exceeds ±1 when width ≠ 0.5  · HIGH (math) / audibility unconfirmed → candidate for "buzz from waveshape mod"
+### B-21  TRI waveshape has a wrap discontinuity and exceeds ±1 when width ≠ 0.5  · HIGH · **FIXED 2026-11-12** (your choice: keep the morph below 0.5, mirror it above 0.5, anti-alias the edge; see fix log) · whether this was *the* "buzz from waveshape mod" is still unconfirmed by ear
 `QBLimitedOscillator::doTriangle2` (`:163-194`): `out = 4*tri - 1` with `t = modulo*(width+0.5)`. I evaluated it numerically: width 0.5 → continuous triangle in [-1,1]; width 0.3/0.7 → jump of ∓0.8 at the wrap; width 0.1/0.9 → jump of ∓1.6, and for width > 0.5 the minimum goes to -1.8 .. -2.6 (outside ±1; level and DC change with width). The BLEP call is commented out (`:192`), so the jump is unfiltered (aliasing). Modulating width with an env/LFO changes the jump size continuously, which fits a "buzz from waveshape mod". The TRI jump analysis applies to TRI only; SQUARE also uses width, as pulse width (corrected pass 5). Review notes: the phase is wrapped to [0,1) (`checkWrapIndex`), so the numbers above hold for the code as written. **Your todo says "buzz from waveshape mod", which is ambiguous**: I assumed width modulation, but it could mean the modulator's waveform; the modulator (`WTOsc2`) is the same oscillator class with the same width logic, so the same jump/overshoot applies to it when TRI is selected. That this is *the* buzz is still a hypothesis. A jump at the wrap may also be the designed "morph to saw" character, only the missing anti-aliasing is clearly a defect.
 
 ### B-22  Oscillator-1 note index is not clamped; `midiFreqTable` has 128 entries  · MED · CONFIRMED in code (not reproduced)
@@ -308,6 +308,20 @@ Remaining sources: (1) `noteToIDMap` (`unordered_map`) in `dispatchNoteEvent`, u
 - Step 3: GUI messages. `BaseProcessor::sendDoubleAttr/sendPidVal/sendIntAttr` build a small `QueuedMsg`. Inside `process()` (thread-local flag set by `BaseProcessor::process`) it is pushed to a preallocated `OneReaderOneWriter::RingBuffer` (4096 entries, SDK); a `Steinberg::Timer` (15 ms) created in `BaseProcessor::initialize` (host main thread) drains it and sends the messages there. Called outside `process()` they send immediately, as before. `terminate` stops the timer. Messages now reach the controller up to ~15 ms later, in the same order; controller code unchanged.
 - Evidence (`tests/note_off`, now pass/fail): all 7 heap scenarios make 0 allocations and 0 frees inside `process()` and send 0 messages from it (before: up to 4835 allocations for 7 preset changes). The timer delivers exactly the messages the old code sent from the audio thread: preset changes 492 (old: 492 message allocations), knob sweep 7 (7), synced tempo change 3 (3). All earlier cases pass. Debug and Release build with 0 errors.
 - Not covered: allocations inside a real host's `allocateMessage` now happen on the main thread (fine). Direct `malloc`/aligned `new` are not seen by the test (none found by grep in the audio path). A main-thread send can overtake older queued messages by up to one timer tick (both only update GUI state).
+
+### Fix log: B-21 (2026-11-12)
+- `CQBLimitedOscillator::doTriangle2`: width <= 0.5 uses the old formula unchanged (triangle -> rising saw). Width > 0.5 is the mirror image: the shape for `1 - width` played backwards (triangle -> falling saw), so the wave always stays within +-1 and width 0.3 and 0.7 are time-reversed copies. The step at the phase wrap (height `2 - 4w`, zero at 0.5) gets a 2-sample polyBLEP correction (down-step for <= 0.5, up-step for > 0.5).
+- Evidence: new B-21 section in `tests/note_off` drives `CQBLimitedOscillator` alone (TRI, widths 0.1-0.9, f0 220 Hz and 1500 Hz, 65536-point FFT with f0 on an exact bin; "alias" = power off the harmonic bins / harmonic power).
+
+| width | old min / DC / alias @220 Hz | new | old alias @1500 Hz | new |
+|---|---|---|---|---|
+| 0.1 | -1.000 / 0.133 / -24.5 dB | -0.988 / 0.133 / -40.7 dB | -16.1 dB | -31.8 dB |
+| 0.3 | -1.000 / 0.150 / -29.5 dB | -0.984 / 0.150 / -45.7 dB | -21.1 dB | -36.4 dB |
+| 0.5 | -1.000 / 0.000 / -67.8 dB | unchanged | -42.3 dB | unchanged |
+| 0.7 | **-1.800** / -0.233 / -32.4 dB | -0.984 / 0.150 / -45.7 dB | -23.9 dB | -36.4 dB |
+| 0.9 | **-2.600** / -0.514 / -28.7 dB | -0.988 / 0.133 / -40.7 dB | -20.2 dB | -31.8 dB |
+
+- Not changed: the morph shape keeps a DC offset of 0.13-0.15 at widths away from 0.5 (it had that below 0.5 before; above 0.5 it was -0.23..-0.51); the filter/HP path removes some, a DC correction could be added. The polyBLEP uses the oscillator's own increment, so with heavy phase modulation from osc 2 it is approximate. The modulator (`WTOsc2`) uses the same class, so it gets the same fix when set to TRI. Patches with width > 0.5 on TRI (factory preset 6 modulator 0.69, preset 5 modulator 0.54) sound different now (no overshoot/DC jump).
 
 ### B-53  Message IDs sent as non-terminated strings; colliding 2-char IDs  · LOW · CONFIRMED in code · *send side fixed with B-10*
 - `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.
