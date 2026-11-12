@@ -487,11 +487,17 @@ static inline float fasttanh (float p)
 
 
 
+// Optimization: inline min/max with exactly fmax/fmin semantics (if one argument is NaN, the other
+// is returned). The CRT fmin/fmax are real function calls; in the per-sample voice code they were
+// ~10% of the CPU time (profiled with note_off_test.exe perf).
+static inline double rsMax(double a, double b) { return (a > b || b != b) ? a : b; }
+static inline double rsMin(double a, double b) { return (a < b || b != b) ? a : b; }
+
 static inline float ParamClamp2(float n, float lower, float upper) {
 	/*
 	return n + ((n < lower) * (lower - n)) + ((n > upper) * (upper - n));
 	*/
-	return fmax(fmin(n, upper), lower);
+	return static_cast<float>(rsMax(rsMin(n, upper), lower));  // was fmax(fmin(n, upper), lower)
 }
 
 inline double fastPow(double a, double b) {
