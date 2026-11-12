@@ -672,6 +672,7 @@ public:
 
 	void noteOn( int32* note, int32* velocity, int32* noteID );
 	void noteOff(int32* note, int32* noteID);
+	void releaseVoice(RVoice& voice);
 	void recalculate(const float& sampleFloat );
 	void recalculateRel(const float& sampleFloat, RVoice& voiceObj);
 	void detectSilence(int32 * activeVoices);

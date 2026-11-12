@@ -31,3 +31,6 @@ ipch/
 
 # libbcrypt is a separate clone; its sources get vendored into external/libbcrypt
 /libbcrypt/
+
+# test build output
+/tests/*/bin/

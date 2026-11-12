@@ -1324,32 +1324,31 @@ void DX10Processor::processEvents(IEventList* events)
 // Helper function to sort events by sample offset
 void DX10Processor::sortEventsByOffset(int32* notes, int32 npos)
 {
-	// First sort by sample offset
-	for (int i = 0; i < npos; i += 3) {
-		for (int j = i + 3; j < npos; j += 3) {
-			// Compare sample offsets
-			if (notes[i] > notes[j]) {
-				// Swap the events
-				for (int k = 0; k < 3; k++) {
-					int32 temp = notes[i + k];
-					notes[i + k] = notes[j + k];
-					notes[j + k] = temp;
-				}
-			}
-			// For events at the same sample offset, make sure note-offs come after note-ons
-			else if (notes[i] == notes[j]) {
-				// notes[i+2] is velocity for first event
-				// notes[j+2] is velocity for second event
-				// If first is a note-off (vel=0) and second is a note-on (vel>0), swap them
-				if (notes[i + 2] == 0 && notes[j + 2] > 0) {
-					for (int k = 0; k < 3; k++) {
-						int32 temp = notes[i + k];
-						notes[i + k] = notes[j + k];
-						notes[j + k] = temp;
-					}
-				}
-			}
+	// Stable insertion sort of {offset, pitch, velocity} triples by (offset, note-off before note-on).
+	// B-05: at the same sample offset the note-off must come first. Hosts send "release old note,
+	// press new note" for back-to-back notes of the same pitch; the old code put the note-on first,
+	// so the old note's note-off then hit the new note (voices are indexed by pitch).
+	// Stable, so events of the same kind keep the host's order. No allocation (audio thread).
+	auto comesBefore = [](const int32* a, const int32* b) {
+		if (a[0] != b[0]) {
+			return a[0] < b[0];
 		}
+		const bool aIsOff = (a[2] == 0);
+		const bool bIsOff = (b[2] == 0);
+		return aIsOff && !bIsOff;
+	};
+	for (int i = 3; i < npos; i += 3) {
+		int32 cur[3] = { notes[i], notes[i + 1], notes[i + 2] };
+		int j = i - 3;
+		while (j >= 0 && comesBefore(cur, &notes[j])) {
+			notes[j + 3] = notes[j];
+			notes[j + 4] = notes[j + 1];
+			notes[j + 5] = notes[j + 2];
+			j -= 3;
+		}
+		notes[j + 3] = cur[0];
+		notes[j + 4] = cur[1];
+		notes[j + 5] = cur[2];
 	}
 }
 //-----------------------------------------------------------------------------

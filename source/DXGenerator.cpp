@@ -405,6 +405,7 @@ void DXGenerator::retriggerVoice(RVoice& voiceObj, bool killIt) {
 	voiceObj.voiceEnvLfo[1].catt = 1.0f;
 	voiceObj.rampingDown = true;// change to 0,1
 	voiceObj.killIt = killIt;
+	voiceObj.releasePending = false; // a new note-on (or a steal) supersedes any pending release
 	saveTargValues(voiceObj, killIt);
 
 }
@@ -593,27 +594,19 @@ void DXGenerator::noteOff(int32* note, int32* noteID) {
 	int dv;
 	if (cutNote == true) {
 		dv = (*note);
-		for (int i = 1; i < 4; i++) {
-			if (RVoicesMap[dv].voiceEnvLfo[i].decayReleaseToggle < 0.5) {
-				RVoicesMap[dv].voiceEnvLfo[i].cdec = (*EnvLfoCtrls[i]).crel;
-				if (RVoicesMap[dv].voiceEnvLfo[i].cdec == 1.0) {
-					RVoicesMap[dv].voiceEnvLfo[i].cdec = 0.98f;
-				}
-				RVoicesMap[dv].voiceEnvLfo[i].env = RVoicesMap[dv].voiceEnvLfo[i].cenv;
-				RVoicesMap[dv].voiceEnvLfo[i].catt = 1.0f;
-
-
+		RVoice& voice = RVoicesMap[dv];
+		if (voice.rampingDown == true) {
+			// B-18: the voice is fading out before a retrigger. processNoteOn() at the end of the
+			// fade would overwrite any release set now, so remember it and apply it afterwards
+			// (interpolateVoice). A voice being killed (stolen) is going silent anyway.
+			if (voice.killIt == false) {
+				voice.releasePending = true;
 			}
-			else {
-				if (RVoicesMap[dv].voiceEnvLfo[i].cdec == 1.0f) {
-					RVoicesMap[dv].voiceEnvLfo[i].cdec = 0.9966402f;
-
-				}
-				RVoicesMap[dv].voiceEnvLfo[i].env = RVoicesMap[dv].voiceEnvLfo[i].cenv;//?
-				RVoicesMap[dv].voiceEnvLfo[i].catt = 1.0f;//?
-			}
+			voice.noteActive = false;
 		}
-		RVoicesMap[dv].noteActive = false;
+		else {
+			releaseVoice(voice);
+		}
 	}
 	else if (cutNote == false) {
 		dv = (*noteID);
@@ -626,6 +619,29 @@ void DXGenerator::noteOff(int32* note, int32* noteID) {
 			
 }
 
+
+// Switch envelopes 1..3 of a voice into their release stage (moved out of noteOff so the
+// B-18 pending-release path uses exactly the same logic).
+void DXGenerator::releaseVoice(RVoice& voice) {
+	for (int i = 1; i < 4; i++) {
+		if (voice.voiceEnvLfo[i].decayReleaseToggle < 0.5) {
+			voice.voiceEnvLfo[i].cdec = (*EnvLfoCtrls[i]).crel;
+			if (voice.voiceEnvLfo[i].cdec == 1.0) {
+				voice.voiceEnvLfo[i].cdec = 0.98f;
+			}
+			voice.voiceEnvLfo[i].env = voice.voiceEnvLfo[i].cenv;
+			voice.voiceEnvLfo[i].catt = 1.0f;
+		}
+		else {
+			if (voice.voiceEnvLfo[i].cdec == 1.0f) {
+				voice.voiceEnvLfo[i].cdec = 0.9966402f;
+			}
+			voice.voiceEnvLfo[i].env = voice.voiceEnvLfo[i].cenv;//?
+			voice.voiceEnvLfo[i].catt = 1.0f;//?
+		}
+	}
+	voice.noteActive = false;
+}
 
 void DXGenerator::detectSilence( int32* activeVoices ) {
 	/*
@@ -678,8 +694,12 @@ void DXGenerator::interpolateVoice(RVoice& voiceObj) {
 		// not necc here?
 		if (voiceObj.killIt == false) {
 			processNoteOn(voiceObj, &voiceObj.note, &voiceObj.vel);
+			if (voiceObj.releasePending == true) { // B-18: note-off arrived during the fade
+				voiceObj.releasePending = false;
+				releaseVoice(voiceObj);
+			}
 		}
-		
+
 	}
 	else {
 		voiceObj.voiceEnvLfo[1].env = voiceObj.voiceEnvLfo[1].env + voiceObj.voiceEnvLfo[1].envInc;

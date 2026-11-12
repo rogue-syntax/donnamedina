@@ -150,7 +150,10 @@ public:
 	//float levOutInc = 0.0f;
 	//float levOutIntermediate = 0.0f;
 	//float adjustedRatio;
-	bool killIt;
+	bool killIt = false;
+	// B-18: a note-off that arrives during the retrigger fade (rampingDown) is held here
+	// and applied right after the fade restarts the note, instead of being erased.
+	bool releasePending = false;
 	float e = 0.0f;
 	//float tuneC2;
 	int newInt = 0;

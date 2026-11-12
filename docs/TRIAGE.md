@@ -1,7 +1,7 @@
 # Triage: "look into, possibly fix later"
 
 ## MUST FIX
-- **B-18** note-off lost during the ~21 ms retrigger fade → hanging/ghost note (you have heard this). See `06-note-event-trace.md`.
+- ~~**B-18** note-off lost during the ~21 ms retrigger fade → hanging/ghost note~~ **fixed 2026-11-12** with B-05; regression test `tests/note_off`. Confirm by ear in FL Studio.
 
 
 Discovery mode: **nothing here is scheduled for a fix.** Every item below is logged as *look into / possibly fix*. Details and evidence are in `BUGS.md` under the same ID. Grouping is by the symptom you would notice, not by priority. Last updated pass 5.
