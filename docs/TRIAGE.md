@@ -12,7 +12,7 @@ Discovery mode: **nothing here is scheduled for a fix.** Every item below is log
 ## Likely related to symptoms in your old notes
 | ID | What | Evidence level |
 |---|---|---|
-| B-03 | Chunked processing shifts host output pointers, overruns buffer | reproduced vs real SDK header |
+| ~~B-03~~ | ~~Chunked processing shifts host output pointers, overruns buffer~~ **fixed 2026-11-12**, test `tests/note_off` | reproduced and verified in the real code |
 | B-05, B-18 | Same-sample off/on reorder (mostly harmless); note-off lost in retrigger fade → hanging note when gate < ~21 ms on a still-sounding repeated pitch | code + model, see 06 |
 | B-06 | Velocity is a coarse step curve (velocities 64-127 all equal) | code + test |
 | B-17 | Voices never leave the active list | code |

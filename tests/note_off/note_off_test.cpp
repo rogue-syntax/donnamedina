@@ -1,4 +1,4 @@
-// Note-off / retrigger regression test for Donna Medina (B-18, B-05).
+// Note-off / retrigger / output-buffer regression test for Donna Medina (B-18, B-05, B-03).
 //
 // Drives the real DX10Processor (linked from the plugin's Release object files) through
 // process() with VST3 event lists, exactly like a host would, and measures the output level
@@ -29,6 +29,9 @@ constexpr double kSampleRate = 44100.0;
 constexpr int32 kBlock = 512;
 constexpr int16 kPitch = 60;
 
+int g_pointerDrift = 0;  // blocks after which the host's channel pointers had moved (B-03)
+int g_overrun = 0;       // samples written past the end of the host buffer (B-03)
+
 struct NoteEvent {
 	int64 sample;  // absolute sample position
 	bool on;
@@ -51,7 +54,10 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	proc->setActive(true);
 	proc->regKeyLegit = true;  // bypass the registration gate for the test
 
-	std::vector<float> left(kBlock), right(kBlock);
+	// B-03 check: each channel buffer has a guard zone after it; any write there is an overrun.
+	constexpr int32 kGuard = 8192;  // large enough that the old drift cannot pass it
+	constexpr float kGuardVal = 12345.0f;
+	std::vector<float> left(kBlock + kGuard, kGuardVal), right(kBlock + kGuard, kGuardVal);
 	float* chans[2] = {left.data(), right.data()};
 	AudioBusBuffers out{};
 	out.numChannels = 2;
@@ -119,14 +125,23 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		data.inputParameterChanges = &changes;
 		data.processContext = &ctx;
 
-		// The plugin shifts the host's channel pointers when a block has several event
-		// offsets (B-03, not fixed yet), so reset them every block like most hosts do.
-		chans[0] = left.data();
-		chans[1] = right.data();
-		std::fill(left.begin(), left.end(), 0.0f);
-		std::fill(right.begin(), right.end(), 0.0f);
+		// Pointers are NOT reset between blocks: the plugin must leave them alone (B-03).
+		std::fill(left.begin(), left.begin() + kBlock, 0.0f);
+		std::fill(right.begin(), right.begin() + kBlock, 0.0f);
 
 		proc->process(data);
+
+		if (chans[0] != left.data() || chans[1] != right.data()) {
+			g_pointerDrift++;
+			chans[0] = left.data();  // repair so the rest of the render is still measurable
+			chans[1] = right.data();
+		}
+		for (int32 i = kBlock; i < kBlock + kGuard; i++) {
+			if (left[i] != kGuardVal || right[i] != kGuardVal) {
+				g_overrun++;
+				left[i] = right[i] = kGuardVal;
+			}
+		}
 
 		for (int32 i = 0; i < kBlock && pos + i < total; i++) {
 			const float v = std::max(std::fabs(left[i]), std::fabs(right[i]));
@@ -190,6 +205,15 @@ int main() {
 		}
 		cases.push_back(arp);
 	}
+	{  // dense MIDI (B-03): a note every 2 ms on rotating pitches -> ~5 event offsets per block
+		Case dense{"dense MIDI (note every 2 ms, 4 pitches, 5 ms gate)", {}, 3.0, false};
+		for (int k = 0; k < 400; k++) {
+			const int16 p = static_cast<int16>(60 + (k % 4) * 3);
+			dense.events.push_back({at(0.002 * k), true, p});
+			dense.events.push_back({at(0.002 * k + 0.005), false, p});
+		}
+		cases.push_back(dense);
+	}
 
 	int failures = 0;
 	for (const auto& s : settings) {
@@ -211,6 +235,9 @@ int main() {
 			            c.checkSec, rel, c.expectSounding ? "sounding" : "ended", pass ? "PASS" : "FAIL");
 		}
 	}
+	std::printf("\nB-03: host pointer moved after %d block(s), %d sample(s) written past buffer end  %s\n",
+	            g_pointerDrift, g_overrun, (g_pointerDrift == 0 && g_overrun == 0) ? "PASS" : "FAIL");
+	if (g_pointerDrift != 0 || g_overrun != 0) failures++;
 	std::printf("\n%d failure(s)\n", failures);
 	return failures == 0 ? 0 : 1;
 }

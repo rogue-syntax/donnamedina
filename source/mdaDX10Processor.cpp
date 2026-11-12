@@ -981,8 +981,10 @@ void DX10Processor::preProcess(ProcessData& data)
 	if (data.inputEvents)
 		processEvents(data.inputEvents);
 
-	// If we have samples to process and we're not bypassed
-	if (data.numSamples > 0 && !bypassProcessing(data))
+	// If we have samples to process and we're not bypassed.
+	// The render path writes two channels of output bus 0 (doProcessing), so require them.
+	if (data.numSamples > 0 && data.numOutputs > 0 && data.outputs[0].numChannels >= 2
+		&& !bypassProcessing(data))
 	{
 		// Debug: Print out events for this block
 		int32 debugIdx = 0;
@@ -1018,15 +1020,20 @@ void DX10Processor::preProcess(ProcessData& data)
 			int32 samplesToProcess = nextEventPos - currentSample;
 
 			if (samplesToProcess > 0) {
-				// Create a sub-ProcessData for this chunk
+				// Create a sub-ProcessData for this chunk.
+				// B-03: the copy of `data` is shallow, so chunkData.outputs would still point at the
+				// host's AudioBusBuffers. Give the chunk its own bus + channel pointers so the host's
+				// pointers are never modified (they used to drift by each chunk offset and overrun).
 				ProcessData chunkData = data;
 				chunkData.numSamples = samplesToProcess;
 
-				// Adjust output buffer pointers for this chunk
-				for (int32 i = 0; i < data.outputs[0].numChannels; i++) {
-					chunkData.outputs[0].channelBuffers32[i] =
-						data.outputs[0].channelBuffers32[i] + currentSample;
-				}
+				float* chunkChans[2] = {
+					data.outputs[0].channelBuffers32[0] + currentSample,
+					data.outputs[0].channelBuffers32[1] + currentSample };
+				AudioBusBuffers chunkOut = data.outputs[0];
+				chunkOut.channelBuffers32 = chunkChans;
+				chunkData.outputs = &chunkOut;
+				chunkData.numOutputs = 1;
 
 				// Process this chunk
 				doProcessing(chunkData);
