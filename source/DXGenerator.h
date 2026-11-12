@@ -51,6 +51,15 @@ public:
 
 class DX10Processor;
 
+// B-06: MIDI velocity (1..127) -> amp-envelope gain, linear. The old formula
+// 0.01 * (100 / (127 / v)) used integer division: only 20 distinct gains, every velocity from 64 to
+// 127 gave 1.0, velocity 1 gave 0, and velocity 0 would divide by zero. Change the curve here.
+inline float velocityGain(int32 v) {
+	if (v < 1) v = 1;
+	if (v > 127) v = 127;
+	return static_cast<float>(v) / 127.0f;
+}
+
 // B-10: fixed-capacity, allocation-free render list (was std::deque<int32>, which allocated on the
 // audio thread as it grew). Holds at most one entry per pitch; order is preserved on erase.
 struct VoiceList {

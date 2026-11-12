@@ -337,7 +337,7 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 		RVoicesMap[vl].note = (*note);
 		RVoicesMap[vl].velocity = (*velocity);
 		RVoicesMap[vl].vel = (*velocity);
-		RVoicesMap[vl].velocity = 0.01 * (100 / (127 / (*velocity)));//10??
+		RVoicesMap[vl].velocity = velocityGain(*velocity);  // B-06
 		RVoicesMap[vl].noteActive = true;
 
 		if (POLYCOUNT == 1) {
@@ -388,7 +388,7 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 		RVoicesMap[vl].note = (*note);
 		RVoicesMap[vl].velocity = (*velocity);
 		RVoicesMap[vl].vel = (*velocity);
-		RVoicesMap[vl].velocity = 0.01 * (100 / (127 / (*velocity)));//10??
+		RVoicesMap[vl].velocity = velocityGain(*velocity);  // B-06
 		RVoicesMap[vl].noteActive = true;
 		RVoicesMap[vl].noteIdx = notesSize - 1;
 		notes.push_back((*noteID));
@@ -447,7 +447,7 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel) {
 	
 	voiceObj.note = (*note);
 	voiceObj.vel = (*vel);
-	voiceObj.velocity = 0.01 * (100 / (127/(*vel)));//10??
+	voiceObj.velocity = velocityGain(*vel);  // B-06
 	voiceObj.WTOsc.note = (*note);
 	voiceObj.WTOsc.m_uMIDINoteNumber = (*note);
 	//voiceObj.WTOsc.m_dOscFo = midiFreqTable[(*note)];

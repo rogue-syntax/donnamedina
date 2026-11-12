@@ -191,6 +191,7 @@ struct NoteEvent {
 	bool on;
 	int16 pitch;
 	int32 overshoot = 0;  // > 0: send in the block containing `sample` with offset kBlock + overshoot
+	float velocity = 1.0f;  // note-on velocity, normalised like a host sends it (v / 127)
 };
 
 struct Options {
@@ -257,7 +258,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 					ev.type = Event::kNoteOnEvent;
 					ev.noteOn.channel = 0;
 					ev.noteOn.pitch = e.pitch;
-					ev.noteOn.velocity = 1.0f;
+					ev.noteOn.velocity = e.velocity;
 					ev.noteOn.noteId = -1;
 				} else {
 					ev.type = Event::kNoteOffEvent;
@@ -660,6 +661,38 @@ int main() {
 			if (g_deliveredMsgs) std::printf("      delivered by id:  %s\n", byId(g_msgsOut));
 			if (!ok) heapwatch::report("      ");
 		}
+	}
+
+	// ---- B-06: velocity -> level ----
+	{
+		std::printf("\nB-06 velocity -> level (held note, decay = hold, peak 0.3-0.6 s, relative to velocity 127)\n");
+		const int vels[] = {1, 16, 32, 48, 64, 80, 96, 112, 127};
+		float lv[9] = {};
+		for (int k = 0; k < 9; k++) {
+			NoteEvent on{0, true, kPitch};
+			on.velocity = vels[k] / 127.0f;
+			auto peaks = render(settings[0], {on}, 0.7);
+			float pk = 0.0f;
+			for (size_t i = 30; i < 60 && i < peaks.size(); i++) pk = std::max(pk, peaks[i]);
+			lv[k] = pk;
+		}
+		int distinct = 1;
+		bool monotonic = true;
+		for (int k = 1; k < 9; k++) {
+			if (std::fabs(lv[k] - lv[k - 1]) > 1e-4f * lv[8]) distinct++;
+			if (lv[k] + 1e-6f < lv[k - 1]) monotonic = false;
+		}
+		bool linear = true;
+		for (int k = 0; k < 9; k++) {
+			const float rel = lv[8] > 0 ? lv[k] / lv[8] : 0.0f;
+			const float want = vels[k] / 127.0f;
+			std::printf("  vel %3d  level %.4f of vel 127  (linear would be %.4f)\n", vels[k], rel, want);
+			if (std::fabs(rel - want) > 0.03f) linear = false;
+		}
+		const bool ok = monotonic && distinct == 9 && linear && lv[0] > 0.0f;
+		if (!ok) failures++;
+		std::printf("  %d of 9 velocities give distinct levels, monotonic %s, linear %s, vel 1 audible %s  %s\n", distinct,
+		            monotonic ? "yes" : "no", linear ? "yes" : "no", lv[0] > 0.0f ? "yes" : "no", ok ? "PASS" : "FAIL");
 	}
 
 	// ---- B-01 / B-02: controller with the editor closed (no view, as when the GUI is not open) ----

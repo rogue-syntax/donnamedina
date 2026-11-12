@@ -12,7 +12,7 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 | B-03 output pointer corruption | High | **FIXED 2026-11-12.** Reproduced in the real `DX10Processor::process()` (host pointers moved after 258 blocks, 41852 samples written past the buffer end); 0/0 after the fix. Not run in a host. |
 | B-04 stale events / null processContext | Medium | **FIXED 2026-11-12.** Reproduced in the real `process()`: null `processContext` = access violation; no event list = note-on replayed every block; note-off past block end = hanging note. All pass after the fix. (A claim that `notes[]` was uninitialised was WRONG: `initialize()` sets `notes[0]=EVENTS_DONE`. Removed.) |
 | B-05 reorder kills retriggered note | Medium | `cutNote` defaults to true, `noteOff` is keyed by pitch (`DXGenerator.cpp:594`), so the mechanism holds; exact audible end-state not run. |
-| B-06 velocity curve (rewritten) | High | Integer-division arithmetic reproduced numerically; feeds amp env at `DXGenerator.cpp:461`. My earlier "truncation" theory was NOT supported (0/127 off by one in a float test) and was dropped. |
+| B-06 velocity curve (rewritten) | High · **FIXED 2026-11-12** (measured in the real `process()`: 5 of 9 test velocities distinct, 64-127 all full level, velocity 1 silent; now linear, all distinct) | Integer-division arithmetic reproduced numerically; feeds amp env at `DXGenerator.cpp:461`. My earlier "truncation" theory was NOT supported (0/127 off by one in a float test) and was dropped. |
 | B-07, B-08, B-09 | High | Straight code reads. |
 | B-10 RT safety | High | Counted calls; audio-thread path via `processParameterChanges`. |
 | B-11 static programParams | Medium | `programParams[0]` is a real preset (my earlier "[0] is zeros" note was wrong). Array bound is fine (tested with g++, 20 rows; MSVC not tested). Host behaviour re: controller-without-processor not tested. |
@@ -73,7 +73,7 @@ Verified: `DXGenerator::cutNote` defaults to `true` (`DXGenerator.h:389`); in th
 Also: the sort is a swap-based O(n²) pass that is not stable.
 Fix: stable sort by offset only (`std::stable_sort` on a small struct array), or process in arrival order; note-off before note-on at same offset for the same pitch.
 
-### B-06  Velocity is a coarse step function (integer division)  · MED · CONFIRMED in code (likely your "fix velocity" todo)
+### B-06  Velocity is a coarse step function (integer division)  · MED · **FIXED 2026-11-12** (linear `v / 127` via `velocityGain()` in `DXGenerator.h`; see fix log)
 `DXGenerator.cpp:340, 384, 442`: `voice.velocity = 0.01 * (100 / (127 / (*velocity)));` with `int32 velocity`. Both divisions are **integer** divisions. Result: only 20 distinct gains for 127 velocities, e.g. velocity 64–127 → 1.0 (all identical), 43–63 → 0.5, 32–42 → 0.33, 26–31 → 0.25, … velocity 1 → 0.0. `voice.velocity` scales the amp envelope (`:461`), so soft-to-medium playing is quantised and everything above ~half velocity is the same level.
 Fix: `voice.velocity = (*velocity) / 127.0f;` (optionally a curve), in all three places.
 Dropped from this item: my earlier claim that `processEvents`' `velocity*127` truncation loses velocities. Tested with float32: hosts sending `v/127.0f` round-trip exactly for all 127 values. Only a host using a different scale (e.g. v/128) would be off by one; the event's `noteId`/`channel` are ignored (low priority).
@@ -330,6 +330,11 @@ Background found while fixing: the controller's two dispatch tables have differe
 - `BaseController::setComponentState` (editor closed): stores each value through `setParamNormalized` instead of only queueing it. Side effect: state values >= 173 are no longer replayed on editor open (the old replay would have called `performEdit` for step buttons).
 - Evidence: new B-01/B-02 section in `tests/note_off` drives a headless `DX10Controller` (real `initialize`, counting peer, no editor). Old code: 4 of 4 checks fail (FILTER_ automation kept 0.93 instead of 0.37; OCT_ stored 0.0 and 0 switch messages; preset 2 -> 7 of 8 probed params wrong; 0 GUI updates queued). Fixed: all pass (95 GUI updates queued for the editor). All earlier cases pass. Debug and Release build with 0 errors.
 - Not tested: the GUI replay itself when the editor opens (needs a host). The controller reads factory presets from `DX10Processor::programParams`, which the processor constructor fills (B-11); in the test a processor existed first.
+
+### Fix log: B-06 (2026-11-12)
+- `DXGenerator.cpp` (3 places: `noteOn` both modes, `processNoteOn`) now use `velocityGain(v)` = `clamp(v, 1, 127) / 127` (new inline in `DXGenerator.h`; change the curve there). Also removes a division by zero the old formula had for velocity 0.
+- Evidence: new B-06 section in `tests/note_off` renders a held note at velocities 1-127 through the real `process()`. Old: levels 0 / 0.14 / 0.33 / 0.50 / 1.0 / 1.0 / 1.0 / 1.0 / 1.0 for 1/16/32/48/64/80/96/112/127. New: exactly v/127 (0.0079 ... 1.0), all distinct. All earlier cases pass. Debug and Release build with 0 errors.
+- Effect on sound: everything below velocity 127 is quieter than before (velocity 64 was full level, now half). Existing patches played at medium velocity will sound softer; a curve (e.g. `sqrt` or `pow(x, 0.6)`) would keep more level at medium velocities.
 
 ### B-53  Colliding 2-char message IDs, dead ID compares (extends B-27)  · LOW · CONFIRMED in code
 - (Same root as B-27, which was logged earlier; kept here for the extra findings below.) `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.

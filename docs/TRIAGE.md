@@ -14,7 +14,7 @@ Discovery mode: **nothing here is scheduled for a fix.** Every item below is log
 |---|---|---|
 | ~~B-03~~ | ~~Chunked processing shifts host output pointers, overruns buffer~~ **fixed 2026-11-12**, test `tests/note_off` | reproduced and verified in the real code |
 | B-05, B-18 | Same-sample off/on reorder (mostly harmless); note-off lost in retrigger fade → hanging note when gate < ~21 ms on a still-sounding repeated pitch | code + model, see 06 |
-| B-06 | Velocity is a coarse step curve (velocities 64-127 all equal) | code + test |
+| ~~B-06~~ | ~~Velocity is a coarse step curve (velocities 64-127 all equal)~~ **fixed 2026-11-12** (linear), test `tests/note_off` | measured in the real code |
 | ~~B-17~~ | ~~Voices never leave the active list~~ **fixed 2026-11-12** (also enforces the 32-voice limit), test `tests/note_off` | reproduced and verified in the real code |
 | ~~B-21~~ | ~~TRI shape discontinuity / overshoot with width~~ **fixed 2026-11-12** (mirror above 0.5 + polyBLEP), test `tests/note_off` | measured on the real oscillator; link to the "buzz" still to confirm by ear |
 | B-20 | `recalcWidth` writes wrong variable | code |
