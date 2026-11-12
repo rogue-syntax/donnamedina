@@ -18,6 +18,7 @@ Output: `x64\<Config>\RSSynth001donnaMedina.vst3` (Debug also writes `DonnaMedin
 Copies the plugin to `%CommonProgramW6432%\VST3\DonnaMedinaVST64.vst3` (Debug also copies the `.pdb`). Writing there needs Visual Studio **run as administrator**, and the host must not have the plugin loaded; otherwise the build fails with "Deploy failed".
 - Build without deploying: add `/p:PostBuildEventUseInBuild=false`.
 - Deploy somewhere else: `/p:CommonProgramW6432=D:\SomeFolder` (the plugin goes to `D:\SomeFolder\VST3\`).
+- Quick build + install without Visual Studio: run `build_and_install.bat` (double-click or any prompt). It asks for admin rights, builds Release|x64, keeps the first installed plugin once as `DonnaMedinaVST64.vst3.original`, and copies the new build over it. Close the host first.
 
 ## Registration
 Without the registry value `HKCU\Software\Rogue-Syntax\Registrations\DonnaMedina\RSRegKey` the plugin loads but plays no notes (see `docs/00-overview.md`).
