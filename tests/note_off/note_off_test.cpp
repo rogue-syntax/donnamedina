@@ -792,6 +792,61 @@ int main(int argc, char** argv) {
 		std::printf("  survived; note still sounding @0.8s %.4f, ended @2.9s %.4f  %s\n", held, ended, ok ? "PASS" : "FAIL");
 	}
 
+	// ---- B-20: width-env polarity per oscillator ----
+	{
+		std::printf("\nB-20 width-env polarity (main WIDTH 0.3 -> main pole -1; MOD_WIDTH 0.7 -> mod pole +1)\n");
+		float wp = 0, mwp = 0;
+		Options o;
+		// mod width first, then main width (the main one used to overwrite the modulator's pole)
+		o.params = {{0.05, {MOD_WIDTH_, 0.7}}, {0.10, {WIDTH_, 0.3}}};
+		o.inspect = [&](rs::DX10Processor& p) { wp = p.generators[0].widthPole; mwp = p.generators[0].modWidthPole; };
+		render(settings[0], {}, 0.3, o);
+		const bool ok = wp == -1.0f && mwp == 1.0f;
+		if (!ok) failures++;
+		std::printf("  widthPole %+.0f (want -1)  modWidthPole %+.0f (want +1)  %s\n", wp, mwp, ok ? "PASS" : "FAIL");
+	}
+
+	// ---- B-47: switching the mod type mid-note must not leave stale modulation ----
+	{
+		std::printf("\nB-47 mod type freq-mod -> none while a note is held\n");
+		double maxDuring = 0.0, after = -1.0;
+		Options o;
+		o.perBlock = [&](rs::DX10Processor& p, double t) {
+			auto& g = p.generators[0];
+			g.ctrlValues[MOD_TYPE_] = t < 0.5 ? 2 : 0;  // 2 = doFreqMod, 0 = doNoMod
+			const double v = std::fabs(g.RVoicesMap[kPitch].WTOsc.m_dFoModLin);
+			if (t < 0.5) maxDuring = std::max(maxDuring, v); else after = v;
+		};
+		render(settings[0], {{0, true, kPitch}}, 1.0, o);
+		const bool ok = maxDuring > 1.0 && after == 0.0;
+		if (!ok) failures++;
+		std::printf("  carrier freq offset: max %.1f Hz during freq-mod, %.3f Hz after switching to none  %s\n", maxDuring,
+		            after, ok ? "PASS" : "FAIL");
+	}
+
+	// ---- B-22: oscillator-1 note index must stay inside midiFreqTable[128] ----
+	{
+		std::printf("\nB-22 oscillator 1 pitch at the keyboard extremes with octave/interval at the limits\n");
+		struct PCase { const char* name; int16 pitch; int oct; int intv; double lo, hi; };
+		const PCase pc[] = {
+			{"MIDI 127, octave +2, interval +12", 127, 5, 12, 5000.0, 13000.0},
+			{"MIDI 0, octave -2, interval 0", 0, 1, 0, 1.0, 20.0},
+		};
+		for (const auto& c : pc) {
+			double fo = 0.0;
+			Options o;
+			o.onCreated = [&](rs::DX10Processor& p) {
+				p.generators[0].ctrlValues[OCT_] = c.oct;
+				p.generators[0].ctrlValues[INT_] = c.intv;
+			};
+			o.inspect = [&](rs::DX10Processor& p) { fo = p.generators[0].RVoicesMap[c.pitch].WTOsc.m_dOscFo; };
+			render(settings[0], {{0, true, c.pitch}}, 0.3, o);
+			const bool ok = std::isfinite(fo) && fo >= c.lo && fo <= c.hi;
+			if (!ok) failures++;
+			std::printf("  %-36s osc 1 frequency %.2f Hz (want %.0f..%.0f)  %s\n", c.name, fo, c.lo, c.hi, ok ? "PASS" : "FAIL");
+		}
+	}
+
 	// ---- B-06: velocity -> level ----
 	{
 		std::printf("\nB-06 velocity -> level (held note, decay = hold, peak 0.3-0.6 s, relative to velocity 127)\n");

@@ -879,6 +879,10 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 		voiceObj.newOct = 5;
 	}
 	voiceObj.newNote = voiceObj.WTOsc.note + (voiceObj.newInt + ((voiceObj.newOct - 3 )* 12.0));
+	// B-22: midiFreqTable has 128 entries; with high octave/interval settings (and env) on high
+	// notes, or low ones on low notes, the index left 0..127 and read past the table. Clamp like
+	// the modulator does (it uses 1..109).
+	voiceObj.newNote = ParamClamp2(voiceObj.newNote, 0, 127);
 	voiceObj.tuneC = (((controls[TUNE_]) + (controls[TUNE_ENV] * (*voiceObj.envBank[tuneCEnv])))) + (((controls[FINE_] ) + (controls[FINE_ENV] * (*voiceObj.envBank[fineCEnv]))) / 100 );
 	voiceObj.WTOsc.m_dOscFo = (midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneC);
 	voiceObj.WTOsc.m_dOscFo = fmax(OSC_FO_MIN, voiceObj.WTOsc.m_dOscFo);
@@ -1035,6 +1039,7 @@ int DXGenerator::doPhaseMod(RVoice* voiceObj) {
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
 	//voiceObj->WTOsc.m_dPhaseMod = (fmax(0.0, fmin(1.0, (controls[MOD_GAIN_] + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]][0])))))) * ((voiceObj->WTOsc.m_dOscFo / 50) * voiceObj->WTOsc2.doOscillate());
 	voiceObj->WTOsc.m_dPhaseMod = (fmax(0.003, fmin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]])))))) *  voiceObj->osc2out;
+	voiceObj->WTOsc.m_dFoModLin = 0.0;  // B-47: clear what freq/detune mod left behind
 	return 0;
 }
 
@@ -1042,6 +1047,7 @@ int DXGenerator::doFreqMod(RVoice* voiceObj) {
 	voiceObj->WTOsc2.update();
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
 	voiceObj->WTOsc.m_dFoModLin = (fmax(0.003, fmin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 4) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
+	voiceObj->WTOsc.m_dPhaseMod = 0.0;  // B-47: clear what phase mod left behind
 	return 0;
 }
 
@@ -1050,6 +1056,7 @@ int DXGenerator::doDetuneMod(RVoice* voiceObj) {
 	voiceObj->WTOsc2.update();
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
 	voiceObj->WTOsc.m_dFoModLin = (fmax(0.003, fmin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 8) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
+	voiceObj->WTOsc.m_dPhaseMod = 0.0;  // B-47: clear what phase mod left behind
 	return 0;
 }
 
@@ -1057,6 +1064,10 @@ int DXGenerator::doNoMod(RVoice* voiceObj) {
 	//do nothing here
 	voiceObj->WTOsc2.update();
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
+	// B-47: no modulation means none: clear what a previous mod type left on the carrier
+	// (switching the type mid-note used to leave a frozen frequency/phase offset)
+	voiceObj->WTOsc.m_dFoModLin = 0.0;
+	voiceObj->WTOsc.m_dPhaseMod = 0.0;
 	return 0;
 }
 
@@ -1076,11 +1087,14 @@ int DXGenerator::recalcMainOsc() {
 int DXGenerator::recalcWidth() {
 	int pIdx = WIDTH_ + paramStartIdx;
 	controls[WIDTH_] = (*partParams[pIdx]);//unncess??
-	modWidthPole = 1.0;
+	// B-20: this is the main oscillator's width; it used to set modWidthPole/modWidthEdge (the
+	// modulator's, copy-paste), so the main width env always pushed upward and moving WIDTH below
+	// 0.5 flipped the modulator's width-env direction.
+	widthPole = 1.0;
 	if (controls[WIDTH_] < 0.5) {
-		modWidthPole = -1.0;
+		widthPole = -1.0;
 	}
-	modWidthEdge = modWidthPole * 0.1;
+	widthEdge = widthPole * 0.1;
 	rampedParams[WIDTH_RAMPINDEX].setLevels2((*partParams[pIdx]), 100, &sampleRate);
 	return 0;
 }
