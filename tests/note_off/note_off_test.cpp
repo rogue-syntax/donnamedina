@@ -152,12 +152,31 @@ int g_overrun = 0;       // samples written past the end of the host buffer (B-0
 // B-13: counts IMessages the processor sends from inside process() (= from the audio thread).
 bool g_inProcess = false;
 int g_audioThreadMsgs = 0;
+int g_deliveredMsgs = 0;  // B-10: messages delivered outside process() (by the main-thread timer)
+int g_msgsIn[256] = {}, g_msgsOut[256] = {};  // per message ID (first char)
+void resetMsgCounts() {
+	g_audioThreadMsgs = g_deliveredMsgs = 0;
+	std::memset(g_msgsIn, 0, sizeof(g_msgsIn));
+	std::memset(g_msgsOut, 0, sizeof(g_msgsOut));
+}
+// Runs the Windows message loop (the plugin's message timer fires through it, like in a host).
+void pumpMessages() {
+	MSG m;
+	while (PeekMessage(&m, nullptr, 0, 0, PM_REMOVE)) {
+		TranslateMessage(&m);
+		DispatchMessage(&m);
+	}
+}
 class CountingPeer : public IConnectionPoint {
 public:
 	tresult PLUGIN_API connect(IConnectionPoint*) override { return kResultTrue; }
 	tresult PLUGIN_API disconnect(IConnectionPoint*) override { return kResultTrue; }
-	tresult PLUGIN_API notify(IMessage*) override {
-		if (g_inProcess) g_audioThreadMsgs++;
+	tresult PLUGIN_API notify(IMessage* msg) override {
+		const char* id = msg ? msg->getMessageID() : nullptr;
+		if (id && std::strcmp(id, "InstanceID") == 0) return kResultTrue;  // sent by connect()
+		const unsigned char c = id ? static_cast<unsigned char>(id[0]) : 0;
+		if (g_inProcess) { g_audioThreadMsgs++; g_msgsIn[c]++; }
+		else { g_deliveredMsgs++; g_msgsOut[c]++; }
 		return kResultTrue;
 	}
 	tresult PLUGIN_API queryInterface(const TUID, void** obj) override { *obj = nullptr; return kNoInterface; }
@@ -202,6 +221,8 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	proc->setupProcessing(setup);
 	proc->setActive(true);
 	proc->regKeyLegit = true;  // bypass the registration gate for the test
+	pumpMessages();
+	resetMsgCounts();  // count only messages caused by processing
 
 	// B-03 check: each channel buffer has a guard zone after it; any write there is an overrun.
 	constexpr int32 kGuard = 8192;  // large enough that the old drift cannot pass it
@@ -296,6 +317,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		heapwatch::g_inProcess = false;
 		g_inProcess = false;
 		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + kBlock) / kSampleRate);
+		pumpMessages();
 
 		if (chans[0] != left.data() || chans[1] != right.data()) {
 			g_pointerDrift++;
@@ -317,6 +339,10 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		pos += kBlock;
 	}
 
+	for (int k = 0; k < 4; k++) {  // let the message timer (15 ms) deliver what is queued
+		Sleep(20);
+		pumpMessages();
+	}
 	if (opt.inspect) opt.inspect(*proc);
 	proc->setActive(false);
 	proc->disconnect(&peer);
@@ -477,11 +503,13 @@ int main() {
 			g_audioThreadMsgs = 0;
 			std::fflush(stdout);
 			render(settings[0], held, 3.1, t.o);
-			bool ok = g_audioThreadMsgs <= t.maxMsgs;
+			// all messages caused by processing: sent inside process() (old) or queued and delivered
+			// by the timer (since B-10)
+			const int msgs = g_audioThreadMsgs + g_deliveredMsgs;
+			bool ok = msgs <= t.maxMsgs;
 			if (t.expectRate >= 0.0) ok = ok && std::fabs(rate - t.expectRate) <= 1e-3 * t.expectRate;
 			if (!ok) failures++;
-			std::printf("B-13  %-48s audio-thread msgs = %4d (max %d)  LFO1 rate = %8.4f", t.name,
-			            g_audioThreadMsgs, t.maxMsgs, rate);
+			std::printf("B-13  %-48s msgs = %4d (max %d)  LFO1 rate = %8.4f", t.name, msgs, t.maxMsgs, rate);
 			if (t.expectRate >= 0.0) std::printf(" (expect %.4f)", t.expectRate);
 			std::printf("  %s\n", ok ? "PASS" : "FAIL");
 		}
@@ -563,7 +591,7 @@ int main() {
 
 	// ---- B-10: heap allocations / frees inside process() (report only, not a pass/fail yet) ----
 	{
-		std::printf("\nB-10 heap use inside process() (operator new/delete; host message objects included)\n");
+		std::printf("\nB-10 heap use and messages inside process() (operator new/delete; host message objects included)\n");
 		struct HCase {
 			const char* name;
 			std::vector<NoteEvent> events;
@@ -611,13 +639,24 @@ int main() {
 			h.o.tempo2At = 1.0;
 			hcases.push_back(h);
 		}
+		auto byId = [](const int* counts) {
+			static char buf[512];
+			buf[0] = 0;
+			for (int c = 1; c < 256; c++)
+				if (counts[c]) std::snprintf(buf + std::strlen(buf), sizeof(buf) - std::strlen(buf), " '%c':%d", c, counts[c]);
+			return buf;
+		};
 		for (auto& h : hcases) {
 			heapwatch::reset();
 			std::fflush(stdout);
 			render(settings[0], h.events, h.seconds, h.o);
-			std::printf("  %-42s allocs %5d  frees %5d  (%d site(s))\n", h.name, heapwatch::allocs, heapwatch::frees,
-			            heapwatch::nSites);
-			heapwatch::report("      ");
+			const bool ok = heapwatch::allocs == 0 && heapwatch::frees == 0 && g_audioThreadMsgs == 0;
+			if (!ok) failures++;
+			std::printf("  %-42s allocs %5d  frees %5d  msgs sent in process %4d, delivered later %4d  %s\n", h.name,
+			            heapwatch::allocs, heapwatch::frees, g_audioThreadMsgs, g_deliveredMsgs, ok ? "PASS" : "FAIL");
+			if (g_audioThreadMsgs) std::printf("      in process by id:%s\n", byId(g_msgsIn));
+			if (g_deliveredMsgs) std::printf("      delivered by id:  %s\n", byId(g_msgsOut));
+			if (!ok) heapwatch::report("      ");
 		}
 	}
 

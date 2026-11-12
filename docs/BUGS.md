@@ -92,7 +92,7 @@ Fix: loop `min(temp, GPARAMS)`, skip the remainder, range-check program, check s
 ### B-09  Instance-id filter compares a variable with itself  · LOW · OPEN
 `DX10Processor::notify` (`:811`): `this->myInstanceId != myInstanceId` (the local read from the message is `myInstanceId_`). The condition is always false, so the filter never rejects anything. Probably harmless (connection points are per-instance), but the id plumbing (`this` pointer as int64) is then dead complexity. Decide: remove, or fix the typo.
 
-### B-10  Real-time safety  · MED · OPEN · **measured 2026-11-12** (see "B-10 heap measurement" below; the paragraph under this heading is the original code-reading note)
+### B-10  Real-time safety  · MED · **FIXED 2026-11-12** (heap use inside `process()` measured and now 0 in all test scenarios; see "B-10 heap measurement" and "Fix log: B-10" below; the paragraph under this heading is the original code-reading note)
 On the audio thread: `setCurrentProgram` → 64 `allocateMessage/sendMessage` calls (34 env/LFO recalcs + 23 vertical switches + 7 toggles, `:928-967`); `noteToIDMap` (`unordered_map`) insert/erase per note (`:1055`, `:1068`) – and the engine ignores noteID in its default `cutNote` mode, so this is pure overhead; `DXGenerator::RVoicesMap[note]` (an `operator[]` map) can allocate on a first-seen pitch; `recalcLfoNRate` may be called per chunk. Heap allocation and locking in `process()` can glitch under load.
 Fix: queue UI notifications via a lock-free queue and send from a non-audio context; replace the map with a fixed `int[128]`.
 
@@ -301,6 +301,18 @@ Method: `tests/note_off` replaces global `operator new/delete` in the test exe (
 
 Corrections to the note above: `RVoicesMap` is a plain preallocated array (`RVoice*`), not a map; it never allocates. `recalcLfoNRate` is no longer called per chunk (B-13 fixed).
 Remaining sources: (1) `noteToIDMap` (`unordered_map`) in `dispatchNoteEvent`, unused in `cutNote` mode; (2) the `notes` render list (`std::deque`) in `DXGenerator::noteOn`/`detectSilence`; (3) every `sendMessage` from the audio thread (`sendPidVal`, `sendDoubleAttr`, `sendIntAttr`). SDK 3.6.12 has no `DataExchange` API; it does have `OneReaderOneWriter::RingBuffer` (preallocated) and `Steinberg::Timer` (Windows: `SetTimer` on the creating thread, i.e. the host's main thread).
+
+### Fix log: B-10 (2026-11-12)
+- Step 1: `DX10Processor::noteToIDMap` (`std::unordered_map`) replaced by `int32 noteToID[128]` (-1 = none), same lookups.
+- Step 2: `DXGenerator::notes` (`std::deque<int32>`) replaced by `VoiceList` (fixed 128 entries, order-preserving `eraseAt`).
+- Step 3: GUI messages. `BaseProcessor::sendDoubleAttr/sendPidVal/sendIntAttr` build a small `QueuedMsg`. Inside `process()` (thread-local flag set by `BaseProcessor::process`) it is pushed to a preallocated `OneReaderOneWriter::RingBuffer` (4096 entries, SDK); a `Steinberg::Timer` (15 ms) created in `BaseProcessor::initialize` (host main thread) drains it and sends the messages there. Called outside `process()` they send immediately, as before. `terminate` stops the timer. Messages now reach the controller up to ~15 ms later, in the same order; controller code unchanged.
+- Evidence (`tests/note_off`, now pass/fail): all 7 heap scenarios make 0 allocations and 0 frees inside `process()` and send 0 messages from it (before: up to 4835 allocations for 7 preset changes). The timer delivers exactly the messages the old code sent from the audio thread: preset changes 492 (old: 492 message allocations), knob sweep 7 (7), synced tempo change 3 (3). All earlier cases pass. Debug and Release build with 0 errors.
+- Not covered: allocations inside a real host's `allocateMessage` now happen on the main thread (fine). Direct `malloc`/aligned `new` are not seen by the test (none found by grep in the audio path). A main-thread send can overtake older queued messages by up to one timer tick (both only update GUI state).
+
+### B-53  Message IDs sent as non-terminated strings; colliding 2-char IDs  · LOW · CONFIRMED in code · *send side fixed with B-10*
+- `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.
+- `PMSG_STEP_CTRL_CHAR = 'sc'` and `PMSG_STEP_CTRL_N_CHAR = 's1'..'sB'` are multi-character literals truncated to one `char` (MSVC keeps the last char): `'sc'` -> `'c'`, `'s1'` -> `'1'` (same as `CMSG_LINK_TUNE_CHAR`), `'s2'` -> `'2'`, ... Only `PMSG_STEP_CTRL_CHAR` is sent (from `recalcStepCtrlN`), and `'c'` is unique, so no live collision found; the `_N_` constants are traps.
+- Controller (`mdaBaseController.cpp:448,456`): `message->getMessageID == CMSG_ON_GET_SAMPLE_RATE` compares a member-function pointer, and `getMessageID() == "2"` compares pointers; both are always false (dead branches).
 
 ### B-52  Generator params 55-99 index past `generators[]`  · LOW · CONFIRMED in code (latent)
 `DX10Processor::processParameterChanges`: for `paramId < NPARAMS` (100) it uses `generators[paramId / PARTPARAMS]` with `PARTPARAMS` 55, but `GENCOUNT` is 1, so IDs 55-99 write to `generators[1]` (out of bounds). The controller only registers 0-54 (`PARTPARAMS * GENCOUNT`), so a host should never send them; reachable only with a bad/foreign param ID. Fix: bound by `PARTPARAMS * GENCOUNT`.

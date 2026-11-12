@@ -23,7 +23,8 @@ Only the **last point** of each param queue per block is used; automation is not
 
 ## Flow 2: processor -> controller messages (IMessage, not params)
 
-The processor/controller keep a **side channel** of IMessages, with a 1-char message ID (`PMSG_*_CHAR`, `CMSG_*_CHAR`):
+The processor/controller keep a **side channel** of IMessages, with a 1-char message ID (`PMSG_*_CHAR`, `CMSG_*_CHAR`).
+Threading (since B-10, 2026-11-12): the processor's `sendDoubleAttr/sendPidVal/sendIntAttr` called from inside `process()` only queue the message (lock-free ring); a 15 ms timer on the host main thread sends them. Called from any other thread (`initialize`, `setState`, ...) they send immediately. Messages:
 - `InstanceID`: processor sends `this` pointer as int64 on `connect()`; controller stores it in `myInstanceId`. Both sides then stamp/compare `"id"` on messages (see bug B-09: processor compare is broken).
 - `PMSG_STEP_SWITCH2` (processor -> controller): "set this vertical-switch/toggle from this value". Controller's `BaseController::notify` calls `doFromBase(pid,val)` (updates GUI) **and** replies with `PMSG_STEP_SWITCH` carrying the *string value as int* of the step param.
 - `PMSG_STEP_SWITCH` (controller -> processor): `generators[0].ctrlValues[pid] / controls[pid] = int`. This is how step/vertical switches reach the DSP, **as a parallel path to normal parameters**.

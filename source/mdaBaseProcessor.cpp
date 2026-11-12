@@ -30,6 +30,11 @@ namespace Steinberg {
 namespace Vst {
 namespace rs {
 
+namespace {
+// B-10: true while this thread is inside BaseProcessor::process() (the host's audio thread).
+thread_local bool tl_inProcess = false;
+}
+
 //-----------------------------------------------------------------------------
 BaseProcessor::BaseProcessor ()
 : params (0)
@@ -38,8 +43,74 @@ BaseProcessor::BaseProcessor ()
 , bypassBuffer0 (0)
 , bypassBuffer1 (0)
 , bypassState (false)
+, msgQueue (kMsgQueueSize)
 {
-	
+
+}
+
+//-----------------------------------------------------------------------------
+tresult PLUGIN_API BaseProcessor::initialize (FUnknown* context)
+{
+	tresult res = AudioEffect::initialize (context);
+	// Called on the host's main thread; the SDK timer fires on this thread (B-10).
+	if (res == kResultTrue && !msgTimer)
+		msgTimer = Timer::create (this, kMsgTimerMs);
+	return res;
+}
+
+//-----------------------------------------------------------------------------
+tresult PLUGIN_API BaseProcessor::terminate ()
+{
+	if (msgTimer) {
+		msgTimer->stop ();
+		msgTimer->release ();
+		msgTimer = nullptr;
+	}
+	return AudioEffect::terminate ();
+}
+
+//-----------------------------------------------------------------------------
+bool BaseProcessor::onAudioThread () { return tl_inProcess; }
+
+void BaseProcessor::onTimer (Timer* /*timer*/) { flushMessageQueue (); }
+
+void BaseProcessor::flushMessageQueue ()
+{
+	QueuedMsg m;
+	while (msgQueue.pop (m))
+		sendNowOrQueue (m, true);
+}
+
+void BaseProcessor::sendNowOrQueue (const QueuedMsg& m, bool fromQueue)
+{
+	if (!fromQueue && onAudioThread ()) {
+		if (!msgQueue.push (m))
+			msgQueueDropped++;
+		return;
+	}
+	IMessage* msg = allocateMessage ();
+	if (!msg)
+		return;
+	// The ID is sent as a proper 1-char C string. The controller only reads the first char; the
+	// old `&PMSG_..._CHAR` (address of a single char) was not NUL-terminated, so setMessageID read
+	// past it (B-53).
+	const char id[2] = {m.id, 0};
+	msg->setMessageID (id);
+	switch (m.kind) {
+		case QueuedMsg::kDoubleAttr:
+			msg->getAttributes ()->setFloat (m.attr, m.a);
+			break;
+		case QueuedMsg::kPidVal:
+			msg->getAttributes ()->setInt ("pid", static_cast<int64> (m.a));
+			msg->getAttributes ()->setFloat ("val", m.b);
+			break;
+		case QueuedMsg::kIntAttr:
+			msg->getAttributes ()->setInt (m.attr, static_cast<int64> (m.a));
+			break;
+	}
+	msg->getAttributes ()->setInt ("id", this->myInstanceId);
+	sendMessage (msg);
+	msg->release ();
 }
 
 //-----------------------------------------------------------------------------
@@ -57,7 +128,9 @@ BaseProcessor::~BaseProcessor ()
 
 tresult PLUGIN_API BaseProcessor::process (ProcessData& data)
 {
+	tl_inProcess = true;  // B-10: messages sent from here on are queued, not sent
 	preProcess(data);
+	tl_inProcess = false;
 	/*
 	if (processParameterChanges(data.inputParameterChanges))
 		
@@ -351,40 +424,35 @@ tresult PLUGIN_API BaseProcessor::setActive (TBool state)
 }
 
 //tresult PLUGIN_API BaseProcessor::sendDoubleAttr(const tresult* msgID, const char* attrID, const double& value){
+// msgID is the address of a single-char ID constant (e.g. &PMSG_LFO4_RATE_CHAR); only its first
+// char is used. attrID must be a string literal (it is stored until the queue is flushed).
 tresult PLUGIN_API BaseProcessor::sendDoubleAttr(const char* msgID, const char* attrID, const double& value) {
-		IMessage* msg = allocateMessage();
-		if (msg){
-			msg->setMessageID(msgID);
-			msg->getAttributes()->setFloat(attrID, value);
-			msg->getAttributes()->setInt("id", this->myInstanceId);
-			sendMessage(msg);
-			msg->release();
-		}
+	QueuedMsg m;
+	m.kind = QueuedMsg::kDoubleAttr;
+	m.id = msgID ? msgID[0] : 0;
+	m.attr = attrID;
+	m.a = value;
+	sendNowOrQueue(m);
 	return kResultTrue;
 }
 
 tresult PLUGIN_API BaseProcessor::sendPidVal(const char* msgID, const double& pid, const double& val) {
-	IMessage* msg = allocateMessage();
-	if (msg) {
-		msg->setMessageID(msgID);
-		msg->getAttributes()->setInt("pid", pid);
-		msg->getAttributes()->setFloat("val", val);
-		msg->getAttributes()->setInt("id", this->myInstanceId);
-		sendMessage(msg);
-		msg->release();
-	}
+	QueuedMsg m;
+	m.kind = QueuedMsg::kPidVal;
+	m.id = msgID ? msgID[0] : 0;
+	m.a = pid;
+	m.b = val;
+	sendNowOrQueue(m);
 	return kResultTrue;
 }
 
 tresult PLUGIN_API BaseProcessor::sendIntAttr(const char* msgID, const char* attrID, const int& value) {
-	IMessage* msg = allocateMessage();
-	if (msg) {
-		msg->setMessageID(msgID);
-		msg->getAttributes()->setInt(attrID, value);
-		msg->getAttributes()->setInt("id", this->myInstanceId);
-		sendMessage(msg);
-		msg->release();
-	}
+	QueuedMsg m;
+	m.kind = QueuedMsg::kIntAttr;
+	m.id = msgID ? msgID[0] : 0;
+	m.attr = attrID;
+	m.a = value;
+	sendNowOrQueue(m);
 	return kResultTrue;
 }
 

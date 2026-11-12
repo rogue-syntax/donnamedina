@@ -7,6 +7,8 @@
 //#include "Map.h"
 
 #include "public.sdk/source/vst/vstaudioeffect.h"
+#include "public.sdk/source/vst/utility/ringbuffer.h"
+#include "base/source/timer.h"
 #include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "constants.h"
@@ -18,11 +20,36 @@ namespace Vst {
 namespace rs {
 
 //-----------------------------------------------------------------------------
-class BaseProcessor : public AudioEffect
+class BaseProcessor : public AudioEffect, public ITimerCallback
 {
 public:
 	BaseProcessor ();
 	~BaseProcessor ();
+
+	tresult PLUGIN_API initialize (FUnknown* context) SMTG_OVERRIDE;
+	tresult PLUGIN_API terminate () SMTG_OVERRIDE;
+
+	// B-10: messages to the controller must not be allocated/sent on the audio thread.
+	// sendDoubleAttr/sendPidVal/sendIntAttr called from inside process() only queue the message
+	// (preallocated lock-free ring, no allocation); a main-thread timer sends them. Called from
+	// any other thread they send immediately, as before.
+	struct QueuedMsg {
+		enum Kind : uint8 { kDoubleAttr, kPidVal, kIntAttr };
+		uint8 kind = kDoubleAttr;
+		char id = 0;                 // message ID: the controller dispatches on the first char
+		const char* attr = nullptr;  // attribute name (string literal) for kDoubleAttr/kIntAttr
+		double a = 0.0;              // value, or pid for kPidVal
+		double b = 0.0;              // value for kPidVal
+	};
+	static const uint32 kMsgQueueSize = 4096;  // a preset change queues ~70
+	static const uint32 kMsgTimerMs = 15;
+	OneReaderOneWriter::RingBuffer<QueuedMsg> msgQueue;
+	Timer* msgTimer = nullptr;
+	uint32 msgQueueDropped = 0;  // messages lost because the queue was full (should stay 0)
+	void onTimer (Timer* timer) SMTG_OVERRIDE;
+	void flushMessageQueue ();   // sends all queued messages (main thread)
+	void sendNowOrQueue (const QueuedMsg& m, bool fromQueue = false);
+	static bool onAudioThread ();  // true while inside process() on this thread
 
 	enum {
 		
