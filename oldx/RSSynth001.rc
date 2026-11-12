@@ -1,0 +1,142 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+/////////////////////////////////////////////////////////////////////////////
+// English (United States) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
+#pragma code_page(1252)
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DATA
+//
+
+VSTGUI.UIDESC           DATA                    "./resources/vstgui.uidesc"
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// PNG
+//
+
+KNOB.PNG                PNG                     "./resources/knob.png"
+
+KNOB2.PNG               PNG                     "./resources/knob2.png"
+
+GROUPFRAME.PNG          PNG                     "./resources/groupframe.png"
+
+BACKGROUND.PNG          PNG                     "./resources/background.png"
+
+AMBERONOFF.PNG          PNG                     "./resources/amberonoff.png"
+
+VSJSTICK1.PNG           PNG                     "./resources/vsjstick1.png"
+
+VSJSTICK2.PNG           PNG                     "./resources/vsjstick2.png"
+
+DX100ALGOS1.PNG         PNG                     "./resources/dx100algos1.png"
+
+SINE_ICON.PNG         PNG                     "./resources/sine_icon.png"
+
+SAW_ICON.PNG         PNG                     "./resources/saw_icon.png"
+
+SQUARE_ICON.PNG         PNG                     "./resources/square_icon.png"
+
+TRI_ICON.PNG         PNG                     "./resources/tri_icon.png"
+
+KNOB_BKG.PNG         PNG                     "./resources/knob_bkg.png"
+
+KNOB_BIG_BKG.PNG         PNG                     "./resources/knob_big_bkg.png"
+
+KNOB_BIG2_BKG.PNG         PNG                     "./resources/knob_big2_bkg.png"
+
+attack_overlay.png	 PNG "./resources/attack_overlay.png"
+decay_overlay.png	 PNG "./resources/decay_overlay.png"
+release_overlay.png	PNG	"./resources/release_overlay.png"
+width_icon.png	PNG	"./resources/width_icon.png"
+fine_tuning_icon.png	PNG	"./resources/fine_tuning_icon.png"
+tuning_icon.png	PNG	"./resources/tuning_icon.png"
+
+mainRowBkg.png	PNG "./resources/mainRowBkg.png"
+
+BKG1.png	PNG "./resources/BKG1.png"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x40004L
+ FILETYPE 0x1L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040004e4"
+        BEGIN
+            VALUE "CompanyName", "Rogue Syntax"
+            VALUE "FileDescription", "RSSynth001donnaMedina"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "RSSynth001donnaMedina"
+            VALUE "LegalCopyright", "© Rogue Syntax"
+            VALUE "OriginalFilename", "RSSynth001donnaMedina.vst3"
+            VALUE "ProductName", "RSSynth001donnaMedina"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x400, 1252
+    END
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (United States) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

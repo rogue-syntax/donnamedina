@@ -1,0 +1,39 @@
+#pragma once
+#ifndef SHADER_H
+#define SHADER_H
+#ifdef _WIN32
+#include <windows.h>
+#endif
+#include <../SFML-2.5.1-64/include/SFML/gl/glew.h>
+#include <GL/GL.h> // include glad to get all the required OpenGL headers
+#include <GL/GLU.h>
+
+#include <string>
+#include <fstream>
+#include <sstream>
+#include <iostream>
+
+
+class GLShader
+{
+public:
+	// the program ID
+	GLuint ID;
+
+	// constructor reads and builds the shader
+	//Shader(const char* vertexPath, const char* fragmentPath);
+	GLShader(const char* vertexPath, const char* fragmentPath);
+	
+	// use/activate the shader
+	void use();
+	// utility uniform functions
+	void setBool(const std::string &name, GLint value) const;
+
+	void setInt(const std::string &name, GLint value) const;
+
+	void setFloat(const std::string &name, float value) const;
+	
+	
+};
+
+#endif

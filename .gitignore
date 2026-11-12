@@ -1,0 +1,33 @@
+# Build outputs
+x64/
+Win32/
+[Dd]ebug/
+[Rr]elease/
+*.obj
+*.pdb
+*.ipdb
+*.iobj
+*.ilk
+*.idb
+*.tlog
+*.lastbuildstate
+*.log
+*.exp
+*.res
+*.vst3
+*.sarif
+*.recipe
+*.FileListAbsolute.txt
+
+# Visual Studio state
+.vs/
+*.VC.db
+*.VC.opendb
+ipch/
+*.aps
+
+# libbcrypt local build tree (sources are kept)
+libbcrypt/build/
+
+# libbcrypt is a separate clone; its sources get vendored into external/libbcrypt
+libbcrypt/
