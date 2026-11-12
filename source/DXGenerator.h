@@ -346,6 +346,7 @@ public:
 	float voiceEnvRel;
 
 	float paramInc = 0.0f;
+	float panSmoothCoef = 0.0075f;  // B-55: one-pole pan glide coefficient (~3 ms), set in createVoice
 	float paramThresh = 0.0f;
 
 	ParamRampObj rampedParams[GENRAMPEDPARAMSLENGTH];

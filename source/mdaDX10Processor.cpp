@@ -80,6 +80,8 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 		constants::isRegLegit = false;
 	}
 
+	// TESTING ONLY - FORCE REGISTERED: overrides the registry/bcrypt check above so the plugin
+	// plays without a registration key. Comment these two lines out again before a release build.
 	//regKeyLegit = true;
 	//constants::isRegLegit = true;
 
@@ -837,15 +839,22 @@ tresult PLUGIN_API DX10Processor::notify(IMessage* message) {
 		message->getAttributes()->getInt("0", STEP_SWITCH_VAL);
 		message->getAttributes()->getInt("1", pid);
 		//int g = (int)(pid / PARTPARAMS);
-		generators[0].ctrlValues[pid] = STEP_SWITCH_VAL;
-		generators[0].controls[pid] = static_cast<float>(STEP_SWITCH_VAL);
+		// B-23: ctrlValues has NPARAMS (100) entries, but the switch round trip also comes back for
+		// ids 110..143 (setCurrentProgram sends ENV_1_ATTACK..STEP_CTRL_TARG, setState the toggles
+		// 113..138). Those writes landed in rampedParams (the width/gain/filter smoothing ramps) and
+		// corrupted them. Only generator params have a switch integer; the rest arrive as normal params.
+		if (pid >= 0 && pid < NPARAMS) {
+			generators[0].ctrlValues[pid] = STEP_SWITCH_VAL;
+			generators[0].controls[pid] = static_cast<float>(STEP_SWITCH_VAL);
+		}
 		return kResultTrue;
 		break;
 
 	case PMSG_LFO_RATE_CHAR:
 		message->getAttributes()->getFloat("0", LFO_RATE_VAL);
 		message->getAttributes()->getInt("1", pid);
-		(this->*recalculators[pid])(LFO_RATE_VAL);
+		if (pid >= 0 && pid < 1000)  // B-23: bounds of recalculators[]
+			(this->*recalculators[pid])(LFO_RATE_VAL);
 
 		return kResultTrue;
 		break;

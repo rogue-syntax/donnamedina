@@ -204,6 +204,11 @@ struct Options {
 	std::vector<std::pair<double, std::pair<ParamID, double>>> params;  // {seconds, {id, normalized}}
 	std::function<void(rs::DX10Processor&)> inspect;  // called after the last block
 	std::function<void(rs::DX10Processor&, double)> perBlock;  // after each block, with end time (s)
+	bool keepPatchEnvelopes = false;    // true: do not override ENV_1 attack/decay/release (default patch)
+	IConnectionPoint* peer = nullptr;   // connect the processor to this instead of the counting peer
+	std::function<void(rs::DX10Processor&)> onCreated;  // after initialize/connect, before processing
+	std::vector<float>* captureL = nullptr;  // if set: receives every output sample (left)
+	std::vector<float>* captureR = nullptr;
 };
 
 struct Settings {
@@ -221,7 +226,9 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	static CountingPeer peer;
 	auto* proc = new rs::DX10Processor();
 	proc->initialize(&host);
-	proc->connect(&peer);
+	IConnectionPoint* usedPeer = opt.peer ? opt.peer : static_cast<IConnectionPoint*>(&peer);
+	proc->connect(usedPeer);
+	if (opt.onCreated) opt.onCreated(*proc);
 	ProcessSetup setup{kRealtime, kSample32, kBlock, kSampleRate};
 	proc->setupProcessing(setup);
 	proc->setActive(true);
@@ -274,6 +281,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		}
 
 		ParameterChanges changes;
+		if (first && opt.keepPatchEnvelopes) first = false;
 		if (first) {  // envelope 1 = amp envelope: fast attack, decay/release from settings,
 			          // decay toggle off (= use the release rate on note-off)
 			auto set = [&](ParamID id, double v) {
@@ -337,6 +345,8 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		}
 
 		for (int32 i = 0; i < kBlock && pos + i < total; i++) {
+			if (opt.captureL) opt.captureL->push_back(left[i]);
+			if (opt.captureR) opt.captureR->push_back(right[i]);
 			const float v = std::max(std::fabs(left[i]), std::fabs(right[i]));
 			auto& pk = peaks[static_cast<size_t>((pos + i) / window)];
 			pk = std::max(pk, v);
@@ -350,7 +360,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	}
 	if (opt.inspect) opt.inspect(*proc);
 	proc->setActive(false);
-	proc->disconnect(&peer);
+	proc->disconnect(usedPeer);
 	proc->terminate();
 	proc->release();
 	return peaks;
@@ -385,7 +395,109 @@ float minPeak(const std::vector<float>& peaks, double from, double to) {
 
 }  // namespace
 
-int main() {
+// Probe (not a pass/fail test): default patch, filter turned down, the same note tapped
+// rhythmically so each tap cuts into the previous note's release. Looks for notes whose restart
+// differs from the rest (pops). Run: note_off_test.exe retrig [filter] [periodMs] [gateMs] [seconds]
+int retrigProbe(int argc, char** argv) {
+	const double filter = argc > 2 ? std::atof(argv[2]) : 0.3;
+	const double period = (argc > 3 ? std::atof(argv[3]) : 300.0) / 1000.0;
+	const double gate = (argc > 4 ? std::atof(argv[4]) : 120.0) / 1000.0;
+	const double seconds = argc > 5 ? std::atof(argv[5]) : 30.0;
+	const Settings s{"patch", 0.0, 0.0};
+	std::vector<NoteEvent> ev;
+	// RETRIG_JITTER=1: human-like timing: period +-25%, gate 40%..160%, velocity 70..127 (fixed seed)
+	const bool jitter = std::getenv("RETRIG_JITTER") != nullptr;
+	unsigned rng = 12345u;
+	auto rnd = [&rng]() { rng = rng * 1664525u + 1013904223u; return (rng >> 8) / 16777216.0; };
+	for (double t = 0.05; t + 2 * gate < seconds - 1.0;) {
+		const double g = jitter ? gate * (0.4 + 1.2 * rnd()) : gate;
+		NoteEvent on{at(t), true, kPitch};
+		if (jitter) on.velocity = static_cast<float>((70 + 57 * rnd()) / 127.0);
+		ev.push_back(on);
+		ev.push_back({at(t + g), false, kPitch});
+		t += jitter ? period * (0.75 + 0.5 * rnd()) : period;
+	}
+	Options o;
+	o.keepPatchEnvelopes = true;
+	// re-select preset 0 at t=0 so the processor sends its switch values and the real controller
+	// answers with the integer positions (osc type, mod type, env sources), as in a host
+	o.params = {{0.0, {rs::BaseController::kPresetParam, 0.5 / rs::DX10Processor::kNumPrograms}},
+	            {0.02, {FILTER_, filter}}};
+	static HostApplication chost;
+	auto* ctrl = new rs::DX10Controller();
+	ctrl->initialize(&chost);
+	const bool noCtrl = std::getenv("RETRIG_NOCTRL") != nullptr;
+	if (!noCtrl) {
+		o.peer = ctrl;
+		o.onCreated = [ctrl](rs::DX10Processor& p) { ctrl->connect(&p); };
+	}
+	// print the level in 100 ms steps for the first 4 s
+	o.perBlock = [](rs::DX10Processor& p, double t) {
+		static double next = 0.1;
+		if (std::getenv("RETRIG_TRACE") && t >= next && t < 4.0) {
+			const RVoice& v = p.generators[0].RVoicesMap[kPitch];
+			std::printf("    t %.2f  voices %d  env1 %.4f cenv1 %.4f  gainer %.4f  o %.5f  fo %.1f  fc %.1f  ramp %d kill %d  osc1 %.4f\n", t,
+			            p.generators[0].notes.size(), v.voiceEnvLfo[1].env, v.voiceEnvLfo[1].cenv, v.gainerTemp, v.o,
+			            v.WTOsc.m_dOscFo, v.m_Filter1.m_dFcControl, v.rampingDown ? 1 : 0, v.killIt ? 1 : 0, v.osc1pure);
+			next += 0.25;
+		}
+	};
+	std::vector<float> L, R;
+	o.captureL = &L;
+	o.captureR = &R;
+	int ctrlValSnapshot[8] = {};
+	o.inspect = [&](rs::DX10Processor& p) {
+		const int ids[8] = {OSC_, MOD_OSC_, MOD_TYPE_, OCT_, INT_, MOD_OCT_, PAN_LR_ENV_SRC, MOD_GAIN_ENV_SRC};
+		for (int i = 0; i < 8; i++) ctrlValSnapshot[i] = p.generators[0].ctrlValues[ids[i]];
+	};
+	render(s, ev, seconds, o);
+	ctrl->disconnect(nullptr);
+	std::printf("switch ints after the controller round trip: OSC %d MOD_OSC %d MOD_TYPE %d OCT %d INT %d MOD_OCT %d PAN_SRC %d MODGAIN_SRC %d\n",
+	            ctrlValSnapshot[0], ctrlValSnapshot[1], ctrlValSnapshot[2], ctrlValSnapshot[3], ctrlValSnapshot[4],
+	            ctrlValSnapshot[5], ctrlValSnapshot[6], ctrlValSnapshot[7]);
+
+	// per note: the sample-to-sample step (|x[n]-x[n-1]|) is the click detector; with the filter
+	// down, normal audio has small steps, a pop has a large one. Look in [on, on + 60 ms].
+	struct NoteStat { int idx; double t; float maxStep; int stepAt; float peak; };
+	std::vector<NoteStat> st;
+	const int w = static_cast<int>(0.060 * kSampleRate);
+	int k = 0;
+	for (const auto& e : ev) {
+		if (!e.on) continue;
+		const int on = static_cast<int>(e.sample);
+		NoteStat n{k++, e.sample / kSampleRate, 0.0f, 0, 0.0f};
+		for (int i = std::max(2, on); i < on + w && i < static_cast<int>(L.size()); i++) {
+			// second difference: ~0 for a smooth (filtered) waveform, spikes on a discontinuity
+			const float step = std::max(std::fabs(L[i] - 2 * L[i - 1] + L[i - 2]), std::fabs(R[i] - 2 * R[i - 1] + R[i - 2]));
+			if (step > n.maxStep) { n.maxStep = step; n.stepAt = i - on; }
+			n.peak = std::max(n.peak, std::max(std::fabs(L[i]), std::fabs(R[i])));
+		}
+		st.push_back(n);
+	}
+	std::vector<float> steps;
+	for (auto& n : st) steps.push_back(n.maxStep);
+	std::sort(steps.begin(), steps.end());
+	const float med = steps[steps.size() / 2];
+	std::printf("retrig probe: filter %.2f, period %.0f ms, gate %.0f ms, %zu notes; median max-step %.5f\n", filter,
+	            period * 1000, gate * 1000, st.size(), med);
+	std::sort(st.begin(), st.end(), [](const NoteStat& a, const NoteStat& b) { return a.maxStep > b.maxStep; });
+	std::printf("  loudest steps (note #, time, step, x median, at ms after note-on, peak in window):\n");
+	for (size_t i = 0; i < st.size() && i < 10; i++)
+		std::printf("   #%3d  %6.2f s  step %.5f  x%5.1f  at %5.1f ms  peak %.4f\n", st[i].idx, st[i].t, st[i].maxStep,
+		            med > 0 ? st[i].maxStep / med : 0.0, st[i].stepAt * 1000.0 / kSampleRate, st[i].peak);
+	// dump the worst note's samples around its biggest step for inspection
+	if (!st.empty()) {
+		const int c = static_cast<int>(st[0].t * kSampleRate) + st[0].stepAt;
+		std::printf("  samples around worst step (L, R), n = step position:\n");
+		for (int i = c - 6; i <= c + 6; i++)
+			if (i > 0 && i < static_cast<int>(L.size()))
+				std::printf("    n%+3d  % .5f  % .5f\n", i - c, L[i], R[i]);
+	}
+	return 0;
+}
+
+int main(int argc, char** argv) {
+	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
 	const Settings settings[] = {
 		{"decay=HOLD", 1.0, 0.5},
 		{"decay=0.6 ", 0.6, 0.5},

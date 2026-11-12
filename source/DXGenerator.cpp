@@ -190,6 +190,7 @@ void DXGenerator::createVoice() {
 
 	paramInc = (100 / sampleRate);
 	paramThresh = (10000 / sampleRate);
+	panSmoothCoef = 1.0f - std::exp(-1.0f / (0.003f * sampleRate));  // B-55: ~3 ms pan glide
 	syncLFO.pitchShiftFactor = 1;
 	/*
 	monoVoice.id = -1;//figure
@@ -945,17 +946,13 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 
 	voiceObj.pan = ParamClamp2(((rampedParams[PAN_LR_RAMPINDEX].level) + (rampedParams[PAN_LR_ENV_RAMPINDEX].level * (*voiceObj.envBank[panEnvSrc]))), -1, 1 );
 	//voiceObj.pan = voiceObj.pan  * voiceObj.voiceEnvLfo[1].cenv;
-	voiceObj.prePan = voiceObj.pan;
-	float panDiff = voiceObj.pan - voiceObj.prePan;
-	if (std::abs(panDiff) > 0.1) {
-		//POTENTIAL DIV BY 0
-		voiceObj.prePan = voiceObj.prePan + (paramInc * (panDiff / std::abs(panDiff)));
-	}
-	else {
-		voiceObj.prePan = voiceObj.pan;
-	}
+	// B-55: pan smoothing. The old slew limiter set prePan = pan before computing the difference,
+	// so it never ran and pan jumps went straight to the output. Pan is applied after the filter,
+	// whose output is still non-zero when a retriggered note restarts and its per-voice pan LFO
+	// resets, so that jump was a click/pop. One-pole glide, ~3 ms.
+	voiceObj.prePan += panSmoothCoef * (voiceObj.pan - voiceObj.prePan);
 
-	
+
 	voiceObj.o1 = ((voiceObj.prePan + 1.0f) / 2.0f) * voiceObj.o;
 	voiceObj.o2 = ((voiceObj.prePan - 1.0f) / -2.0f) * voiceObj.o;
 	
@@ -988,15 +985,7 @@ void DXGenerator::deadVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.o = voiceObj.m_Filter1.doFilter(voiceObj.o);
 	voiceObj.pan = ParamClamp2(((rampedParams[PAN_LR_RAMPINDEX].level) + (controls[PAN_LR_ENV] * (*voiceObj.envBank[panEnvSrc]))), -1, 1);
 	//voiceObj.pan = voiceObj.pan  * voiceObj.voiceEnvLfo[1].cenv;
-	voiceObj.prePan = voiceObj.pan;
-	float panDiff = voiceObj.pan - voiceObj.prePan;
-	if (std::abs(panDiff) > 0.1) {
-		//POTENTIAL DIV BY 0
-		voiceObj.prePan = voiceObj.prePan + (paramInc * (panDiff / std::abs(panDiff)));//POTENTIAL DIV X 0
-	}
-	else {
-		voiceObj.prePan = voiceObj.pan;
-	}
+	voiceObj.prePan += panSmoothCoef * (voiceObj.pan - voiceObj.prePan);  // B-55, see singleVoiceProcessing
 
 
 	voiceObj.o1 = ((voiceObj.prePan + 1.0f) / 2.0f) * voiceObj.o;
