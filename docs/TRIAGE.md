@@ -36,7 +36,7 @@ Done 2026-11-12: B-36, B-48, B-49, B-50 (see BUILDING.md). Open: B-51 · B-24 `R
 B-26, B-37, B-35 · B-40 denormals (mostly moot since B-17: silent voices are no longer processed; a release tail can still pass through denormal range) · B-41 Q range · B-42 filter Nyquist · B-43 LFO saw chase · ~~B-47 stale mod after changing mod type~~ (fixed 2026-11-12) · B-44 float phase accumulators
 
 ## Still unexplained from your old notes
-"modulation drops out on retrigger when env too high" (B-19 withdrawn), "INIT modulation adds up on voice stealing", "second voice drops out on retrig" (only partly explained by B-05/B-18).
+~~"second voice drops out on retrig" / "modulation drops out on retrig when env too high"~~ explained and fixed 2026-11-12 (B-56: envelopes 2/3 jumped to 0 at the retrigger restart). "INIT modulation adds up on voice stealing": no accumulating code found in the note-on or steal path; likeliest past causes are fixed (B-23 corrupted the MOD_GAIN ramp, B-17 re-stole the fading voice, B-47 left stale mod on the carrier). Recheck by ear.
 
 ## Not yet looked at
 remaining small draw code, `RSOGProc/View` (probably dead).

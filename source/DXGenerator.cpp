@@ -437,7 +437,7 @@ void DXGenerator::saveTargValues(RVoice& voiceObj, bool killIt) {
 
 
 
-void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel) {
+void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool retrig) {
 
 	voiceObj.WTOsc.m_uWaveform = (int)controls[OSC_];
 	voiceObj.WTOsc2.m_uWaveform = (int)controls[MOD_OSC_];
@@ -472,13 +472,20 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel) {
 	voiceObj.voiceEnvLfo[1].cenv = 0.0003f;
 	voiceObj.voiceEnvLfo[1].cdec = (*EnvLfoCtrls[1]).cdec;
 
+	// B-56: envelopes 2 and 3 (modulation sources) restart their attack. On a retrigger of a
+	// still-sounding note they used to jump from their current level to 0 first, so whatever they
+	// modulate (mod depth, filter, pitch...) dropped out at the retrigger, more the higher the env
+	// was ("modulation drops out on retrig when env too high"). On a retrigger the attack now
+	// starts from the current level; a fresh note still starts from 0.
 	voiceObj.voiceEnvLfo[2].env = 1.0;
-	voiceObj.voiceEnvLfo[2].cenv = 0.0;
+	if (!retrig)
+		voiceObj.voiceEnvLfo[2].cenv = 0.0;
 	voiceObj.voiceEnvLfo[2].catt = (*EnvLfoCtrls[2]).catt;
 	voiceObj.voiceEnvLfo[2].cdec = (*EnvLfoCtrls[2]).cdec;
 
 	voiceObj.voiceEnvLfo[3].env = 1.0;
-	voiceObj.voiceEnvLfo[3].cenv = 0.0;
+	if (!retrig)
+		voiceObj.voiceEnvLfo[3].cenv = 0.0;
 	voiceObj.voiceEnvLfo[3].catt = (*EnvLfoCtrls[3]).catt;
 	voiceObj.voiceEnvLfo[3].cdec = (*EnvLfoCtrls[3]).cdec;
 
@@ -706,7 +713,7 @@ void DXGenerator::interpolateVoice(RVoice& voiceObj) {
 		//reset all envLfo
 		// not necc here?
 		if (voiceObj.killIt == false) {
-			processNoteOn(voiceObj, &voiceObj.note, &voiceObj.vel);
+			processNoteOn(voiceObj, &voiceObj.note, &voiceObj.vel, true);  // end of retrigger fade (B-56)
 			if (voiceObj.releasePending == true) { // B-18: note-off arrived during the fade
 				voiceObj.releasePending = false;
 				releaseVoice(voiceObj);

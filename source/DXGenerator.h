@@ -516,7 +516,7 @@ public:
 
 	float adjustedRatio = 0.0f;
 
-	void processNoteOn(RVoice& voiceObj, int32* note, int32* vel  );
+	void processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool retrig = false);  // retrig: B-56
 
 	void processNoteReOn(RVoice& voiceObj, int32* note, int32* vel);
 

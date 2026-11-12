@@ -824,6 +824,28 @@ int main(int argc, char** argv) {
 		            after, ok ? "PASS" : "FAIL");
 	}
 
+	// ---- B-56: modulation envelopes must not drop to zero on a retrigger ----
+	{
+		std::printf("\nB-56 env 2 (mod env) level across a retrigger (slow env-2 attack, note re-struck at 1.0 s)\n");
+		double before = -1.0, after = -1.0, fresh = -1.0;
+		Options o;
+		o.params = {{0.0, {ENV_2_ATTACK, 0.6}}, {0.0, {ENV_2_DECAY, 1.0}}};  // slow attack, hold
+		o.perBlock = [&](rs::DX10Processor& p, double t) {
+			const double c = p.generators[0].RVoicesMap[kPitch].voiceEnvLfo[2].cenv;
+			if (t > 0.055 && fresh < 0) fresh = c;   // ~55 ms into the first (fresh) note
+			if (t < 1.0) before = c;                  // last block before the re-strike
+			if (t > 1.075 && after < 0) after = c;    // ~75 ms after re-strike (fade 21 ms + 50 ms)
+		};
+		render(settings[0], {{0, true, kPitch}, {at(1.0), true, kPitch}, {at(1.5), false, kPitch}}, 2.0, o);
+		const double ratio = before > 0 ? after / before : 0.0;
+		// fresh < 0.9 * before: the attack is slow enough to see (a fresh note still starts from 0);
+		// the old retrigger restarted env 2 from 0 too, so 50 ms after it the level was back at ~fresh.
+		const bool ok = before > 0.5 && ratio > 0.9 && fresh < 0.9 * before;
+		if (!ok) failures++;
+		std::printf("  env2: fresh note @55 ms %.3f, before re-strike %.3f, 50 ms after restart %.3f (ratio %.2f, want > 0.9)  %s\n",
+		            fresh, before, after, ratio, ok ? "PASS" : "FAIL");
+	}
+
 	// ---- B-22: oscillator-1 note index must stay inside midiFreqTable[128] ----
 	{
 		std::printf("\nB-22 oscillator 1 pitch at the keyboard extremes with octave/interval at the limits\n");
