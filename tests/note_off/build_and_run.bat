@@ -20,7 +20,7 @@ rem ^ same defines as the plugin's Release|x64 compile (from its CL.command tlog
 rem   because the test includes <windows.h> before ska.h.
 set INCS=/I"%SDK%" /I"%SDK%\vstgui4" /I"%SDK%\external\revent" /I"%PROJ%\external\glew\include" /I"%PROJ%\external\libbcrypt\include"
 
-cl /nologo /c /MD /O2 /EHsc /fp:fast /w %DEFS% %INCS% /Fo"%OUT%\\" ^
+cl /nologo /c /MD /O2 /Zi /EHsc /fp:fast /w %DEFS% %INCS% /Fo"%OUT%\\" ^
   "%HERE%note_off_test.cpp" ^
   "%SDK%\public.sdk\source\vst\hosting\eventlist.cpp" ^
   "%SDK%\public.sdk\source\vst\hosting\parameterchanges.cpp" ^
@@ -33,10 +33,11 @@ if exist "%RSP%" del "%RSP%"
 for %%f in ("%OBJ%\*.obj") do if /I not "%%~nxf"=="dllmain.obj" echo "%%~ff">>"%RSP%"
 
 set LIBDIR=%SDK%\build\lib\Release
-link /nologo /OUT:"%OUT%\note_off_test.exe" /SUBSYSTEM:CONSOLE /NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:msvcrtd.lib ^
+rem /DEBUG: PDB so the heap report (B-10) can name the functions that allocate
+link /nologo /DEBUG /OUT:"%OUT%\note_off_test.exe" /SUBSYSTEM:CONSOLE /NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:msvcrtd.lib ^
   "%OUT%\note_off_test.obj" "%OUT%\eventlist.obj" "%OUT%\parameterchanges.obj" "%OUT%\hostclasses.obj" "%OUT%\pluginterfacesupport.obj" @"%RSP%" ^
   "%LIBDIR%\base.lib" "%LIBDIR%\sdk.lib" "%LIBDIR%\vstgui.lib" "%LIBDIR%\vstgui_uidescription.lib" "%LIBDIR%\vstgui_support.lib" "%LIBDIR%\vstgui_standalone.lib" ^
-  "%PROJ%\external\glew\lib\x64\glew32s.lib" opengl32.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib || exit /b 1
+  "%PROJ%\external\glew\lib\x64\glew32s.lib" opengl32.lib dbghelp.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib || exit /b 1
 
 "%OUT%\note_off_test.exe"
 exit /b %errorlevel%

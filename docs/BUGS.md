@@ -92,7 +92,7 @@ Fix: loop `min(temp, GPARAMS)`, skip the remainder, range-check program, check s
 ### B-09  Instance-id filter compares a variable with itself  · LOW · OPEN
 `DX10Processor::notify` (`:811`): `this->myInstanceId != myInstanceId` (the local read from the message is `myInstanceId_`). The condition is always false, so the filter never rejects anything. Probably harmless (connection points are per-instance), but the id plumbing (`this` pointer as int64) is then dead complexity. Decide: remove, or fix the typo.
 
-### B-10  Real-time safety  · MED · OPEN
+### B-10  Real-time safety  · MED · OPEN · **measured 2026-11-12** (see "B-10 heap measurement" below; the paragraph under this heading is the original code-reading note)
 On the audio thread: `setCurrentProgram` → 64 `allocateMessage/sendMessage` calls (34 env/LFO recalcs + 23 vertical switches + 7 toggles, `:928-967`); `noteToIDMap` (`unordered_map`) insert/erase per note (`:1055`, `:1068`) – and the engine ignores noteID in its default `cutNote` mode, so this is pure overhead; `DXGenerator::RVoicesMap[note]` (an `operator[]` map) can allocate on a first-seen pitch; `recalcLfoNRate` may be called per chunk. Heap allocation and locking in `process()` can glitch under load.
 Fix: queue UI notifications via a lock-free queue and send from a non-audio context; replace the map with a fixed `int[128]`.
 
@@ -285,6 +285,25 @@ Undefined behaviour for a non-void function; SDK mod file.
 - Test harness: the processor now gets a real host context (`HostApplication` from the SDK hosting sources) and a peer that counts messages sent from inside `process()`. 5 new B-13 cases. Old code: 133.3 BPM -> 807 audio-thread messages in 3.1 s (sync off as well as on); sync switched on at 0.5 s at 120 BPM -> LFO 1 rate stays at the free value 10.04 instead of 4.0. Fixed: 0-3 messages per render (initial tempo adoption and the parameter changes themselves), all rates as expected including a 120 -> 140 tempo change. All earlier cases still pass. Debug and Release build with 0 errors.
 - Still open (B-10): `recalcLfoNRate` still allocates and sends an IMessage from the audio thread, now only on real rate changes (knob, sync toggle, tempo change with sync on). A host tempo ramp with sync on still sends one per synced LFO per block.
 - Seen while reading, not changed (B-13 fix): `recalcLfo2Rate`/`recalcLfo3Rate` set `mainEnvLfo[5/6].m_dOscFo` from `EnvLfoCtrls[2]/[3].rate` in the sync-off branch (wrong index), but the line after overwrites it with the right value, so it has no effect.
+
+### B-10 heap measurement (2026-11-12, discovery)
+Method: `tests/note_off` replaces global `operator new/delete` in the test exe (the plugin objects and SDK libs are linked in, so their allocations go through it), records every allocation/free made inside `process()` with its call stack, and names the functions via DbgHelp. The processor has a real `HostApplication` context, so `allocateMessage` allocates like a host would (a real host's allocation is in the host, but it is still a heap allocation on the audio thread). Not seen: direct `malloc`, aligned `new`, allocations inside the host. No locks (mutex/critical section/FLock) exist in the processor/engine sources.
+
+| Scenario | allocs | frees | Where |
+|---|---|---|---|
+| idle, no notes (1 s) | 0 | 0 | - |
+| one held note | 3 | 0 | `notes` deque growth (2) + `noteToIDMap` insert (1) |
+| 4-note arp, 60 notes | 62 | 60 | `noteToIDMap` insert/erase: 1 alloc + 1 free **per note**; deque growth 2 |
+| 60 distinct pitches | 69 | 60 | `noteToIDMap` per note; deque growth 9 (first time only, MSVC deque blocks are reused) |
+| sweep of params 0-54, 110-143 | 59 | 56 | GUI messages (`sendDoubleAttr` LFO rates, `sendIntAttr`): ~8 allocs per message |
+| 7 preset changes | 4835 | 4832 | `setCurrentProgram` on the audio thread: per preset ~64 `sendPidVal` + LFO-rate `sendDoubleAttr` messages, ~690 allocs per preset |
+| LFO 1 synced, tempo 120 -> 140 | 27 | 24 | 3 LFO-rate messages |
+
+Corrections to the note above: `RVoicesMap` is a plain preallocated array (`RVoice*`), not a map; it never allocates. `recalcLfoNRate` is no longer called per chunk (B-13 fixed).
+Remaining sources: (1) `noteToIDMap` (`unordered_map`) in `dispatchNoteEvent`, unused in `cutNote` mode; (2) the `notes` render list (`std::deque`) in `DXGenerator::noteOn`/`detectSilence`; (3) every `sendMessage` from the audio thread (`sendPidVal`, `sendDoubleAttr`, `sendIntAttr`). SDK 3.6.12 has no `DataExchange` API; it does have `OneReaderOneWriter::RingBuffer` (preallocated) and `Steinberg::Timer` (Windows: `SetTimer` on the creating thread, i.e. the host's main thread).
+
+### B-52  Generator params 55-99 index past `generators[]`  · LOW · CONFIRMED in code (latent)
+`DX10Processor::processParameterChanges`: for `paramId < NPARAMS` (100) it uses `generators[paramId / PARTPARAMS]` with `PARTPARAMS` 55, but `GENCOUNT` is 1, so IDs 55-99 write to `generators[1]` (out of bounds). The controller only registers 0-54 (`PARTPARAMS * GENCOUNT`), so a host should never send them; reachable only with a bad/foreign param ID. Fix: bound by `PARTPARAMS * GENCOUNT`.
 
 ### Fix log: B-17 (2026-11-12)
 Background (from the author): there is one preallocated voice per pitch (`RVoicesMap[128]`); `notes` is the list of pitches that `mainProcessing` renders every sample.

@@ -8,6 +8,7 @@
 
 #include <windows.h>  // mdaBaseProcessor.h includes the Windows <bcrypt.h>, which needs this first
 #include "../../source/mdaDX10Processor.h"
+#include "../../source/mdaBaseController.h"  // kPresetParam
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
@@ -20,8 +21,121 @@
 #include <vector>
 #include <algorithm>
 
+#include <dbghelp.h>
+#include <new>
+#include <cstdlib>
+#include <cstring>
+
 // Normally defined by the SDK's dllmain.cpp, which the test does not link (it is an exe).
 void* moduleHandle = nullptr;
+
+// ---- B-10: heap use inside process() -------------------------------------------------------
+// Replaces global operator new/delete for the whole exe (plugin objects and SDK libs are linked
+// in statically, so their allocations come through here). While g_inProcess is true every
+// allocation and free is counted and its call stack recorded, so the report shows where on the
+// audio thread the heap is used. (malloc called directly is not seen.)
+namespace heapwatch {
+bool g_inProcess = false;  // set by the renderer around proc->process()
+thread_local bool inHook = false;
+struct Site {
+	unsigned long long key;
+	void* frames[16];
+	unsigned short n;
+	int allocs, frees;
+	size_t bytes;
+};
+Site sites[1024];
+int nSites = 0;
+int allocs = 0, frees = 0;
+
+void record(size_t bytes, bool isFree) {
+	if (!g_inProcess || inHook) return;
+	inHook = true;
+	void* fr[16];
+	unsigned short n = CaptureStackBackTrace(2, 16, fr, nullptr);
+	unsigned long long key = isFree ? 1 : 2;
+	for (unsigned short i = 0; i < n; i++) key = key * 1000003ULL + reinterpret_cast<unsigned long long>(fr[i]);
+	int s = 0;
+	while (s < nSites && sites[s].key != key) s++;
+	if (s == nSites && nSites < 1024) {
+		sites[s].key = key;
+		std::memcpy(sites[s].frames, fr, sizeof(void*) * n);
+		sites[s].n = n;
+		sites[s].allocs = sites[s].frees = 0;
+		sites[s].bytes = 0;
+		nSites++;
+	}
+	if (s < 1024) {
+		if (isFree) sites[s].frees++; else { sites[s].allocs++; sites[s].bytes += bytes; }
+	}
+	if (isFree) frees++; else allocs++;
+	inHook = false;
+}
+void reset() { nSites = 0; allocs = frees = 0; }
+
+// Prints each recorded site: the first frame outside the C++ runtime/std plus 3 callers.
+void report(const char* indent) {
+	static bool symInit = false;
+	HANDLE proc = GetCurrentProcess();
+	if (!symInit) {
+		SymSetOptions(SYMOPT_UNDNAME | SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS);
+		SymInitialize(proc, nullptr, TRUE);
+		symInit = true;
+	}
+	inHook = true;  // the symbol engine allocates
+	for (int s = 0; s < nSites; s++) {
+		std::printf("%s%-5s x%-5d", indent, sites[s].allocs ? "new" : "free",
+		            sites[s].allocs ? sites[s].allocs : sites[s].frees);
+		int shown = 0;
+		bool started = false;
+		for (unsigned short f = 0; f < sites[s].n && shown < 4; f++) {
+			char buf[sizeof(SYMBOL_INFO) + 512];
+			auto* sym = reinterpret_cast<SYMBOL_INFO*>(buf);
+			sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+			sym->MaxNameLen = 511;
+			DWORD64 disp = 0;
+			const char* name = "?";
+			if (SymFromAddr(proc, reinterpret_cast<DWORD64>(sites[s].frames[f]), &disp, sym)) name = sym->Name;
+			const bool runtime = std::strncmp(name, "std::", 5) == 0 || std::strstr(name, "operator new") ||
+			                     std::strstr(name, "operator delete") || std::strstr(name, "heapwatch") ||
+			                     std::strncmp(name, "_", 1) == 0;
+			if (!started && runtime) continue;
+			started = true;
+			IMAGEHLP_LINE64 line{};
+			line.SizeOfStruct = sizeof(line);
+			DWORD ld = 0;
+			const char* file = "";
+			DWORD ln = 0;
+			if (SymGetLineFromAddr64(proc, reinterpret_cast<DWORD64>(sites[s].frames[f]), &ld, &line)) {
+				file = std::strrchr(line.FileName, '\\') ? std::strrchr(line.FileName, '\\') + 1 : line.FileName;
+				ln = line.LineNumber;
+			}
+			std::printf("%s %s (%s:%lu)", shown ? " <-" : "", name, file, ln);
+			shown++;
+		}
+		std::printf("\n");
+	}
+	inHook = false;
+}
+}  // namespace heapwatch
+
+void* operator new(size_t n) {
+	heapwatch::record(n, false);
+	if (void* p = std::malloc(n ? n : 1)) return p;
+	throw std::bad_alloc();
+}
+void* operator new[](size_t n) { return operator new(n); }
+void* operator new(size_t n, const std::nothrow_t&) noexcept {
+	heapwatch::record(n, false);
+	return std::malloc(n ? n : 1);
+}
+void* operator new[](size_t n, const std::nothrow_t& t) noexcept { return operator new(n, t); }
+void operator delete(void* p) noexcept { if (p) { heapwatch::record(0, true); std::free(p); } }
+void operator delete[](void* p) noexcept { operator delete(p); }
+void operator delete(void* p, size_t) noexcept { operator delete(p); }
+void operator delete[](void* p, size_t) noexcept { operator delete(p); }
+void operator delete(void* p, const std::nothrow_t&) noexcept { operator delete(p); }
+void operator delete[](void* p, const std::nothrow_t&) noexcept { operator delete(p); }
 
 using namespace Steinberg;
 using namespace Steinberg::Vst;
@@ -177,7 +291,9 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		std::fill(right.begin(), right.begin() + kBlock, 0.0f);
 
 		g_inProcess = true;
+		heapwatch::g_inProcess = true;
 		proc->process(data);
+		heapwatch::g_inProcess = false;
 		g_inProcess = false;
 		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + kBlock) / kSampleRate);
 
@@ -442,6 +558,66 @@ int main() {
 			if (sLvl >= 0) std::printf("  sounding @%.2fs %.4f", v.soundAt, sLvl);
 			if (eLvl >= 0) std::printf("  ended @%.2fs %.4f", v.silentAt, eLvl);
 			std::printf("  [%llu ms]  %s\n", ms, ok ? "PASS" : "FAIL");
+		}
+	}
+
+	// ---- B-10: heap allocations / frees inside process() (report only, not a pass/fail yet) ----
+	{
+		std::printf("\nB-10 heap use inside process() (operator new/delete; host message objects included)\n");
+		struct HCase {
+			const char* name;
+			std::vector<NoteEvent> events;
+			Options o;
+			double seconds;
+		};
+		std::vector<HCase> hcases;
+		hcases.push_back({"idle (no notes)", {}, {}, 1.0});
+		hcases.push_back({"one held note", {{0, true, kPitch}}, {}, 2.0});
+		{
+			HCase h{"playing: 4-note arp, 50 ms steps, 3 s", {}, {}, 3.0};
+			for (int k = 0; k < 60; k++) {
+				const int16 p = static_cast<int16>(60 + (k % 4) * 4);
+				h.events.push_back({at(0.05 * k), true, p});
+				h.events.push_back({at(0.05 * k + 0.03), false, p});
+			}
+			hcases.push_back(h);
+		}
+		{
+			HCase h{"60 distinct pitches", {}, {}, 3.0};
+			for (int k = 0; k < 60; k++) {
+				h.events.push_back({at(0.03 * k), true, static_cast<int16>(30 + k)});
+				h.events.push_back({at(0.03 * k + 0.02), false, static_cast<int16>(30 + k)});
+			}
+			hcases.push_back(h);
+		}
+		{  // every generator param (0..54) and env/LFO/step param (110..143), one per block, note held
+			HCase h{"knob sweep: params 0-54 and 110-143", {{0, true, kPitch}}, {}, 2.5};
+			double t = 0.05;
+			for (int id = 0; id < PARTPARAMS; id++, t += 0.02) h.o.params.push_back({t, {static_cast<ParamID>(id), 0.3}});
+			for (int id = ENV_1_ATTACK; id <= STEP_CTRL_TARG; id++, t += 0.02)
+				h.o.params.push_back({t, {static_cast<ParamID>(id), 0.3}});
+			hcases.push_back(h);
+		}
+		{
+			HCase h{"preset changes (7 programs)", {{0, true, kPitch}}, {}, 2.0};
+			for (int k = 0; k < 7; k++)
+				h.o.params.push_back({0.1 + 0.2 * k, {rs::BaseController::kPresetParam, (k + 0.5) / 7.0}});
+			hcases.push_back(h);
+		}
+		{
+			HCase h{"LFO 1 synced, tempo 120 -> 140 at 1.0 s", {{0, true, kPitch}}, {}, 2.0};
+			h.o.params = {{0.0, {LFO_1_RATE, 0.5}}, {0.0, {LFO_1_BPM, 1.0}}};
+			h.o.tempo2 = 140.0;
+			h.o.tempo2At = 1.0;
+			hcases.push_back(h);
+		}
+		for (auto& h : hcases) {
+			heapwatch::reset();
+			std::fflush(stdout);
+			render(settings[0], h.events, h.seconds, h.o);
+			std::printf("  %-42s allocs %5d  frees %5d  (%d site(s))\n", h.name, heapwatch::allocs, heapwatch::frees,
+			            heapwatch::nSites);
+			heapwatch::report("      ");
 		}
 	}
 
