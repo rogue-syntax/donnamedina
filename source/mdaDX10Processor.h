@@ -49,7 +49,9 @@ public:
 
 	double procValues[1000];
 
-	std::unordered_map<int32, int32> noteToIDMap;
+	// B-10: pitch -> noteID of the note-on, -1 = none. Was an std::unordered_map, which allocated
+	// and freed a node on the audio thread for every note.
+	int32 noteToID[128];
 
 	tresult PLUGIN_API initialize (FUnknown* context) SMTG_OVERRIDE;
 	tresult PLUGIN_API terminate () SMTG_OVERRIDE;

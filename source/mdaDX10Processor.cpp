@@ -634,6 +634,7 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 		addAudioOutput (USTRING("Stereo Out"), SpeakerArr::kStereo);
 
 		notes[0] = EVENTS_DONE;
+		for (int32 i = 0; i < 128; i++) noteToID[i] = -1;
 		sampleRate = (float)getSampleRate();
 		ifs = 1.0 / sampleRate;
 
@@ -1090,26 +1091,21 @@ void DX10Processor::dispatchNoteEvent(int32 note, int32 velocity)
 {
 	// Call noteOn to handle both note-on and note-off
 	// In a more robust implementation, we'd add a noteMap to track note->noteID mapping
-	noteOn(note, velocity, noteID);
+	noteOn(note, velocity, noteID);  // a note-off looks up noteToID[note] inside
 
+	const bool validPitch = note >= 0 && note < 128;
 	// Update noteID for note-on events
 	if (velocity > 0) {
 		// Store the mapping of note to noteID
-		noteToIDMap[note] = noteID;
+		if (validPitch) noteToID[note] = noteID;
 
 		if (noteID < 126)
 			noteID++;
 		else
 			noteID = 0;
 	}
-	else {
-		// For note-off, try to use the same noteID as the note-on if possible
-		// This needs a map from MIDI note number to noteID
-		auto it = noteToIDMap.find(note);
-		if (it != noteToIDMap.end()) {
-			// We found the noteID that was used for this note
-			noteToIDMap.erase(it);
-		}
+	else if (validPitch) {
+		noteToID[note] = -1;  // note-off consumed the mapping
 	}
 }
 
@@ -1459,12 +1455,10 @@ void DX10Processor::noteOn(int32 note, int32 velocity, int32 noteID) {
 			mainEnv1Env = mainEnv1Cenv;
 			mainEnv1Att = 1.0f;
 
-			// Look up the noteID from the map if available
-			auto it = noteToIDMap.find(note);
+			// Look up the noteID of this pitch's note-on if available
 			int32 noteIDToUse = noteID; // Default
-			if (it != noteToIDMap.end()) {
-				noteIDToUse = it->second;
-				//debugLog("Using stored noteID %d for note-off of note %d\n", noteIDToUse, note);
+			if (note >= 0 && note < 128 && noteToID[note] >= 0) {
+				noteIDToUse = noteToID[note];
 			}
 
 			for (int i = 0; i < GENCOUNT; i++) {
