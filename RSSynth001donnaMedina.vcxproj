@@ -1,52 +1,12 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
-    <ProjectConfiguration Include="Debug|Win32">
-      <Configuration>Debug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Debug|x64">
       <Configuration>Debug</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="r32|Win32">
-      <Configuration>r32</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="r32|x64">
-      <Configuration>r32</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release64Dbug|Win32">
-      <Configuration>Release64Dbug</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release64Dbug|x64">
-      <Configuration>Release64Dbug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="release_packaged|Win32">
-      <Configuration>release_packaged</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="release_packaged|x64">
-      <Configuration>release_packaged</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|Win32">
-      <Configuration>Release</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
     <ProjectConfiguration Include="Release|x64">
       <Configuration>Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="thinkpad|Win32">
-      <Configuration>thinkpad</Configuration>
-      <Platform>Win32</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="thinkpad|x64">
-      <Configuration>thinkpad</Configuration>
       <Platform>x64</Platform>
     </ProjectConfiguration>
   </ItemGroup>
@@ -58,59 +18,11 @@
     <ProjectName>RSSynth001donnaMedina</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='r32|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <CharacterSet>MultiByte</CharacterSet>
     <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-    <WholeProgramOptimization>false</WholeProgramOptimization>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-    <WholeProgramOptimization>false</WholeProgramOptimization>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='r32|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-    <WholeProgramOptimization>PGOptimize</WholeProgramOptimization>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
@@ -119,51 +31,10 @@
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <EnableASAN>false</EnableASAN>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <CharacterSet>MultiByte</CharacterSet>
-    <PlatformToolset>v143</PlatformToolset>
-  </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
   <ImportGroup Label="ExtensionSettings">
   </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='r32|Win32'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
   <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='r32|x64'" Label="PropertySheets">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
   </ImportGroup>
@@ -171,73 +42,19 @@
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
     <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
   </ImportGroup>
-  <ImportGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'" Label="PropertySheets">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-    <Import Project="$(VCTargetsPath)Microsoft.CPP.UpgradeFromVC71.props" />
-  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
     <_ProjectFileVersion>10.0.30319.1</_ProjectFileVersion>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">$(Platform)\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">true</LinkIncremental>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">false</GenerateManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">false</EmbedManifest>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">$(Platform)\$(Configuration)\</OutDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">$(Platform)\$(Configuration)\</IntDir>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">false</LinkIncremental>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">false</GenerateManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">false</EmbedManifest>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">$(Platform)\$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">true</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">false</GenerateManifest>
     <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">false</EmbedManifest>
     <OutDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">$(Platform)\$(Configuration)\</OutDir>
-    <OutDir Condition="'$(Configuration)|$(Platform)'=='r32|x64'">$(Platform)\$(Configuration)\</OutDir>
     <IntDir Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">$(Platform)\$(Configuration)\</IntDir>
-    <IntDir Condition="'$(Configuration)|$(Platform)'=='r32|x64'">$(Platform)\$(Configuration)\</IntDir>
     <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">false</LinkIncremental>
-    <LinkIncremental Condition="'$(Configuration)|$(Platform)'=='r32|x64'">true</LinkIncremental>
     <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">false</GenerateManifest>
-    <GenerateManifest Condition="'$(Configuration)|$(Platform)'=='r32|x64'">false</GenerateManifest>
     <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='Release|x64'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">false</EmbedManifest>
-    <EmbedManifest Condition="'$(Configuration)|$(Platform)'=='r32|x64'">false</EmbedManifest>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <TargetExt>.vst3</TargetExt>
@@ -245,349 +62,11 @@
     <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;C:\D\</LibraryPath>
     <EnableManagedIncrementalBuild>true</EnableManagedIncrementalBuild>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">
-    <TargetExt>.vst3</TargetExt>
-  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <TargetExt>.vst3</TargetExt>
     <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);C:\D\</IncludePath>
     <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64;C:\D\</LibraryPath>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>$(SolutionDir)\SFML-2.5.1-64\include;$(SolutionDir)\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='r32|x64'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">
-    <TargetExt>.vst3</TargetExt>
-    <IncludePath>C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
-    <LibraryPath>C:\D\SFML-2.5.1-64\lib;$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);$(NETFXKitsDir)Lib\um\x64</LibraryPath>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <TargetExt>.vst3</TargetExt>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">
-    <TargetExt>.vst3</TargetExt>
-  </PropertyGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <ClCompile>
-      <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;DEVELOPMENT=1;_CRT_SECURE_NO_DEPRECATE=1;VSTGUI_LIVE_EDITING=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <BrowseInformation>true</BrowseInformation>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(OutDir)RSSynth001donnaMedina.pdb</ProgramDatabaseFile>
-      <SubSystem>Windows</SubSystem>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX86</TargetMachine>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|Win32'">
-    <ClCompile>
-      <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;DEVELOPMENT=1;_CRT_SECURE_NO_DEPRECATE=1;VSTGUI_LIVE_EDITING=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <BrowseInformation>true</BrowseInformation>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>EditAndContinue</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(OutDir)RSSynth001donnaMedina.pdb</ProgramDatabaseFile>
-      <SubSystem>Windows</SubSystem>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX86</TargetMachine>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <ClCompile>
-      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>SFML_STATIC;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <OmitFramePointers>true</OmitFramePointers>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Windows</SubSystem>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>C:\D\SFML-2.5.1-64\lib;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;%(AdditionalDependencies)kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x86\$(Configuration)\$(ProjectName)win32.vst3" "C:\Program Files (x86)\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|Win32'">
-    <ClCompile>
-      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>SFML_STATIC;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <OmitFramePointers>true</OmitFramePointers>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Windows</SubSystem>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>C:\D\SFML-2.5.1-64\lib;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;%(AdditionalDependencies)kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x86\$(Configuration)\$(ProjectName)win32.vst3" "C:\Program Files (x86)\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|Win32'">
-    <ClCompile>
-      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>SFML_STATIC;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <OmitFramePointers>true</OmitFramePointers>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Windows</SubSystem>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>C:\D\SFML-2.5.1-64\lib;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;%(AdditionalDependencies)kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x86\$(Configuration)\$(ProjectName)win32.vst3" "C:\Program Files (x86)\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='r32|Win32'">
-    <ClCompile>
-      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <OmitFramePointers>true</OmitFramePointers>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <SubSystem>Windows</SubSystem>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalLibraryDirectories>C:\D\SFML-2.5.1-64\lib;</AdditionalLibraryDirectories>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;%(AdditionalDependencies)kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files (x86)\Common^ Files\VST3\$(ProjectName)win32.pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x86\$(Configuration)\$(ProjectName)win32.vst3" "C:\Program Files (x86)\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <Midl>
       <TargetEnvironment>X64</TargetEnvironment>
@@ -636,80 +115,12 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
     <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-C:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).vst3" "C:\Program Files\Common Files\VST3\DonnaMedinaVST64.vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-copy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\DonnaMedinaVST64.pdb" "C:\Program Files\Common Files\VST3\DonnaMedinaVST64.pdb" /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-      <Message>dowerk</Message>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='thinkpad|x64'">
-    <Midl>
-      <TargetEnvironment>X64</TargetEnvironment>
-    </Midl>
-    <ClCompile>
-      <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;DEVELOPMENT=1;_CRT_SECURE_NO_DEPRECATE=1;VSTGUI_LIVE_EDITING=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>false</MinimalRebuild>
-      <BasicRuntimeChecks>EnableFastChecks</BasicRuntimeChecks>
-      <RuntimeLibrary>MultiThreadedDebugDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>ProgramDatabase</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>$(OutDir)RSSynth001donnaMedina.pdb</ProgramDatabaseFile>
-      <SubSystem>Windows</SubSystem>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX64</TargetMachine>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).vst3" "C:\Program Files\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-copy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).pdb" "C:\Program Files\Common Files\VST3\$(ProjectName).pdb" /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
+      <Command>if not exist "$(CommonProgramW6432)\VST3" mkdir "$(CommonProgramW6432)\VST3"
+copy /y "$(TargetPath)" "$(CommonProgramW6432)\VST3\DonnaMedinaVST64.vst3"
+if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST3 - run Visual Studio as administrator, or close the host that has the plugin loaded. &amp; exit /b 1)
+if exist "$(OutDir)DonnaMedinaVST64.pdb" copy /y "$(OutDir)DonnaMedinaVST64.pdb" "$(CommonProgramW6432)\VST3\DonnaMedinaVST64.pdb"
+</Command>
+      <Message>Deploying DonnaMedinaVST64.vst3 to Common Files\VST3</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -773,251 +184,11 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
     <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).vst3" "C:\Program Files\Common Files\VST3\DonnaMedinaVST64.vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='release_packaged|x64'">
-    <Midl>
-      <TargetEnvironment>X64</TargetEnvironment>
-    </Midl>
-    <ClCompile>
-      <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>../../../../../;../../../../../vstgui4;$(SolutionDir)/SFML-2.5.1-64/include;$(SolutionDir)/SFML-2.5.1-64/include/SFML/revent;$(SolutionDir)/KHR;$(SolutionDir)/libbcrypt/include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>SFML_STATIC;NDEBUG;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
-      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>None</DebugInformationFormat>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
-      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-      <CompileAsManaged>false</CompileAsManaged>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <OmitFramePointers>true</OmitFramePointers>
-      <StringPooling>true</StringPooling>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <BufferSecurityCheck>true</BufferSecurityCheck>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <FloatingPointModel>Fast</FloatingPointModel>
-      <FloatingPointExceptions>
-      </FloatingPointExceptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;C:\D\SFML-2.5.1-64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>false</GenerateDebugInformation>
-      <ProgramDatabaseFile>
-      </ProgramDatabaseFile>
-      <SubSystem>Windows</SubSystem>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;$(SolutionDir)/libbcrypt/build/RelWithDebInfo/bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>$(SolutionDir)/SFML-2.5.1-64/lib</AdditionalLibraryDirectories>
-      <AssemblyDebug>false</AssemblyDebug>
-      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <AdditionalOptions>/NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:msvcrtd.lib %(AdditionalOptions)</AdditionalOptions>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).vst3" "C:\Program Files\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release64Dbug|x64'">
-    <Midl>
-      <TargetEnvironment>X64</TargetEnvironment>
-    </Midl>
-    <ClCompile>
-      <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>../../../../../;../../../../../vstgui4;C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;C:\KHR;C:\Users\PC\libbcrypt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>SFML_STATIC;NDEBUG;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <MinimalRebuild>true</MinimalRebuild>
-      <BasicRuntimeChecks>Default</BasicRuntimeChecks>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>OldStyle</DebugInformationFormat>
-      <MultiProcessorCompilation>false</MultiProcessorCompilation>
-      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-      <CompileAsManaged>false</CompileAsManaged>
-      <CompileAsWinRT>false</CompileAsWinRT>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <OmitFramePointers>true</OmitFramePointers>
-      <StringPooling>true</StringPooling>
-      <ExceptionHandling>Sync</ExceptionHandling>
-      <BufferSecurityCheck>true</BufferSecurityCheck>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <FloatingPointModel>Fast</FloatingPointModel>
-      <FloatingPointExceptions>
-      </FloatingPointExceptions>
-      <LanguageStandard>stdcpp17</LanguageStandard>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;C:\D\SFML-2.5.1-64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <ProgramDatabaseFile>
-      </ProgramDatabaseFile>
-      <SubSystem>Windows</SubSystem>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;C:\Users\PC\libbcrypt\build\RelWithDebInfo\bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\D\SFML-2.5.1-64\lib;</AdditionalLibraryDirectories>
-      <AssemblyDebug>false</AssemblyDebug>
-      <LinkTimeCodeGeneration>UseLinkTimeCodeGeneration</LinkTimeCodeGeneration>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
-      <AdditionalOptions>/NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:msvcrtd.lib %(AdditionalOptions)</AdditionalOptions>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).vst3" "C:\Program Files\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='r32|x64'">
-    <Midl>
-      <TargetEnvironment>X64</TargetEnvironment>
-    </Midl>
-    <ClCompile>
-      <AdditionalOptions>/MP %(AdditionalOptions)</AdditionalOptions>
-      <AdditionalIncludeDirectories>../../../../..;../../../../../vstgui4;C:\D\SFML-2.5.1-64\include;C:\D\SFML-2.5.1-64\include\SFML\revent;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>SFML_STATIC;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
-      <PrecompiledHeader>
-      </PrecompiledHeader>
-      <WarningLevel>Level3</WarningLevel>
-      <DebugInformationFormat>None</DebugInformationFormat>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
-      <Optimization>MaxSpeed</Optimization>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
-      <EnableEnhancedInstructionSet>AdvancedVectorExtensions</EnableEnhancedInstructionSet>
-      <FloatingPointModel>Fast</FloatingPointModel>
-      <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
-      <FunctionLevelLinking>false</FunctionLevelLinking>
-      <EnableParallelCodeGeneration>false</EnableParallelCodeGeneration>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
-      <WholeProgramOptimization>true</WholeProgramOptimization>
-      <FloatingPointExceptions>false</FloatingPointExceptions>
-      <OmitFramePointers>true</OmitFramePointers>
-      <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
-      <CompileAsManaged>false</CompileAsManaged>
-      <CompileAsWinRT>false</CompileAsWinRT>
-    </ClCompile>
-    <ResourceCompile>
-      <AdditionalIncludeDirectories>../../../../..;C:\D\SFML-2.5.1-64\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-    </ResourceCompile>
-    <Link>
-      <OutputFile>$(OutDir)\$(ProjectName).vst3</OutputFile>
-      <ModuleDefinitionFile>RSSynth001donnaMedina.def</ModuleDefinitionFile>
-      <GenerateDebugInformation>false</GenerateDebugInformation>
-      <SubSystem>Windows</SubSystem>
-      <OptimizeReferences>true</OptimizeReferences>
-      <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <RandomizedBaseAddress>false</RandomizedBaseAddress>
-      <DataExecutionPrevention>
-      </DataExecutionPrevention>
-      <ImageHasSafeExceptionHandlers>false</ImageHasSafeExceptionHandlers>
-      <TargetMachine>MachineX64</TargetMachine>
-      <AdditionalDependencies>sfml-system-s.lib;sfml-window-s.lib;opengl32.lib;freetype.lib;winmm.lib;glew32s.lib;glfw3.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalLibraryDirectories>C:\D\SFML-2.5.1-64\lib;</AdditionalLibraryDirectories>
-      <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
-      <AssemblyDebug>false</AssemblyDebug>
-    </Link>
-    <PostBuildEvent>
-      <Command>setlocal
-cd C:\vst3sdk\VST3_SDK/build\bin
-if %errorlevel% neq 0 goto :cmEnd
-D:
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).vst3 /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-rmdir C:\Program Files\Common^ Files\VST3\$(ProjectName).pdb /s /q 2&gt;nul
-if %errorlevel% neq 0 goto :cmEnd
-xcopy "C:\vst3sdk\VST3_SDK\public.sdk\MyProjects\SynthProjects\Windows\$(ProjectName)\x64\$(Configuration)\$(ProjectName).vst3" "C:\Program Files\Common Files\VST3\$(ProjectName).vst3" /e /i /h /y
-if %errorlevel% neq 0 goto :cmEnd
-:cmEnd
-endlocal &amp; call :cmErrorLevel %errorlevel% &amp; goto :cmDone
-:cmErrorLevel
-exit /b %1
-:cmDone
-if %errorlevel% neq 0 goto :VCEnd</Command>
+      <Command>if not exist "$(CommonProgramW6432)\VST3" mkdir "$(CommonProgramW6432)\VST3"
+copy /y "$(TargetPath)" "$(CommonProgramW6432)\VST3\DonnaMedinaVST64.vst3"
+if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST3 - run Visual Studio as administrator, or close the host that has the plugin loaded. &amp; exit /b 1)
+</Command>
+      <Message>Deploying DonnaMedinaVST64.vst3 to Common Files\VST3</Message>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -1190,22 +361,22 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\..\..\..\build\base\base.vcxproj">
-      <Project>{59ec904e-bbca-3ed2-933c-d9211a8e0e69}</Project>
+      <Project>{8aac8850-1ffd-3560-8d33-953b9ebf7797}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\..\..\..\build\public.sdk\sdk.vcxproj">
-      <Project>{24e4f45a-4a65-3798-a4f4-b94679d1570c}</Project>
+      <Project>{1396643e-9f9f-3c28-8318-b6e98c9555d1}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\..\..\..\build\vstgui4\vstgui\lib\vstgui.vcxproj">
-      <Project>{b2b90408-05ba-38c9-a2c7-4489b4403d7a}</Project>
+      <Project>{923cf072-a200-3786-8c09-d9429db1ac84}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\..\..\..\build\vstgui4\vstgui\standalone\vstgui_standalone.vcxproj">
-      <Project>{265703ba-5c82-3a97-a6dd-9a7e988931b8}</Project>
+      <Project>{722360a0-4716-30ff-94c9-a69722e0ab51}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\..\..\..\build\vstgui4\vstgui\uidescription\vstgui_uidescription.vcxproj">
-      <Project>{51f6d2d4-c9fd-39bd-8fc2-bed3fe324b54}</Project>
+      <Project>{5becdaa2-44b3-3db6-b33e-74c395df40dd}</Project>
     </ProjectReference>
     <ProjectReference Include="..\..\..\..\..\build\vstgui_support.vcxproj">
-      <Project>{81faec77-db5b-3ee0-ae91-87dd9114d83a}</Project>
+      <Project>{bb5fb396-b6a9-3256-81ea-27abb14f15f7}</Project>
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>

@@ -30,7 +30,7 @@ B-04 null checks · B-10 real-time safety · B-13 tempo/uninitialised `bpm` · B
 B-45 HKCU + once-per-instance check · B-46 weak protection (info)
 
 ## Build / project hygiene
-B-36 revent headers live in `C:\D\...` (copy it somewhere safe before any backup/git) · B-24 `RVoicesMap` leak · B-25 dead/copy-paste items · B-14/B-15/B-16 misc · B-34 dead handler
+Done 2026-11-12: B-36, B-48, B-49, B-50 (see BUILDING.md). Open: B-51 · B-24 `RVoicesMap` leak · B-25 dead/copy-paste items · B-14/B-15/B-16 misc · B-34 dead handler
 
 ## Performance / info (unmeasured)
 B-26, B-37, B-35 · B-40 denormals (could explain CPU growth with B-17) · B-41 Q range · B-42 filter Nyquist · B-43 LFO saw chase · B-47 stale mod after changing mod type · B-44 float phase accumulators

@@ -10,3 +10,5 @@ Rules of thumb
 - Author notes live in `C:\vst3sdk\*.txt` (todos, issues, customviewNotes, revents).
 - Statements in docs marked "unverified" come from reading code only.
 - Edits to SDK files affect all projects; log them in `docs/05-sdk-mods.md`.
+- Build check: `MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false` (the post-build step copies into Program Files).
+- Dependencies: `external/` (GLEW, libbcrypt) and `VST3_SDK/external/revent`. Never add absolute paths.
