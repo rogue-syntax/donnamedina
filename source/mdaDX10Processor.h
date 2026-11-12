@@ -80,6 +80,11 @@ public:
 	int32 genRecalcIdx = 0;
 	int32 genCountIdx = 0;
 	static float programParams[20][GPARAMS];
+	// B-11: fills programParams once (thread-safe); call before reading it (processor and controller).
+	static void ensureFactoryPresets ();
+private:
+	static void fillFactoryPresets ();
+public:
 	//float programParams[20][GPARAMS] = { 0.0f };
 	float initProgram[GPARAMS] = { 0.0f };
 	//static float presetParams[32];
@@ -129,6 +134,7 @@ public:
 	float testfl = 0.0;
 	
 	int (DX10Processor::*recalculators[1000])(double value);
+	int recalcNone(double) { return 0; }  // B-52: default for ids without a recalculator
 
 	int recalcSyncAttack(double value);
 

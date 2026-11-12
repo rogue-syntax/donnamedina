@@ -156,6 +156,7 @@ bool g_inProcess = false;
 int g_audioThreadMsgs = 0;
 int g_deliveredMsgs = 0;  // B-10: messages delivered outside process() (by the main-thread timer)
 int g_msgsIn[256] = {}, g_msgsOut[256] = {};  // per message ID (first char)
+int g_badIdMsgs = 0;  // messages whose ID is not a 1-char C string (B-27)
 void resetMsgCounts() {
 	g_audioThreadMsgs = g_deliveredMsgs = 0;
 	std::memset(g_msgsIn, 0, sizeof(g_msgsIn));
@@ -177,6 +178,7 @@ public:
 		const char* id = msg ? msg->getMessageID() : nullptr;
 		if (id && std::strcmp(id, "InstanceID") == 0) return kResultTrue;  // sent by connect()
 		const unsigned char c = id ? static_cast<unsigned char>(id[0]) : 0;
+		if (!id || std::strlen(id) != 1) g_badIdMsgs++;  // B-27: IDs must be 1-char C strings
 		if (g_inProcess) { g_audioThreadMsgs++; g_msgsIn[c]++; }
 		else { g_deliveredMsgs++; g_msgsOut[c]++; }
 		return kResultTrue;
@@ -663,6 +665,21 @@ int main() {
 		}
 	}
 
+	// ---- B-52: unknown parameter ids from a host must not crash or corrupt ----
+	{
+		std::printf("\nB-52 unknown parameter ids (60: generator 2 that does not exist; 150, 999: no recalculator)\n");
+		std::fflush(stdout);
+		Options o;
+		o.params = {{0.1, {60, 0.7}}, {0.2, {150, 0.7}}, {0.3, {999, 0.7}}, {0.4, {99, 0.3}}};
+		auto peaks = render(settings[0], {{0, true, kPitch}, {at(1.0), false, kPitch}}, 3.0, o);
+		const float ref = maxPeak(peaks);
+		const float held = ref > 0 ? peakAround(peaks, 0.8) / ref : 0.0f;
+		const float ended = ref > 0 ? peakAround(peaks, 2.9) / ref : 1.0f;
+		const bool ok = held > 0.25f && ended < 0.001f;
+		if (!ok) failures++;
+		std::printf("  survived; note still sounding @0.8s %.4f, ended @2.9s %.4f  %s\n", held, ended, ok ? "PASS" : "FAIL");
+	}
+
 	// ---- B-06: velocity -> level ----
 	{
 		std::printf("\nB-06 velocity -> level (held note, decay = hold, peak 0.3-0.6 s, relative to velocity 127)\n");
@@ -707,6 +724,7 @@ int main() {
 		char buf[128];
 		auto* ctrl = new rs::DX10Controller();
 		ctrl->initialize(&chost);
+		g_badIdMsgs = 0;
 		ctrl->connect(&cpeer);
 		pumpMessages();
 		resetMsgCounts();
@@ -740,6 +758,9 @@ int main() {
 		// the GUI update is queued for when the editor opens
 		std::snprintf(buf, sizeof(buf), "%zu queued", ctrl->pendingStateUpdates.size());
 		check("GUI updates queued for onNVGViewReady", !ctrl->pendingStateUpdates.empty(), buf);
+
+		std::snprintf(buf, sizeof(buf), "%d message(s) with a bad ID", g_badIdMsgs);
+		check("B-27: controller message IDs are 1-char C strings", g_badIdMsgs == 0, buf);
 
 		ctrl->disconnect(&cpeer);
 		ctrl->terminate();

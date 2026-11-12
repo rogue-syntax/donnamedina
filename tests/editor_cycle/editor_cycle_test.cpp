@@ -17,6 +17,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <algorithm>
+#include <cmath>
 #include <new>
 #include <vector>
 
@@ -142,6 +143,19 @@ int main(int argc, char** argv) {
 		return 2;
 	}
 
+	// B-11: this exe never constructs a processor (like a host that runs the controller on its
+	// own). A preset change must still apply the real factory values. Preset 2 "OSC_" is 0.90 and
+	// "MOD_OSC_" 0.6 in DX10Processor's preset table.
+	int b11fail = 0;
+	{
+		ctrl->setParamNormalized(rs::BaseController::kPresetParam, (2 + 0.5) / rs::DX10Processor::kNumPrograms);
+		const double osc = ctrl->getParamNormalized(OSC_), mosc = ctrl->getParamNormalized(MOD_OSC_);
+		const bool ok = std::fabs(osc - 0.90) < 1e-6 && std::fabs(mosc - 0.6) < 1e-6;
+		if (!ok) b11fail = 1;
+		std::printf("B-11 preset 2 with no processor constructed: OSC_ %.3f (want 0.900), MOD_OSC_ %.3f (want 0.600)  %s\n",
+		            osc, mosc, ok ? "PASS" : "FAIL");
+	}
+
 	HWND hwnd = CreateWindowExW(0, L"STATIC", L"DonnaMedina editor cycle test", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 	                            -3000, 0, 1200, 600, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
 	ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -226,7 +240,7 @@ int main(int argc, char** argv) {
 	            held ? (dangling ? "points to a FREED object" : "points to a live object") : "nullptr",
 	            track::nLiveCtl, dangling ? "FAIL (dangling)" : "PASS");
 	int result = 0;
-	if (track::nLive != 0 || dangling || mallocPerCycle > 0.05) result = 1;
+	if (track::nLive != 0 || dangling || mallocPerCycle > 0.05 || b11fail) result = 1;
 
 	std::printf("malloc growth %.4f MB/cycle (limit 0.05)  %s\n", mallocPerCycle, mallocPerCycle > 0.05 ? "FAIL" : "PASS");
 	std::printf("\n%s\n", result == 0 ? "0 failure(s)" : "FAILED");

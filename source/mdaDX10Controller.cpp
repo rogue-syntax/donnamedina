@@ -159,6 +159,7 @@ void DX10Controller::setViewsFromBase() {
 
 void DX10Controller::checkPendingPreset() {
 	if (presetPending && isViewReady()) {
+		DX10Processor::ensureFactoryPresets();  // B-11
 		for (int32 i = 0; i < GPARAMS; i++) {
 			BaseController::setParamNormalized(i, DX10Processor::programParams[pendingPresetIndex][i]);
 		}
@@ -745,7 +746,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 	}
 	IMessage* ctrlrReadyMsg = allocateMessage();
 	if (ctrlrReadyMsg) {
-		ctrlrReadyMsg->setMessageID(&PMSG_CTRLR_READY_CHAR);
+		ctrlrReadyMsg->setMessageID(msgIdStr(PMSG_CTRLR_READY_CHAR));  // B-27
 		ctrlrReadyMsg->getAttributes()->setInt("id", this->myInstanceId);
 		sendMessage(ctrlrReadyMsg);
 		ctrlrReadyMsg->release();
@@ -807,6 +808,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		int32 program = (int32)parameters.getParameter(tag)->toPlain(value);
 		program = std::max<int32>(0, std::min<int32>(DX10Processor::kNumPrograms - 1, program));
 		const bool viewReady = isViewReady();
+		DX10Processor::ensureFactoryPresets();  // B-11: the table may not exist yet without a processor
 		for (int32 i = 0; i < GPARAMS; i++) {
 			const ParamValue v = DX10Processor::programParams[program][i];
 			BaseController::setParamNormalized(i, v);
@@ -878,7 +880,7 @@ int DX10Controller::changeVertSwitch(int pid, double value) {
 	IMessage* stringCtrlMsg = allocateMessage();
 	
 	if (stringCtrlMsg) {
-		stringCtrlMsg->setMessageID(&PMSG_STEP_SWITCH_CHAR);
+		stringCtrlMsg->setMessageID(msgIdStr(PMSG_STEP_SWITCH_CHAR));  // B-27
 		stringCtrlMsg->getAttributes()->setInt("0", stringCtrlInt);
 		stringCtrlMsg->getAttributes()->setInt("1", pid);
 		sendMessage(stringCtrlMsg);
@@ -896,7 +898,7 @@ int DX10Controller::changeLFORate(int pid, double value) {
 	IMessage* stringCtrlMsg = allocateMessage();
 
 	if (stringCtrlMsg) {
-		stringCtrlMsg->setMessageID(&PMSG_LFO_RATE_CHAR);
+		stringCtrlMsg->setMessageID(msgIdStr(PMSG_LFO_RATE_CHAR));  // B-27
 		stringCtrlMsg->getAttributes()->setFloat("0", value);
 		stringCtrlMsg->getAttributes()->setInt("1", pid);
 		stringCtrlMsg->getAttributes()->setInt("id", this->myInstanceId);

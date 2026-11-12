@@ -217,6 +217,16 @@ const int SYNC_MODFREAQBEAT = 213;
 #ifndef __paramEnums__
 #define __paramEnums__
 
+// B-27: message IDs below are single chars; IMessage::setMessageID needs a NUL-terminated string.
+// msgIdStr(X_CHAR) returns "X" (static storage). Receivers only look at the first char.
+inline const char* msgIdStr(char c) {
+	static const struct Table {
+		char s[256][2];
+		Table() { for (int i = 0; i < 256; i++) { s[i][0] = static_cast<char>(i); s[i][1] = 0; } }
+	} table;
+	return table.s[static_cast<unsigned char>(c)];
+}
+
 const int CMSG_GET_SAMPLE_RATE = 0;
 const char CMSG_GET_SAMPLE_RATE_CHAR = '0';
 //const int CMSG_GET_SAMPLE_RATE = int(CMSG_GET_SAMPLE_RATE_CHAR);

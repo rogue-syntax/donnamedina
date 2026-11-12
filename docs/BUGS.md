@@ -96,7 +96,7 @@ Fix: loop `min(temp, GPARAMS)`, skip the remainder, range-check program, check s
 On the audio thread: `setCurrentProgram` → 64 `allocateMessage/sendMessage` calls (34 env/LFO recalcs + 23 vertical switches + 7 toggles, `:928-967`); `noteToIDMap` (`unordered_map`) insert/erase per note (`:1055`, `:1068`) – and the engine ignores noteID in its default `cutNote` mode, so this is pure overhead; `DXGenerator::RVoicesMap[note]` (an `operator[]` map) can allocate on a first-seen pitch; `recalcLfoNRate` may be called per chunk. Heap allocation and locking in `process()` can glitch under load.
 Fix: queue UI notifications via a lock-free queue and send from a non-audio context; replace the map with a fixed `int[128]`.
 
-### B-11  `programParams` shared static filled in processor constructor  · MED · OPEN
+### B-11  `programParams` shared static filled in processor constructor  · MED · **FIXED 2026-11-12** (filled once by `DX10Processor::ensureFactoryPresets()`, called by the processor constructor and by the controller before it reads the table; see fix log)
 `DX10Processor::programParams` is `static` and filled in `DX10Processor::DX10Processor()`. The **controller reads it directly** (`:163`, `:797`). If a host constructs the controller without ever constructing a processor (some scanners/validators/split-process setups), presets are all zeros; with multiple instances the ctor re-writes the same static concurrently. Also the processor's `setCurrentProgram(val)` and the controller's preset handler use the same table, but they are applied via **two independent paths** (host param → processor; host param → controller), so ordering/timing differences can leave GUI and DSP disagreeing (B-01/B-02).
 Fix: make the preset table a `const` global initialised once (static initialiser or function-local static), not instance-constructed.
 
@@ -165,7 +165,7 @@ Int 0/1 reinterpreted as float is 0 or 1.4e-45 (about zero). Consequences from r
 ### B-26  Performance notes  · INFO
 Per voice per sample: `m_pFilterLogParam->toPlain` (your own comment says it's heavy; a precomputed table `ddMap` exists but is commented out), `std::deque`/`RVoicesMap[]` indexed per sample, pointer-to-member `modChoice` call, float/double mixing. Combined with B-17 this is a plausible main CPU cost, but nothing has been profiled.
 
-### B-27  Message IDs are pointers to single `char` constants, not C strings  · LOW · CONFIRMED in code (found during review) · *processor side fixed 2026-11-12 with B-10 (sends a real 1-char string); controller-side sends (`changeVertSwitch`, `changeLFORate`, the `PMSG_STEP_SWITCH2` reply in `BaseController::notify`) still use `&X_CHAR`. See also B-53.*
+### B-27  Message IDs are pointers to single `char` constants, not C strings  · LOW · **FIXED 2026-11-12** (processor side with B-10; controller side via `msgIdStr()` in `constants.h`; see fix log. See also B-53.)
 `constants.h:230-252`: e.g. `const char PMSG_STEP_SWITCH_CHAR = '3';` and the code calls `msg->setMessageID(&PMSG_STEP_SWITCH_CHAR)`. `setMessageID` expects a NUL-terminated string; the host's `IMessage` implementation will typically `strlen`/copy it, reading past the one-byte constant into whatever follows in read-only memory. It works because the receivers only look at the first character (`*message->getMessageID()`), but it is undefined behaviour and the stored ID string is arbitrary. Also `BaseController::notify` first does `strcmp(getMessageID(), "InstanceID")` on these. Fix: use real string literals (and compare with `strcmp`) or `const char X[] = "3"`.
 
 ## D. Pass 4 findings (GUI lifecycle) — read-only, not run
@@ -353,12 +353,18 @@ Background found while fixing: the controller's two dispatch tables have differe
   - controller pointer after close: freed object -> nullptr.
 - The first open costs ~40 MB (GL context, driver, VSTGUI, fonts); that is one-time in this test. I did not reproduce "+30 MB per open" itself; in FL the per-open figure may include the host's own window and the first-open cost. Recheck in FL with Task Manager over ~10 open/close cycles.
 
+### Fix log: B-11 + B-27 + B-52 (2026-11-12)
+- B-11: the factory-preset assignments moved unchanged from the `DX10Processor` constructor into `DX10Processor::fillFactoryPresets()`; `DX10Processor::ensureFactoryPresets()` runs it once (function-local static, thread-safe). Called from the processor constructor and from the controller before it reads `programParams` (`setParamNormalized(kPresetParam)`, `checkPendingPreset`).
+- B-27: `msgIdStr(char)` in `constants.h` returns a static 1-char C string; the four controller-side `setMessageID(&X_CHAR)` calls use it (`ctrlrReady`, `changeVertSwitch`, `changeLFORate`, the `PMSG_STEP_SWITCH2` reply in `BaseController::notify`).
+- B-52: `processParameterChanges` ignores generator ids whose generator does not exist (55..99 with `GENCOUNT` 1). `recalculators[1000]` is now filled with a no-op (`recalcNone`) before the real entries; it was uninitialised, so an id in 100..999 without an entry called a garbage member-function pointer.
+- Evidence: `tests/note_off` B-52 case sends ids 60, 99, 150 and 999 during a held note. Old code: access violation (crash). Fixed: no crash, note sounds and ends normally. `tests/editor_cycle` (no processor ever constructed) selects preset 2. Old: OSC_ 0.000, MOD_OSC_ 0.000 (empty table). Fixed: 0.900 / 0.600. B-27: controller section of `tests/note_off` checks every message ID is a 1-char string: 0 bad after the fix (not shown failing on the old code: the B-52 crash came first in that run). All other cases in both suites pass. Debug and Release build with 0 errors.
+
 ### B-53  Colliding 2-char message IDs, dead ID compares (extends B-27)  · LOW · CONFIRMED in code
 - (Same root as B-27, which was logged earlier; kept here for the extra findings below.) `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.
 - `PMSG_STEP_CTRL_CHAR = 'sc'` and `PMSG_STEP_CTRL_N_CHAR = 's1'..'sB'` are multi-character literals truncated to one `char` (MSVC keeps the last char): `'sc'` -> `'c'`, `'s1'` -> `'1'` (same as `CMSG_LINK_TUNE_CHAR`), `'s2'` -> `'2'`, ... Only `PMSG_STEP_CTRL_CHAR` is sent (from `recalcStepCtrlN`), and `'c'` is unique, so no live collision found; the `_N_` constants are traps.
 - Controller (`mdaBaseController.cpp:448,456`): `message->getMessageID == CMSG_ON_GET_SAMPLE_RATE` compares a member-function pointer, and `getMessageID() == "2"` compares pointers; both are always false (dead branches).
 
-### B-52  Generator params 55-99 index past `generators[]`  · LOW · CONFIRMED in code (latent)
+### B-52  Generator params 55-99 index past `generators[]`  · LOW→MED · **FIXED 2026-11-12** (worse than logged: unknown ids also called an uninitialised `recalculators[]` slot and crashed; see fix log)
 `DX10Processor::processParameterChanges`: for `paramId < NPARAMS` (100) it uses `generators[paramId / PARTPARAMS]` with `PARTPARAMS` 55, but `GENCOUNT` is 1, so IDs 55-99 write to `generators[1]` (out of bounds). The controller only registers 0-54 (`PARTPARAMS * GENCOUNT`), so a host should never send them; reachable only with a bad/foreign param ID. Fix: bound by `PARTPARAMS * GENCOUNT`.
 
 ### Fix log: B-17 (2026-11-12)

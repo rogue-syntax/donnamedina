@@ -428,7 +428,7 @@ tresult PLUGIN_API BaseController::notify (IMessage* message){
 			IMessage* stringCtrlMsg = allocateMessage();
 
 			if (stringCtrlMsg) {
-				stringCtrlMsg->setMessageID(&PMSG_STEP_SWITCH_CHAR);
+				stringCtrlMsg->setMessageID(msgIdStr(PMSG_STEP_SWITCH_CHAR));  // B-27
 				stringCtrlMsg->getAttributes()->setInt("0", stringCtrlInt);
 				stringCtrlMsg->getAttributes()->setInt("1", pid);
 				stringCtrlMsg->getAttributes()->setInt("id", this->myInstanceId);

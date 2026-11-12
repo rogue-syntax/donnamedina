@@ -83,7 +83,33 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 	//regKeyLegit = true;
 	//constants::isRegLegit = true;
 
+	// B-11: the factory preset table is shared (static) and read by the controller too; it used to
+	// be (re)filled here by every processor instance. Now it is filled exactly once, by whichever of
+	// processor or controller needs it first.
+	ensureFactoryPresets();
 
+	allocParameters (GPARAMS);
+
+	for (int32 i = 0; i < GPARAMS; i++) {
+		floatParams[i] = programParams[0][i];
+	}
+
+	rampedParams[MAINENV1_RAMPINDEX].level = mainEnv1Cenv;
+	quarterSecond = sampleRate / 8;
+
+	//setCurrentProgram(0);
+	//sendPidVal(&PMSG_SET_PARAM_NRML_CHAR, MOD_BEAT_, 0.087);
+}
+
+//-----------------------------------------------------------------------------
+void DX10Processor::ensureFactoryPresets () {
+	static const bool filled = (fillFactoryPresets (), true);  // thread-safe, runs once
+	(void)filled;
+}
+
+//-----------------------------------------------------------------------------
+// Factory presets (moved unchanged from the constructor, B-11). Call ensureFactoryPresets().
+void DX10Processor::fillFactoryPresets () {
 	//Prima Donna #0
 	programParams[1][OSC_] = 0.30f;
 	programParams[1][MOD_OSC_] = 1.0f;
@@ -604,19 +630,6 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 	programParams[6][LFO_3_PHASE] = 0.5f;
 	programParams[6][LFO_1_DELAY] = 0.0f;
 	programParams[6][LFO_3_DELAY] = 0.0f;
-
-	
-	allocParameters (GPARAMS);
-
-	for (int32 i = 0; i < GPARAMS; i++) {
-		floatParams[i] = programParams[0][i];
-	}
-	
-	rampedParams[MAINENV1_RAMPINDEX].level = mainEnv1Cenv;
-	quarterSecond = sampleRate / 8;
-
-	//setCurrentProgram(0);
-	//sendPidVal(&PMSG_SET_PARAM_NRML_CHAR, MOD_BEAT_, 0.087);
 }
 
 
@@ -638,6 +651,11 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 		sampleRate = (float)getSampleRate();
 		ifs = 1.0 / sampleRate;
 
+		// B-52: every slot gets a no-op first. The table was not initialised, so a param id in
+		// 100..999 without an entry (unknown or unregistered id from a host/state) called a garbage
+		// member-function pointer.
+		for (int32 i = 0; i < 1000; i++)
+			recalculators[i] = &DX10Processor::recalcNone;
 		recalculators[SYNC_ATTACK] = &DX10Processor::recalcSyncAttack;
 		recalculators[SYNC_DEC] = &DX10Processor::recalcSyncDec;
 		recalculators[SYNC_REL] = &DX10Processor::recalcSyncRel;
@@ -1919,6 +1937,10 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 					//then process generator params
 					floatParams[paramId] = value;
 					int genIdx = div(paramId, PARTPARAMS).quot;//division better than for loop?
+					// B-52: ids 55..99 would index generators[1] (GENCOUNT is 1); the controller never
+					// registers them, so ignore them instead of writing past the array.
+					if (genIdx >= GENCOUNT)
+						continue;
 					int paramIdx = paramId - (PARTPARAMS*genIdx);
 					generators[genIdx].recalc2(paramIdx);
 
