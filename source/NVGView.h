@@ -343,6 +343,12 @@ public:
 
 	char getRandyChar();
 	void reset(const char* txt, std::string valK, float interv, float incr);
+	// try/catch review: name tables (envNameMap, envSrcNames) have null slots; a null char* turned
+	// into std::string is a crash, not an exception. This overload (picked for char*/char* calls)
+	// and the null check in reset() make a missing name show as "".
+	void reset(const char* txt, const char* valK, float interv, float incr) {
+		reset(txt ? txt : "", std::string(valK ? valK : ""), interv, incr);
+	}
 	void processTextRev();
 	void processText();
 
@@ -587,6 +593,13 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 
 		char* envNameMap[1000] = { nullptr };
 
+		// try/catch review (B-33): bounds- and null-safe lookups used by the GUI handlers instead of
+		// raw indexing (out-of-range / null access is not a C++ exception, so the old try/catch
+		// blocks around these never caught anything).
+		const char* paramName(int pid) const { return (pid >= 0 && pid < PARTPARAMS) ? NVGParamDef[pid].c_str() : ""; }
+		const char* envName(int pid) const { return (pid >= 0 && pid < 1000 && envNameMap[pid]) ? envNameMap[pid] : ""; }
+		const char* envSrcName(int i) const { return (i >= 0 && i < 7 && envSrcNames[i]) ? envSrcNames[i] : ""; }
+
 		bool partParamsReady = false;
 
 		char* envSrcNames[7] = { nullptr };
@@ -616,7 +629,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 
 		bool moreInfoWindowOpen = false;
 
-		RSBView* selectedStepTarg;
+		RSBView* selectedStepTarg = nullptr;  // B-30: was uninitialised
 
 		int buttonBlink(RSBView* rsbV);
 		int buttonGlow(RSBView* rsbV);
@@ -875,6 +888,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		
 		CControl* controlMap[1000] = { nullptr };
 		RSBView* viewIndex[1000] = { nullptr };
+		// B-33: viewIndex[pid] is null for any pid without a registered view
+		RSBView* viewAt(int pid) const { return (pid >= 0 && pid < 1000) ? viewIndex[pid] : nullptr; }
 		
 
 		bool viewsReady[1000];

@@ -264,19 +264,11 @@ const char PMSG_STEP_SWITCH2_CHAR = 'a';
 const int PMSG_CTRLR_READY = 11;
 const char PMSG_CTRLR_READY_CHAR = 'b';
 
-const char PMSG_STEP_CTRL_CHAR = 'sc';
-const char PMSG_STEP_CTRL_1_CHAR = 's1';
-const char PMSG_STEP_CTRL_2_CHAR = 's2';
-const char PMSG_STEP_CTRL_3_CHAR = 's3';
-const char PMSG_STEP_CTRL_4_CHAR = 's4';
-const char PMSG_STEP_CTRL_5_CHAR = 's5';
-const char PMSG_STEP_CTRL_6_CHAR = 's6';
-const char PMSG_STEP_CTRL_7_CHAR = 's7';
-const char PMSG_STEP_CTRL_8_CHAR = 's8';
-const char PMSG_STEP_CTRL_9_CHAR = 's9';
-const char PMSG_STEP_CTRL_10_CHAR = 's0';
-const char PMSG_STEP_CTRL_11_CHAR = 'sA';
-const char PMSG_STEP_CTRL_12_CHAR = 'sB';
+// B-53: was the multi-character literal 'sc', which MSVC truncates to its last char 'c'. Same value,
+// now explicit. The unused PMSG_STEP_CTRL_1..12_CHAR ('s1'..'sB') were removed: they truncated to
+// '1'..'9', '0', 'A', 'B' and so collided with other IDs (e.g. 's1' == CMSG_LINK_TUNE_CHAR '1').
+// Message IDs are single chars; the receiver switches on the first char only.
+const char PMSG_STEP_CTRL_CHAR = 'c';
 
 
 const char CONNECT_ID = 'CID';

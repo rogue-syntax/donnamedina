@@ -177,6 +177,28 @@ int main(int argc, char** argv) {
 		if (view->attached(hwnd, kPlatformTypeHWND) != kResultTrue) { std::printf("attached failed\n"); return 2; }
 		if (verbose) std::printf("  pump\n");
 		pumpFor(400);  // GL view created, animation timer draws frames
+		if (c == 1 && std::getenv("NO_GUI_HANDLER_PROBE") == nullptr) {  // set it to skip the probe
+			// try/catch review (B-33): GUI handlers called with ids that have no name / no view.
+			// The old code relied on try/catch here, which cannot catch null or out-of-range access.
+			std::printf("  GUI handlers with unknown ids (editor open)... ");
+			rs::NVGView* nv = ctrl->nvgViewController ? ctrl->nvgViewController->nvgView : nullptr;
+			if (nv) {
+				nv->onStepCtrlSwitch(153);       // param without a view (the "pid 153" comment)
+				nv->onEnvLev(999, "x");          // no name in envNameMap
+				nv->onEnvBipolar(170, "x");
+				nv->onOnOffBtn(960, 1);
+				nv->onEnvSrc(WIDTH_ENV_SRC, 42); // env source index beyond the 7 names
+				nv->onResetButton(5);            // not a reset button
+				nv->onStepCtrlButton(153);
+				nv->onToggleButton(153);
+				nv->onEnv(80, "x");              // beyond the generator param names
+				pumpFor(300);                    // draw frames with those animations queued
+				std::printf("survived\n");
+			}
+			else {
+				std::printf("no view (skipped)\n");
+			}
+		}
 		if (verbose) std::printf("  removed\n");
 		view->removed();
 		if (verbose) std::printf("  release\n");

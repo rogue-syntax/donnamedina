@@ -36,10 +36,12 @@ namespace rs {
 	why is pid 153 being trhrown for width anim @  NVGView::initResetWidthAnim
 no viewindex at 153!*/
 	void NVGView::initResetWidthAnim(int pid) {
-		if (viewsReady[pid] == true ) {
-			(*viewIndex[pid]).blinkIntensity = 0.0;
-			(*viewIndex[pid]).blinker = 0.0;
-			viewIndex[pid]->blinkerDone = false;
+		// B-33: bounds + null check (pid 153 is the one the comment above was hitting: no view)
+		RSBView* v = viewAt(pid);
+		if (v && viewsReady[pid] == true ) {
+			v->blinkIntensity = 0.0;
+			v->blinker = 0.0;
+			v->blinkerDone = false;
 		}
 		
 		
@@ -50,69 +52,44 @@ no viewindex at 153!*/
 	}
 
 	void NVGView::onEnv(int pid, std::string msgc) {
-		try {
-			textDisplayDecay = 1.0f;
-			targDisplayTxt.reset(NVGParamDef[pid].c_str(), NVGParamDef[pid], 0.025f, 0.025f);
-			targValueTxt.reset(msgc.c_str(), NVGParamDef[pid], 0.013f, 0.013f);
-		
-		}
-		catch (const std::exception& e) {
-
-		}
+		textDisplayDecay = 1.0f;
+		targDisplayTxt.reset(paramName(pid), paramName(pid), 0.025f, 0.025f);
+		targValueTxt.reset(msgc.c_str(), paramName(pid), 0.013f, 0.013f);
+	
 		
 	}
 
 	void NVGView::onEnvBipolar(int pid, std::string msgc) {
-		try {
-			textDisplayDecay = 1.0f;
-			targDisplayTxt.reset(envNameMap[pid], envNameMap[pid], 0.025f, 0.025f);
-			targValueTxt.reset(msgc.c_str(), envNameMap[pid], 0.013f, 0.013f);
-		}
-		catch (const std::exception& e) {
-
-		}
+		textDisplayDecay = 1.0f;
+		targDisplayTxt.reset(envName(pid), envName(pid), 0.025f, 0.025f);
+		targValueTxt.reset(msgc.c_str(), envName(pid), 0.013f, 0.013f);
 	
 	}
 
 	void NVGView::onPanEnv(int pid, std::string msgc) {
-		try {
-			textDisplayDecay = 1.0f;
-			//selectedCtrlTarg = NVGParamDef[pid];
-			//selectedCtrlValue = msgc;
-			const char* c = "";
-			c = msgc.c_str();
-			targDisplayTxt.reset(NVGParamDef[pid].c_str(), NVGParamDef[pid], 0.025f, 0.025f);
-			targValueTxt.reset(c, NVGParamDef[pid], 0.013f, 0.013f);
-		}
-		catch (const std::exception& e) {
-
-		}
+		textDisplayDecay = 1.0f;
+		//selectedCtrlTarg = NVGParamDef[pid];
+		//selectedCtrlValue = msgc;
+		const char* c = "";
+		c = msgc.c_str();
+		targDisplayTxt.reset(paramName(pid), paramName(pid), 0.025f, 0.025f);
+		targValueTxt.reset(c, paramName(pid), 0.013f, 0.013f);
 		
 	}
 
 	void NVGView::onEnvLev(int pid, std::string msgc) {
-		try {
-			targDisplayTxt.reset(envNameMap[pid], envNameMap[pid], 0.025f, 0.025f);
-			targValueTxt.reset(msgc.c_str(), envNameMap[pid], 0.013f, 0.013f);
-		}
-		catch (const std::exception& e) {
-
-		}
+		targDisplayTxt.reset(envName(pid), envName(pid), 0.025f, 0.025f);
+		targValueTxt.reset(msgc.c_str(), envName(pid), 0.013f, 0.013f);
 		//textDisplayDecay = 1.0f;
-		//selectedCtrlTarg = envNameMap[pid];
+		//selectedCtrlTarg = envName(pid);
 		
 
 	}
 
 	void NVGView::onTuneSwitch(int pid, std::string interv) { 
-		try {
-			targDisplayTxt.reset(NVGParamDef[pid].c_str(), NVGParamDef[pid], 0.025f, 0.025f);
-			targValueTxt.reset(interv.c_str(), NVGParamDef[pid], 0.013f, 0.013f);
+		targDisplayTxt.reset(paramName(pid), paramName(pid), 0.025f, 0.025f);
+		targValueTxt.reset(interv.c_str(), paramName(pid), 0.013f, 0.013f);
 
-		}
-		catch (const std::exception& e) {
-
-		}
 		
 	}
 
@@ -120,148 +97,123 @@ no viewindex at 153!*/
 
 
 	void NVGView::onOnOffBtn(int pid, int state) {
-		try {
-			textDisplayDecay = 1.0f;
-			//selectedCtrlTarg = envNameMap[pid];
-			targDisplayTxt.reset(envNameMap[pid], envNameMap[pid], 00.025f, 0.025f);
-			switch (state) {
-			case 0:
-				//selectedCtrlValue = "OFF";
-				targValueTxt.reset("OFF", envNameMap[pid], 0.013f, 0.013f);
-				break;
-			case 1:
-				targValueTxt.reset("ON", envNameMap[pid], 0.013f, 0.013f);
-				break;
-			}
-		}
-		catch (const std::exception& e) {
-
+		textDisplayDecay = 1.0f;
+		//selectedCtrlTarg = envName(pid);
+		targDisplayTxt.reset(envName(pid), envName(pid), 00.025f, 0.025f);
+		switch (state) {
+		case 0:
+			//selectedCtrlValue = "OFF";
+			targValueTxt.reset("OFF", envName(pid), 0.013f, 0.013f);
+			break;
+		case 1:
+			targValueTxt.reset("ON", envName(pid), 0.013f, 0.013f);
+			break;
 		}
 		
 	}
 
 	void NVGView::onEnvSrc(int pid, int envSrc) {
-		try {
-			textDisplayDecay = 1.0f;
+		textDisplayDecay = 1.0f;
 
-			targDisplayTxt.reset(NVGParamDef[pid].c_str(), NVGParamDef[pid], 0.025f, 0.025f);
-			targValueTxt.reset(envSrcNames[envSrc], NVGParamDef[pid], 0.013f, 0.013f);
-		}
-		catch (const std::exception& e) {
-
-		}
+		targDisplayTxt.reset(paramName(pid), paramName(pid), 0.025f, 0.025f);
+		targValueTxt.reset(envSrcName(envSrc), paramName(pid), 0.013f, 0.013f);
 	
 	}
 
 	void NVGView::onChangeOSCType(int pid, int envSrc) {
 		//selectedCtrlTarg = NVGParamDef[pid];
-		try {
-			targDisplayTxt.reset(NVGParamDef[pid].c_str(), NVGParamDef[pid], 0.025f, 0.025f);
-			textDisplayDecay = 1.0f;
-			switch (envSrc) {
-			case 0:
-				//selectedCtrlValue = "SINE";
-				targValueTxt.reset("SINE", NVGParamDef[pid], 0.013f, 0.013f);
-				break;
-			case 1:
-				//selectedCtrlValue = "SAW";
-				targValueTxt.reset("SAW", NVGParamDef[pid], 0.013f, 0.013f);
-				break;
-			case 2:
-				//selectedCtrlValue = "TRI";
-				targValueTxt.reset("TRI", NVGParamDef[pid], 0.013f, 0.013f);
-				break;
-			case 3:
-				//selectedCtrlValue = "SQUARE";
-				targValueTxt.reset("SQUARE", NVGParamDef[pid], 0.013f, 0.013f);
-				break;
-			case 4:
-				targValueTxt.reset("SQUARE", NVGParamDef[pid], 0.013f, 0.013f);
-				//selectedCtrlValue = "SQUARE";
-				break;
-			}
-		}
-		catch (const std::exception& e) {
-
+		targDisplayTxt.reset(paramName(pid), paramName(pid), 0.025f, 0.025f);
+		textDisplayDecay = 1.0f;
+		switch (envSrc) {
+		case 0:
+			//selectedCtrlValue = "SINE";
+			targValueTxt.reset("SINE", paramName(pid), 0.013f, 0.013f);
+			break;
+		case 1:
+			//selectedCtrlValue = "SAW";
+			targValueTxt.reset("SAW", paramName(pid), 0.013f, 0.013f);
+			break;
+		case 2:
+			//selectedCtrlValue = "TRI";
+			targValueTxt.reset("TRI", paramName(pid), 0.013f, 0.013f);
+			break;
+		case 3:
+			//selectedCtrlValue = "SQUARE";
+			targValueTxt.reset("SQUARE", paramName(pid), 0.013f, 0.013f);
+			break;
+		case 4:
+			targValueTxt.reset("SQUARE", paramName(pid), 0.013f, 0.013f);
+			//selectedCtrlValue = "SQUARE";
+			break;
 		}
 		
 	}
 
 	void NVGView::onChangeLFOOSCType(int pid, int envSrc) {
-		//selectedCtrlTarg = envNameMap[pid];
-		try {
-			targDisplayTxt.reset(envNameMap[pid], envNameMap[pid], 0.025f, 0.025f);
-			textDisplayDecay = 1.0f;
-			switch (envSrc) {
-			case 0:
-				targValueTxt.reset("SINE", envNameMap[pid], 0.013f, 0.013f);
-				//selectedCtrlValue = "SINE";
-				break;
-			case 1:
-				//selectedCtrlValue = "SAW";
-				targValueTxt.reset("SAW", envNameMap[pid], 0.013f, 0.013f);
-				break;
-			case 2:
-				//selectedCtrlValue = "TRI";
-				targValueTxt.reset("TRI", envNameMap[pid], 0.013f, 0.013f);
-				break;
-			case 3:
-				targValueTxt.reset("SQUARE", envNameMap[pid], 0.013f, 0.013f);
-				//selectedCtrlValue = "SQUARE";
-				break;
-			case 4:
-				targValueTxt.reset("SQUARE", envNameMap[pid], 0.013f, 0.013f);
-				// = "SQUARE";
-				break;
-			}
-		}
-		catch (const std::exception& e) {
-
+		//selectedCtrlTarg = envName(pid);
+		targDisplayTxt.reset(envName(pid), envName(pid), 0.025f, 0.025f);
+		textDisplayDecay = 1.0f;
+		switch (envSrc) {
+		case 0:
+			targValueTxt.reset("SINE", envName(pid), 0.013f, 0.013f);
+			//selectedCtrlValue = "SINE";
+			break;
+		case 1:
+			//selectedCtrlValue = "SAW";
+			targValueTxt.reset("SAW", envName(pid), 0.013f, 0.013f);
+			break;
+		case 2:
+			//selectedCtrlValue = "TRI";
+			targValueTxt.reset("TRI", envName(pid), 0.013f, 0.013f);
+			break;
+		case 3:
+			targValueTxt.reset("SQUARE", envName(pid), 0.013f, 0.013f);
+			//selectedCtrlValue = "SQUARE";
+			break;
+		case 4:
+			targValueTxt.reset("SQUARE", envName(pid), 0.013f, 0.013f);
+			// = "SQUARE";
+			break;
 		}
 		
 	}
 
 	void NVGView::onChangeModType(int pid, int envSrc) {
-		try {
-			selectedCtrlPID = pid;
-			//selectedCtrlTarg = NVGParamDef[pid];
-			targDisplayTxt.reset(NVGParamDef[pid].c_str(), NVGParamDef[pid], 0.025f, 0.025f);
-			textDisplayDecay = 1.0f;
-			switch (envSrc) {
-			case 0:
-				//selectedCtrlValue = "";
-				targValueTxt.reset("", NVGParamDef[pid], 0.013f, 0.013f);
-				beatModOn = 0.0f;
+		selectedCtrlPID = pid;
+		//selectedCtrlTarg = NVGParamDef[pid];
+		targDisplayTxt.reset(paramName(pid), paramName(pid), 0.025f, 0.025f);
+		textDisplayDecay = 1.0f;
+		switch (envSrc) {
+		case 0:
+			//selectedCtrlValue = "";
+			targValueTxt.reset("", paramName(pid), 0.013f, 0.013f);
+			beatModOn = 0.0f;
+			beatModOnLev = 0.0f;
+			beatModOnPrev = 0.0f;
+			break;
+		case 1:
+			//selectedCtrlValue = "PHASE MOD";
+			targValueTxt.reset("PHASE MOD", paramName(pid), 0.013f, 0.013f);
+			beatModOn = 0.0f;
+			beatModOnLev = 0.0f;
+			beatModOnPrev = 0.0f;
+			break;
+		case 2:
+			//selectedCtrlValue = "FREQ MOD";
+			targValueTxt.reset("FREQ MOD", paramName(pid), 0.013f, 0.013f);
+			beatModOn = 0.0f;
+			beatModOnLev = 0.0f;
+			beatModOnPrev = 0.0f;
+			break;
+		case 3:
+			targValueTxt.reset("DETUNED BEAT MOD", paramName(pid), 0.013f, 0.013f);
+			//selectedCtrlValue = "DETUNED BEAT MOD";
+			beatModOn = 1.0f;
+			if (beatModOnPrev == 0.0f) {
 				beatModOnLev = 0.0f;
-				beatModOnPrev = 0.0f;
-				break;
-			case 1:
-				//selectedCtrlValue = "PHASE MOD";
-				targValueTxt.reset("PHASE MOD", NVGParamDef[pid], 0.013f, 0.013f);
-				beatModOn = 0.0f;
-				beatModOnLev = 0.0f;
-				beatModOnPrev = 0.0f;
-				break;
-			case 2:
-				//selectedCtrlValue = "FREQ MOD";
-				targValueTxt.reset("FREQ MOD", NVGParamDef[pid], 0.013f, 0.013f);
-				beatModOn = 0.0f;
-				beatModOnLev = 0.0f;
-				beatModOnPrev = 0.0f;
-				break;
-			case 3:
-				targValueTxt.reset("DETUNED BEAT MOD", NVGParamDef[pid], 0.013f, 0.013f);
-				//selectedCtrlValue = "DETUNED BEAT MOD";
-				beatModOn = 1.0f;
-				if (beatModOnPrev == 0.0f) {
-					beatModOnLev = 0.0f;
-				}
-				beatModOnPrev = 1.0f;
-				break;
-
 			}
-		}
-		catch (const std::exception& e) {
+			beatModOnPrev = 1.0f;
+			break;
 
 		}
 	
@@ -269,124 +221,108 @@ no viewindex at 153!*/
 
 	
 	void NVGView::onResetButton(int pid) {
-		try {
-			int idx = pid - WIDTH_RESET;//relatonship between RESET pids and target ctrlsi.e. WIDTH, TUNE, etc
-			if (controlMap[resetSwitch[idx]] == nullptr) {
-				return;
-			}
-			controlMap[resetSwitch[idx]]->setValueNormalized(0.5f);//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
-			controlMap[resetSwitch[idx]]->valueChanged();//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
-			Anima ar;
-			ar.animName = BUTTON_BLINK_;
-			ar.controlIdx = pid;
-			ar.animState = 0;
-			for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
-				if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
-					animationReel.erase(it);
-					break;
-				}
-			}
-			initResetWidthAnim(pid);
-			animationReel.push_back(ar);
+		int idx = pid - WIDTH_RESET;//relatonship between RESET pids and target ctrlsi.e. WIDTH, TUNE, etc
+		if (idx < 0 || idx >= RESETPARAMCOUNT || resetSwitch[idx] < 0 || resetSwitch[idx] >= 1000)
+			return;  // B-33: not a reset button
+		if (controlMap[resetSwitch[idx]] == nullptr) {
+			return;
 		}
-		catch (const std::exception& e) {
-
+		controlMap[resetSwitch[idx]]->setValueNormalized(0.5f);//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
+		controlMap[resetSwitch[idx]]->valueChanged();//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
+		Anima ar;
+		ar.animName = BUTTON_BLINK_;
+		ar.controlIdx = pid;
+		ar.animState = 0;
+		for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
+			if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
+				animationReel.erase(it);
+				break;
+			}
 		}
+		initResetWidthAnim(pid);
+		animationReel.push_back(ar);
 		
 	}
 
 	void NVGView::onStepCtrlButton(int pid) {
 		//controlMap[pid]->setValueNormalized(0.0f);//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
 		//controlMap[pid]->valueChanged();//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
-		try {
-			Anima ar;
-			ar.animName = BUTTON_BLINK_FASTER;
-			ar.controlIdx = pid;
-			ar.animState = 0;
-			for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
-				if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
-					animationReel.erase(it);
-					break;
-				}
+		Anima ar;
+		ar.animName = BUTTON_BLINK_FASTER;
+		ar.controlIdx = pid;
+		ar.animState = 0;
+		for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
+			if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
+				animationReel.erase(it);
+				break;
 			}
-			initResetWidthAnim(pid);
-			animationReel.push_back(ar);
 		}
-		catch (const std::exception& e) {
-
-		}
+		initResetWidthAnim(pid);
+		animationReel.push_back(ar);
 		
 	}
 
 	void NVGView::onStepCtrlSwitch(int pid) {
 		//controlMap[pid]->setValueNormalized(0.0f);//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
 		//controlMap[pid]->valueChanged();//THIS RESETS THE VALUE ON THE ACTUAL CONTROL
-		try {
-			if (stepCtrlSelectAnim.controlIdx != NULL) {
-				(*viewIndex[stepCtrlSelectAnim.controlIdx]).blinkIntensity = 0.0f;
-			}
+		// B-33: the previous target's view may not exist (and pid 0 is a real param, so the old
+		// "controlIdx != NULL" test skipped it); the new target may have no view either.
+		if (RSBView* prev = viewAt(stepCtrlSelectAnim.controlIdx)) {
+			prev->blinkIntensity = 0.0f;
+		}
+		RSBView* target = viewAt(pid);
+		if (!target)
+			return;  // no view registered for this param: nothing to highlight
 
-			stepCtrlSelectAnim.animName = BUTTON_BLINK_FASTER;
-			stepCtrlSelectAnim.controlIdx = pid;
-			stepCtrlSelectAnim.animState = 0;
-			selectedStepTarg = viewIndex[stepCtrlSelectAnim.controlIdx];
-			if (pid < 100) {
-				selectedStepTarg->RSBType = 1;
-			}
-			else {
-				selectedStepTarg->RSBType = 2;
-			}
-			initResetWidthAnim(pid);
+		stepCtrlSelectAnim.animName = BUTTON_BLINK_FASTER;
+		stepCtrlSelectAnim.controlIdx = pid;
+		stepCtrlSelectAnim.animState = 0;
+		selectedStepTarg = target;
+		if (pid < 100) {
+			selectedStepTarg->RSBType = 1;
+		}
+		else {
+			selectedStepTarg->RSBType = 2;
+		}
+		initResetWidthAnim(pid);
 
-			textDisplayDecay = 1.0f;
+		textDisplayDecay = 1.0f;
 
-			targDisplayTxt.reset("STEP_CTRL_TARGET", "STEP_CTRL_TARGET", 0.025f, 0.025f);
+		targDisplayTxt.reset("STEP_CTRL_TARGET", "STEP_CTRL_TARGET", 0.025f, 0.025f);
 
-			if (pid > 100) {
+		if (pid > 100) {
+
+			targValueTxt.reset(envName(pid), "STEP_CTRL_TARGET", 0.013f, 0.013f);
+		}
+		else {
 	
-				targValueTxt.reset(envNameMap[pid], "STEP_CTRL_TARGET", 0.013f, 0.013f);
-			}
-			else {
-		
-				targValueTxt.reset(NVGParamDef[pid].c_str(), "STEP_CTRL_TARGET", 0.013f, 0.013f);
-			}
-
+			targValueTxt.reset(paramName(pid), "STEP_CTRL_TARGET", 0.013f, 0.013f);
 		}
-		catch (const std::exception& e) {
 
-		}
 	}
 	
 
 	void NVGView::onToggleButton(int pid) {
-		try {
-			Anima ar;
-			ar.animName = BUTTON_GLOW_;
-			ar.controlIdx = pid;
-			ar.animState = 0;
-			for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
-				if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
-					animationReel.erase(it);
-					break;
-				}
+		Anima ar;
+		ar.animName = BUTTON_GLOW_;
+		ar.controlIdx = pid;
+		ar.animState = 0;
+		for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
+			if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
+				animationReel.erase(it);
+				break;
 			}
-			initResetWidthAnim(pid);
-			animationReel.push_back(ar);
 		}
-		catch (const std::exception& e) {
-
-		}
+		initResetWidthAnim(pid);
+		animationReel.push_back(ar);
 		
 		
 	}
 
 	void NVGView::onRCButtonUp( RDataConsumer* rdc) {
-		try {
-			knobMap.at("width")->setValueNormalized(0.5f);
-		}
-		catch (const std::exception& e) {
-
-		}
+		auto knob = knobMap.find("width");  // was .at() inside try/catch
+		if (knob != knobMap.end() && knob->second)
+			knob->second->setValueNormalized(0.5f);
 		
 		
 
@@ -1097,7 +1033,8 @@ no viewindex at 153!*/
 
 
 		selectedStepTarg = viewIndex[OCT_];
-		selectedStepTarg->RSBType = 1;
+		if (selectedStepTarg)  // B-30: the uidesc might not have a view for OCT_
+			selectedStepTarg->RSBType = 1;
 
 		if (baseController) {
 			baseController->setViewsFromBase();
@@ -1139,7 +1076,8 @@ no viewindex at 153!*/
 	bool NVGView::removed(CView* parent) {
 		shouldDraw = false;
 
-		baseController->nvgViewReady = false;
+		if (baseController)  // B-30
+			baseController->nvgViewReady = false;
 
 		views.clear();
 		cbuf.clear();
@@ -1400,7 +1338,10 @@ no viewindex at 153!*/
 
 	//DRAWING LOOP
 	void NVGView::drawOpenGL(const CRect& updateRect) {
-		
+		// B-30: no NanoVG context (not attached yet / already removed): nothing to draw with.
+		if (!vg)
+			return;
+
 		if (this->baseController) {
 			if ( this->baseController->nvgViewReady == true ){
 				this->baseController->onNVGViewReady();
@@ -1408,18 +1349,28 @@ no viewindex at 153!*/
 		}
 		//if (shouldDraw == true) {
 
+		// try/catch review: this is the one place an exception must be stopped. drawOpenGL is called
+		// by VSTGUI from the host's UI thread, so anything escaping here (e.g. std::out_of_range from
+		// one of the ~76 map .at() lookups in the draw code, B-38) would take the host down. The old
+		// per-handler try/catch blocks could not catch the real failures (null/out-of-range access is
+		// not an exception) and have been replaced by explicit checks.
+		bool frameBegun = false;
+		try {
 
+			for (int i = 0; i < static_cast<int>(animationReel.size()); i++) {
+				// B-33: an animation for a control without a view: drop it instead of dereferencing null
+				if (!viewAt(animationReel[i].controlIdx))
+					animationReel[i].animState = 1;
 
-			for (int i = 0; i < animationReel.size(); i++) {
-
-				if (animationReel[i].animState == 0) {//if index 2 (is playing) is zero, play, but set is playing to one from animation function if ended.				
+				if (animationReel[i].animState == 0) {//if index 2 (is playing) is zero, play, but set is playing to one from animation function if ended.
 					animationReel[i].animState = (this->*nvgAnimations[animationReel[i].animName])(viewIndex[animationReel[i].controlIdx]);
 
 				}if (animationReel[i].animState == 1) {
 					animationReel.erase(animationReel.begin() + i);
+					i--;  // the next element moved into slot i
 				}
 			}
-			if (stepCtrlSelectAnim.animState == 0) {
+			if (stepCtrlSelectAnim.animState == 0 && viewAt(stepCtrlSelectAnim.controlIdx)) {
 				(this->*nvgAnimations[stepCtrlSelectAnim.animName])(viewIndex[stepCtrlSelectAnim.controlIdx]);
 			}
 
@@ -1427,6 +1378,7 @@ no viewindex at 153!*/
 			glStencilMask(0xff);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
 			nvgBeginFrame(vg, 1148, 542, 1);
+			frameBegun = true;
 
 			//dravw envs
 			nvgLineJoin(vg, NVG_ROUND);
@@ -1465,12 +1417,20 @@ no viewindex at 153!*/
 			}
 
 			nvgEndFrame(vg);
+			frameBegun = false;
 			//drawOGL();
-			getPlatformOpenGLView()->swapBuffers();
+			if (getPlatformOpenGLView())
+				getPlatformOpenGLView()->swapBuffers();
 
 
 			glFinish();
-			invalid();
+		}
+		catch (const std::exception&) {
+			// Skip this frame; drop the half-built NanoVG frame so the next one starts clean.
+			if (frameBegun)
+				nvgCancelFrame(vg);
+		}
+		invalid();
 		//}
 	}
 
@@ -2038,6 +1998,8 @@ no viewindex at 153!*/
 	}
 
 	void NVGView::drawSelctedStepTarg() {
+		if (!selectedStepTarg)  // B-30: no step target view (yet)
+			return;
 		nvgBeginPath(vg);
 		if (selectedStepTarg->RSBType == 1) {
 			nvgRoundedRect(vg, selectedStepTarg->drawRect.getTopLeft().x, selectedStepTarg->drawRect.getTopLeft().y, selectedStepTarg->drawRect.getWidth(), selectedStepTarg->drawRect.getHeight(), 3.0f);
@@ -2742,6 +2704,7 @@ no viewindex at 153!*/
 
 
 	void RandyTxt::reset(const char* txt, std::string valK, float interv, float incr) {
+		if (!txt) txt = "";  // try/catch review: null names (unset table slots) must not crash
 		if (strcmp(valK.c_str(), valueKey.c_str()) == 0 || shouldInc == true) {
 			if (shouldDecay == true) {
 				valueKey = valK;

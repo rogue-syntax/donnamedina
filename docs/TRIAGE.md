@@ -7,7 +7,7 @@
 Items are logged as *look into / possibly fix*; struck-through ones are fixed (each with a fix log and test in `BUGS.md`). Grouping is by the symptom you would notice, not by priority. Last updated 2026-11-12 (after the fix session).
 
 ## Notes for later (from you)
-- **Review the try/catch blocks everywhere** (GUI handlers, registry read, `NVGView` `on*` handlers). They are probably a band-aid for bad C++ cleanup or timing problems; find what they were hiding and remove them where the real cause can be fixed. Note: until 2026-11-12 Release built with exceptions off, so those catches did not work reliably anyway (B-50). Related: B-33 (null derefs inside try blocks are not exceptions).
+- ~~**Review the try/catch blocks everywhere**~~ **done 2026-11-12** (15 GUI-handler blocks removed and replaced by real checks, one boundary kept in `drawOpenGL`, registry-read catch kept; see BUGS.md "Fix log: try/catch review"). (GUI handlers, registry read, `NVGView` `on*` handlers). They are probably a band-aid for bad C++ cleanup or timing problems; find what they were hiding and remove them where the real cause can be fixed. Note: until 2026-11-12 Release built with exceptions off, so those catches did not work reliably anyway (B-50). Related: B-33 (null derefs inside try blocks are not exceptions).
 
 ## Likely related to symptoms in your old notes
 | ID | What | Evidence level |
@@ -24,7 +24,7 @@ Items are logged as *look into / possibly fix*; struck-through ones are fixed (e
 ~~B-01 pending preset never applied · B-02 controller drops host changes with editor closed~~ (fixed 2026-11-12) · B-07 missing return + magic 173 · B-08 state load robustness · B-09 instance-id compare · ~~B-11 shared static presets~~ (fixed 2026-11-12) · B-12 hardening · ~~B-23 `ctrlValues` overflow~~ (fixed 2026-11-12; was corrupting gain/filter ramps) · ~~B-55 pan smoothing dead -> pop on retrigger~~ (fixed 2026-11-12) · ~~B-27 message IDs not C strings~~ (fixed 2026-11-12)
 
 ## Crash / robustness hazards (latent)
-~~B-04 null checks~~ (fixed 2026-11-12) · ~~B-10 real-time safety~~ (fixed 2026-11-12: 0 heap allocations in `process()`, messages queued to a main-thread timer) · ~~B-52 params 55-99 out of bounds / uninitialised recalculators~~ (fixed 2026-11-12) · B-53 colliding 2-char message IDs (see B-27) · ~~B-13 tempo float/double compare~~ (fixed 2026-11-12) · ~~B-39 `processContext` null~~ (fixed with B-04) · ~~B-22 osc-1 note index~~ (fixed 2026-11-12) · ~~B-29 dangling `nvgViewController`~~ (fixed 2026-11-12) · B-30 editor open/close ordering · B-31 uninitialised CView fields · B-32 `stoi` throw · B-33 missing-view derefs · B-38 hard-coded view names
+~~B-04 null checks~~ (fixed 2026-11-12) · ~~B-10 real-time safety~~ (fixed 2026-11-12: 0 heap allocations in `process()`, messages queued to a main-thread timer) · ~~B-52 params 55-99 out of bounds / uninitialised recalculators~~ (fixed 2026-11-12) · ~~B-53 colliding 2-char message IDs~~ (fixed 2026-11-12) · ~~B-13 tempo float/double compare~~ (fixed 2026-11-12) · ~~B-39 `processContext` null~~ (fixed with B-04) · ~~B-22 osc-1 note index~~ (fixed 2026-11-12) · ~~B-29 dangling `nvgViewController`~~ (fixed 2026-11-12) · ~~B-30 editor open/close ordering~~ (fixed 2026-11-12) · ~~B-31 uninitialised CView fields~~ (fixed) · ~~B-32 `stoi` throw~~ (fixed) · ~~B-33 missing-view derefs~~ (fixed) · B-38 hard-coded view names (mitigated: exception boundary in drawOpenGL)
 
 ## Registration
 B-45 HKCU + once-per-instance check · B-46 weak protection (info)
