@@ -17,7 +17,7 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 | B-10 RT safety | High | Counted calls; audio-thread path via `processParameterChanges`. |
 | B-11 static programParams | Medium | `programParams[0]` is a real preset (my earlier "[0] is zeros" note was wrong). Array bound is fine (tested with g++, 20 rows; MSVC not tested). Host behaviour re: controller-without-processor not tested. |
 | B-12 | Low | Downgraded, see below. |
-| B-13 | High | Types confirmed (`Env::BPM` float, `bpm` double, uninitialised). |
+| B-13 | High | **FIXED 2026-11-12.** Reproduced in the real `process()`: at 133.3 BPM, ~807 IMessages sent from the audio thread in 3.1 s (3 per block); switching LFO sync on at 120 BPM left the free rate (10.04 instead of 4.0). 0-3 messages and correct rates after the fix. |
 | B-17 | High (code) | Whole-tree grep for erase/clear/call sites; effect on CPU not measured. |
 | B-18 | Medium-High | Code read + Python model of my reading (not the real code); host-dependent trigger; symptom differs from "drops out". |
 | B-19 | Withdrawn | `catt = 1.0` in `retriggerVoice` (line 405) refutes it. |
@@ -103,7 +103,7 @@ Fix: make the preset table a `const` global initialised once (static initialiser
 ### B-12  Latent hardening issues in `processParameterChanges`  · LOW · latent
 `:1878-1886`: `paramId < NPARAMS(100)` → `generators[paramId / 55]` but `GENCOUNT == 1`; IDs 55–99 would index `generators[1]` (out of range). IDs 55–99 aren't registered, so currently unreachable. `recalculators[1000]` is a member array that is **never default-filled** (only specific entries are assigned in `initialize()`), so any registered ID in 100..999 without an entry would call an indeterminate pointer. I checked by name pattern and found no registered param missing an entry (the 3 flagged names were aliases/removed entries, e.g. `MOD_GAIN_RESET` is commented out of the param list), so this is hardening, not a known crash. Fix: fill the array with a no-op in the constructor and bound-check.
 
-### B-13  Tempo compare float vs double + uninitialised `bpm`  · MED · CONFIRMED in code · *partly fixed 2026-11-12: `bpm` now initialised to 120 (with B-04); the float/double compare and per-chunk message are still open*
+### B-13  Tempo compare float vs double + uninitialised `bpm`  · MED · **FIXED 2026-11-12** (`bpm` init with B-04; compare + sync toggle in its own fix log, verified with `tests/note_off`)
 - `Env::BPM` is `float` (`Env.h:20`), `bpm` is `double`. `recalcLfoNRate` stores `BPM = bpm` (rounded to float) and `doProcessing` compares `BPM != bpm` after every chunk. For a tempo not exactly representable as float (e.g. 133.3), the compare is always true, so `recalcLfoNRate` runs **every chunk**, and each call does `sendDoubleAttr(...)` = allocate + send an IMessage from the audio thread (`:1608`).
 - `double bpm;` (`mdaDX10Processor.h:124`) has no initialiser, but `recalcLfoNRate` is called from `setState`/`setCurrentProgram` before any `process()`; with LFO tempo-sync on, `rate = bpm / quants[...]` uses garbage.
 Fix: make `BPM` double, compare with a tolerance, initialise `bpm = 120`, and only send the rate message on real change.
@@ -276,4 +276,12 @@ Undefined behaviour for a non-void function; SDK mod file.
 - Per-event handling moved unchanged into `DX10Processor::dispatchNoteEvent(note, velocity)`.
 - `DX10Processor::doProcessing`: tempo is only read if `processContext` is non-null, `kTempoValid` is set and tempo > 0; otherwise the last tempo is kept. `bpm` (processor and `DXGenerator`) initialised to 120.
 - Evidence: 4 new cases in `tests/note_off` (21 note cases total). Old code: no event list on empty blocks -> held note's minimum level 0.0002 of peak (note-on replayed every block, constant retrigger; a normally held note, the new control case, measures 0.4763); note-off with offset past block end -> hanging note at 0.9198 of peak; null `processContext` -> access violation (0xC0000005). Fixed code: 0 failures. Debug and Release build with 0 errors.
-- Seen while reading, not changed: the overflow branch of `processEvents` checks `npos < EVENTBUFFER - 1` before writing 3 slots, which can reach index `EVENTBUFFER`; harmless because `notes` has 8 spare slots (`notes[EVENTBUFFER + 8]`).
+- Seen while reading, not changed (B-04 fix): the overflow branch of `processEvents` checks `npos < EVENTBUFFER - 1` before writing 3 slots, which can reach index `EVENTBUFFER`; harmless because `notes` has 8 spare slots (`notes[EVENTBUFFER + 8]`).
+
+### Fix log: B-13 rest (2026-11-12)
+- `Env::BPM` is now `double` (same type as `bpm`), so the tempo compare in `doProcessing` is only true on a real tempo change.
+- `doProcessing`: on a tempo change, an LFO with sync off only records the new tempo (its rate does not depend on tempo); only synced LFOs recompute their rate (and send the rate message).
+- `recalcLfo1/2/3BPM` (sync toggle) now recompute the rate. Before, switching sync on or off only took effect at the next rate-knob move or tempo change; at tempos a float cannot hold exactly it was masked by the per-chunk recompute.
+- Test harness: the processor now gets a real host context (`HostApplication` from the SDK hosting sources) and a peer that counts messages sent from inside `process()`. 5 new B-13 cases. Old code: 133.3 BPM -> 807 audio-thread messages in 3.1 s (sync off as well as on); sync switched on at 0.5 s at 120 BPM -> LFO 1 rate stays at the free value 10.04 instead of 4.0. Fixed: 0-3 messages per render (initial tempo adoption and the parameter changes themselves), all rates as expected including a 120 -> 140 tempo change. All earlier cases still pass. Debug and Release build with 0 errors.
+- Still open (B-10): `recalcLfoNRate` still allocates and sends an IMessage from the audio thread, now only on real rate changes (knob, sync toggle, tempo change with sync on). A host tempo ramp with sync on still sends one per synced LFO per block.
+- Seen while reading, not changed: `recalcLfo2Rate`/`recalcLfo3Rate` set `mainEnvLfo[5/6].m_dOscFo` from `EnvLfoCtrls[2]/[3].rate` in the sync-off branch (wrong index), but the line after overwrites it with the right value, so it has no effect.

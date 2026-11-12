@@ -10,6 +10,9 @@
 #include "../../source/mdaDX10Processor.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
+#include "public.sdk/source/vst/hosting/hostclasses.h"
+#include "pluginterfaces/vst/ivstmessage.h"
+#include <functional>
 #include "pluginterfaces/vst/ivstprocesscontext.h"
 
 #include <cmath>
@@ -32,6 +35,22 @@ constexpr int16 kPitch = 60;
 int g_pointerDrift = 0;  // blocks after which the host's channel pointers had moved (B-03)
 int g_overrun = 0;       // samples written past the end of the host buffer (B-03)
 
+// B-13: counts IMessages the processor sends from inside process() (= from the audio thread).
+bool g_inProcess = false;
+int g_audioThreadMsgs = 0;
+class CountingPeer : public IConnectionPoint {
+public:
+	tresult PLUGIN_API connect(IConnectionPoint*) override { return kResultTrue; }
+	tresult PLUGIN_API disconnect(IConnectionPoint*) override { return kResultTrue; }
+	tresult PLUGIN_API notify(IMessage*) override {
+		if (g_inProcess) g_audioThreadMsgs++;
+		return kResultTrue;
+	}
+	tresult PLUGIN_API queryInterface(const TUID, void** obj) override { *obj = nullptr; return kNoInterface; }
+	uint32 PLUGIN_API addRef() override { return 1; }
+	uint32 PLUGIN_API release() override { return 1; }
+};
+
 struct NoteEvent {
 	int64 sample;  // absolute sample position
 	bool on;
@@ -42,6 +61,10 @@ struct NoteEvent {
 struct Options {
 	bool nullContext = false;      // ProcessData.processContext = nullptr (allowed by VST3)
 	bool nullEventsIfEmpty = false; // inputEvents = nullptr for blocks without events
+	double tempo = 120.0;
+	double tempo2 = 0.0, tempo2At = 0.0;  // if tempo2 > 0: host tempo changes at tempo2At seconds
+	std::vector<std::pair<double, std::pair<ParamID, double>>> params;  // {seconds, {id, normalized}}
+	std::function<void(rs::DX10Processor&)> inspect;  // called after the last block
 };
 
 struct Settings {
@@ -54,8 +77,12 @@ struct Settings {
 // 10 ms window.
 std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& events, double seconds,
                           const Options& opt = {}) {
+	// A real host context (so allocateMessage works) and a peer that counts messages.
+	static HostApplication host;
+	static CountingPeer peer;
 	auto* proc = new rs::DX10Processor();
-	proc->initialize(nullptr);
+	proc->initialize(&host);
+	proc->connect(&peer);
 	ProcessSetup setup{kRealtime, kSample32, kBlock, kSampleRate};
 	proc->setupProcessing(setup);
 	proc->setActive(true);
@@ -72,7 +99,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 
 	ProcessContext ctx{};
 	ctx.sampleRate = kSampleRate;
-	ctx.tempo = 120.0;
+	ctx.tempo = opt.tempo;
 	ctx.state = ProcessContext::kTempoValid;
 
 	const int64 total = static_cast<int64>(seconds * kSampleRate);
@@ -121,6 +148,18 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 			set(ENV_1_DECAYTOGGLE, 0.0);
 			first = false;
 		}
+		for (const auto& p : opt.params) {
+			const int64 s0 = static_cast<int64>(p.first * kSampleRate);
+			if (s0 >= pos && s0 < pos + kBlock) {
+				int32 idx = 0;
+				if (auto* q = changes.addParameterData(p.second.first, idx)) {
+					int32 pidx = 0;
+					q->addPoint(static_cast<int32>(s0 - pos), p.second.second, pidx);
+				}
+			}
+		}
+		if (opt.tempo2 > 0.0 && pos >= static_cast<int64>(opt.tempo2At * kSampleRate))
+			ctx.tempo = opt.tempo2;
 
 		ProcessData data{};
 		data.processMode = kRealtime;
@@ -136,7 +175,9 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		std::fill(left.begin(), left.begin() + kBlock, 0.0f);
 		std::fill(right.begin(), right.begin() + kBlock, 0.0f);
 
+		g_inProcess = true;
 		proc->process(data);
+		g_inProcess = false;
 
 		if (chans[0] != left.data() || chans[1] != right.data()) {
 			g_pointerDrift++;
@@ -158,7 +199,9 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		pos += kBlock;
 	}
 
+	if (opt.inspect) opt.inspect(*proc);
 	proc->setActive(false);
+	proc->disconnect(&peer);
 	proc->terminate();
 	proc->release();
 	return peaks;
@@ -284,6 +327,48 @@ int main() {
 			            c.checkSec, rel, c.expectSounding ? "sounding" : "ended", pass ? "PASS" : "FAIL");
 		}
 	}
+	// ---- B-13: tempo handling of the LFOs, and messages sent from the audio thread ----
+	{
+		std::printf("\n");
+		const std::vector<NoteEvent> held = {{0, true, kPitch}, {at(2.0), false, kPitch}};
+		const double rateNorm = 0.5;  // LFO rate knob; with sync on -> quants[5]
+		struct TCase {
+			const char* name;
+			Options o;
+			int maxMsgs;        // messages allowed from process() over the whole 3.1 s render
+			double expectRate;  // expected final LFO 1 rate, < 0 = not checked
+		};
+		auto syncOn = [&](double at0, double atSync) {
+			return std::vector<std::pair<double, std::pair<ParamID, double>>>{
+				{at0, {LFO_1_RATE, rateNorm}}, {atSync, {LFO_1_BPM, 1.0}}};
+		};
+		std::vector<TCase> tcases;
+		{ TCase t{"tempo 133.3, sync off (held note)", {}, 3, -1.0}; t.o.tempo = 133.3; tcases.push_back(t); }
+		{ TCase t{"tempo 133.3, LFO 1 sync on", {}, 6, 133.3 / quants[5]}; t.o.tempo = 133.3;
+		  t.o.params = syncOn(0.0, 0.0); tcases.push_back(t); }
+		{ TCase t{"LFO 1 sync on, tempo 120 -> 140 at 1.0 s", {}, 8, 140.0 / quants[5]}; t.o.tempo = 120.0;
+		  t.o.tempo2 = 140.0; t.o.tempo2At = 1.0; t.o.params = syncOn(0.0, 0.0); tcases.push_back(t); }
+		{ TCase t{"LFO 1 sync switched on at 0.5 s, tempo 133.3", {}, 8, 133.3 / quants[5]}; t.o.tempo = 133.3;
+		  t.o.params = syncOn(0.0, 0.5); tcases.push_back(t); }
+		{ TCase t{"LFO 1 sync switched on at 0.5 s, tempo 120", {}, 8, 120.0 / quants[5]}; t.o.tempo = 120.0;
+		  t.o.params = syncOn(0.0, 0.5); tcases.push_back(t); }
+
+		for (auto& t : tcases) {
+			double rate = 0.0;
+			t.o.inspect = [&](rs::DX10Processor& p) { rate = p.EnvLfoCtrls[4].rate; };
+			g_audioThreadMsgs = 0;
+			std::fflush(stdout);
+			render(settings[0], held, 3.1, t.o);
+			bool ok = g_audioThreadMsgs <= t.maxMsgs;
+			if (t.expectRate >= 0.0) ok = ok && std::fabs(rate - t.expectRate) <= 1e-3 * t.expectRate;
+			if (!ok) failures++;
+			std::printf("B-13  %-48s audio-thread msgs = %4d (max %d)  LFO1 rate = %8.4f", t.name,
+			            g_audioThreadMsgs, t.maxMsgs, rate);
+			if (t.expectRate >= 0.0) std::printf(" (expect %.4f)", t.expectRate);
+			std::printf("  %s\n", ok ? "PASS" : "FAIL");
+		}
+	}
+
 	std::printf("\nB-03: host pointer moved after %d block(s), %d sample(s) written past buffer end  %s\n",
 	            g_pointerDrift, g_overrun, (g_pointerDrift == 0 && g_overrun == 0) ? "PASS" : "FAIL");
 	if (g_pointerDrift != 0 || g_overrun != 0) failures++;

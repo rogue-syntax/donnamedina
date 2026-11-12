@@ -1201,16 +1201,23 @@ void DX10Processor::doProcessing(ProcessData& data) {
 			*out2++ = generators[0].o2;
 		}
 
-		// Update BPM-dependent parameters if needed
+		// Update BPM-dependent parameters if needed.
+		// B-13: Env::BPM was a float, so for tempos a float cannot hold exactly (e.g. 133.3) this
+		// compare was always true and the rates were recomputed (and an IMessage allocated and sent
+		// from the audio thread) for every LFO on every chunk. BPM is now a double, and a free-running
+		// LFO (sync off) does not depend on tempo, so it only records the tempo.
 		generators[0].bpm = bpm;
 		if (EnvLfoCtrls[4].BPM != bpm) {
-			recalcLfo1Rate(EnvLfoCtrls[4].rateValue);
+			if (EnvLfoCtrls[4].syncBpm != 0) recalcLfo1Rate(EnvLfoCtrls[4].rateValue);
+			else EnvLfoCtrls[4].BPM = bpm;
 		}
 		if (EnvLfoCtrls[5].BPM != bpm) {
-			recalcLfo2Rate(EnvLfoCtrls[5].rateValue);
+			if (EnvLfoCtrls[5].syncBpm != 0) recalcLfo2Rate(EnvLfoCtrls[5].rateValue);
+			else EnvLfoCtrls[5].BPM = bpm;
 		}
 		if (EnvLfoCtrls[6].BPM != bpm) {
-			recalcLfo3Rate(EnvLfoCtrls[6].rateValue);
+			if (EnvLfoCtrls[6].syncBpm != 0) recalcLfo3Rate(EnvLfoCtrls[6].rateValue);
+			else EnvLfoCtrls[6].BPM = bpm;
 		}
 
 		// Check if we've gone silent
@@ -1650,9 +1657,12 @@ int DX10Processor::recalcLfo1Type(double value) {
 	return 0; 
 };
 
-int DX10Processor::recalcLfo1BPM(double value) { 
+int DX10Processor::recalcLfo1BPM(double value) {
 	EnvLfoCtrls[4].syncBpm = (int)value;
-	return 0; 
+	// B-13: the rate depends on the sync mode, so recompute it now (this used to happen only by
+	// accident, through the per-chunk tempo recompute that is now gone).
+	recalcLfo1Rate(EnvLfoCtrls[4].rateValue);
+	return 0;
 };
 
 int DX10Processor::recalcLfo1Delay(double value) {
@@ -1690,6 +1700,7 @@ int DX10Processor::recalcLfo2Type(double value) {
 
 int DX10Processor::recalcLfo2BPM(double value) {
 	EnvLfoCtrls[5].syncBpm = (int)value;
+	recalcLfo2Rate(EnvLfoCtrls[5].rateValue);  // B-13, see recalcLfo1BPM
 	return 0;
 };
 
@@ -1730,6 +1741,7 @@ int DX10Processor::recalcLfo3Type(double value) {
 
 int DX10Processor::recalcLfo3BPM(double value) {
 	EnvLfoCtrls[6].syncBpm = (int)value;
+	recalcLfo3Rate(EnvLfoCtrls[6].rateValue);  // B-13, see recalcLfo1BPM
 	return 0;
 };
 

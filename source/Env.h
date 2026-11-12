@@ -17,7 +17,7 @@ public:
 	float crel = 0.5;
 	float decayReleaseToggle = 0.0;
 
-	float BPM = 0.0;
+	double BPM = 0.0;  // B-13: tempo the rate was last computed for; same type as the processor's bpm
 	int syncBpm = 0;
 	float rate = 0.0;
 	float level = 0.0;
