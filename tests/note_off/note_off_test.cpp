@@ -36,6 +36,12 @@ struct NoteEvent {
 	int64 sample;  // absolute sample position
 	bool on;
 	int16 pitch;
+	int32 overshoot = 0;  // > 0: send in the block containing `sample` with offset kBlock + overshoot
+};
+
+struct Options {
+	bool nullContext = false;      // ProcessData.processContext = nullptr (allowed by VST3)
+	bool nullEventsIfEmpty = false; // inputEvents = nullptr for blocks without events
 };
 
 struct Settings {
@@ -46,7 +52,8 @@ struct Settings {
 
 // Renders `seconds` of audio for the given events and returns the peak level in each
 // 10 ms window.
-std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& events, double seconds) {
+std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& events, double seconds,
+                          const Options& opt = {}) {
 	auto* proc = new rs::DX10Processor();
 	proc->initialize(nullptr);
 	ProcessSetup setup{kRealtime, kSample32, kBlock, kSampleRate};
@@ -80,7 +87,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 			if (e.sample >= pos && e.sample < pos + kBlock) {
 				Event ev{};
 				ev.busIndex = 0;
-				ev.sampleOffset = static_cast<int32>(e.sample - pos);
+				ev.sampleOffset = e.overshoot > 0 ? kBlock + e.overshoot : static_cast<int32>(e.sample - pos);
 				if (e.on) {
 					ev.type = Event::kNoteOnEvent;
 					ev.noteOn.channel = 0;
@@ -121,9 +128,9 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		data.numSamples = kBlock;
 		data.numOutputs = 1;
 		data.outputs = &out;
-		data.inputEvents = &evList;
+		data.inputEvents = (opt.nullEventsIfEmpty && evList.getEventCount() == 0) ? nullptr : &evList;
 		data.inputParameterChanges = &changes;
-		data.processContext = &ctx;
+		data.processContext = opt.nullContext ? nullptr : &ctx;
 
 		// Pointers are NOT reset between blocks: the plugin must leave them alone (B-03).
 		std::fill(left.begin(), left.begin() + kBlock, 0.0f);
@@ -173,7 +180,16 @@ struct Case {
 	std::vector<NoteEvent> events;
 	double checkSec;      // time at which we judge the result
 	bool expectSounding;  // true: the key is still held at checkSec
+	Options opt = {};
+	bool checkSteady = false;  // also require a steady level 0.1-0.9 s (no retriggers while held)
 };
+
+float minPeak(const std::vector<float>& peaks, double from, double to) {
+	float m = 1e9f;
+	for (size_t i = static_cast<size_t>(from / 0.010); i < static_cast<size_t>(to / 0.010) && i < peaks.size(); i++)
+		m = std::min(m, peaks[i]);
+	return m;
+}
 
 }  // namespace
 
@@ -214,14 +230,47 @@ int main() {
 		}
 		cases.push_back(dense);
 	}
+	{  // control for the next case: same held note, event list present in every block
+		Case c{"control: held note steady, off @ 1.0 s",
+		       {{0, true, kPitch}, {at(1.0), false, kPitch}}, 2.9, false};
+		c.checkSteady = true;
+		cases.push_back(c);
+	}
+	{  // B-04: host sends no event list for blocks without events; key held 0..1.0 s
+		Case c{"no event list on empty blocks: held note steady, off @ 1.0 s",
+		       {{0, true, kPitch}, {at(1.0), false, kPitch}}, 2.9, false};
+		c.opt.nullEventsIfEmpty = true;
+		c.checkSteady = true;
+		cases.push_back(c);
+	}
+	{  // B-04: note-off with an offset past the end of its block (out of spec)
+		NoteEvent off{at(0.2), false, kPitch};
+		off.overshoot = 10;
+		cases.push_back({"note-off offset past block end", {{0, true, kPitch}, off}, 2.5, false});
+	}
+	{  // B-04: no ProcessContext at all (allowed by VST3). Old code dereferences it: crash. Keep last.
+		Case c{"no ProcessContext", {{0, true, kPitch}, {at(0.2), false, kPitch}}, 2.5, false};
+		c.opt.nullContext = true;
+		cases.push_back(c);
+	}
 
 	int failures = 0;
 	for (const auto& s : settings) {
 		for (const auto& c : cases) {
-			auto peaks = render(s, c.events, 3.1);
+			std::fflush(stdout);  // so output survives if a case crashes
+			auto peaks = render(s, c.events, 3.1, c.opt);
 			const float ref = maxPeak(peaks);
 			const float lvl = peakAround(peaks, c.checkSec);
 			const float rel = ref > 0 ? lvl / ref : 0.0f;
+			if (c.checkSteady && s.decay >= 0.991) {
+				const float steady = ref > 0 ? minPeak(peaks, 0.1, 0.9) / ref : 0.0f;
+				// A normally held note of the default patch measures ~0.48 here (its level varies);
+				// retriggering every block (old B-04) measured 0.0002.
+				const bool ok = steady > 0.25f;
+				if (!ok) failures++;
+				std::printf("%s  %-62s min level 0.1-0.9s = %7.4f of peak  expect steady    %s\n", s.name, c.name,
+				            steady, ok ? "PASS" : "FAIL");
+			}
 			// "sounding" = above -40 dB of the peak; "ended" = below -60 dB.
 			bool pass;
 			if (c.expectSounding) {

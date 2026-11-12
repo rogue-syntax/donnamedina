@@ -10,7 +10,7 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 | B-01 pending preset never applied | High | Re-read `createView`; grep shows `checkPendingPreset` has no other caller. |
 | B-02 params dropped while editor closed | High | Re-read `setParamNormalized`; `BaseController` does not override it, so the skipped call is the only store. Not run in a host. |
 | B-03 output pointer corruption | High | **FIXED 2026-11-12.** Reproduced in the real `DX10Processor::process()` (host pointers moved after 258 blocks, 41852 samples written past the buffer end); 0/0 after the fix. Not run in a host. |
-| B-04 stale events / null processContext | Medium | Code read. (A claim that `notes[]` was uninitialised was WRONG: `initialize()` sets `notes[0]=EVENTS_DONE`. Removed.) |
+| B-04 stale events / null processContext | Medium | **FIXED 2026-11-12.** Reproduced in the real `process()`: null `processContext` = access violation; no event list = note-on replayed every block; note-off past block end = hanging note. All pass after the fix. (A claim that `notes[]` was uninitialised was WRONG: `initialize()` sets `notes[0]=EVENTS_DONE`. Removed.) |
 | B-05 reorder kills retriggered note | Medium | `cutNote` defaults to true, `noteOff` is keyed by pitch (`DXGenerator.cpp:594`), so the mechanism holds; exact audible end-state not run. |
 | B-06 velocity curve (rewritten) | High | Integer-division arithmetic reproduced numerically; feeds amp env at `DXGenerator.cpp:461`. My earlier "truncation" theory was NOT supported (0/127 off by one in a float test) and was dropped. |
 | B-07, B-08, B-09 | High | Straight code reads. |
@@ -61,7 +61,7 @@ Fix: always store the value (`BaseController::setParamNormalized`) and only skip
 **Test (pass 5):** I compiled the same loop with g++ against the real `ivstaudioprocessor.h` (256-sample block, event offsets 0,10,40,100): chunk writes land at offsets 0, 10, **50** (should be 40), **150** (should be 100), and the host's channel pointer is left at +150 after the call. The last chunk (156 samples) then writes up to sample 306 of a 256-sample buffer, i.e. ~50 floats past the end. `doProcessing` does write through `data.outputs[0].channelBuffers32` (`mdaDX10Processor.cpp:1159-1170`), so the real code does the same. What I did not test: whether a given host re-sets its channel pointers every block (many do, which would limit the drift to one block, but the overrun inside a block still happens). Triggered whenever a block has 3+ chunks, i.e. at least 2 distinct non-zero event offsets (a single chunk boundary is correct). Plausibly contributes to dropouts/buzz/crashes with dense MIDI.
 Fix: keep local `float* outL/outR` pointers (or a local `AudioBusBuffers` + channel array) and never write through `data.outputs`.
 
-### B-04  Missing null checks / stale events  · MED · OPEN
+### B-04  Missing null checks / stale events  · MED · **FIXED 2026-11-12** (reproduced and verified with `tests/note_off`, see fix log)
 - `doProcessing` uses `data.processContext->tempo` unconditionally (`:1161`); `processContext` may be null in some hosts/validators.
 - `preProcess` only calls `processEvents` if `inputEvents` is non-null; if null, `notes[]` from the previous block is replayed (the old code reset `notes[0] = EVENTS_DONE` at the end of each block; the new one doesn't).
 (`notes[0]` IS initialised in `initialize()`, line 636.)
@@ -103,7 +103,7 @@ Fix: make the preset table a `const` global initialised once (static initialiser
 ### B-12  Latent hardening issues in `processParameterChanges`  · LOW · latent
 `:1878-1886`: `paramId < NPARAMS(100)` → `generators[paramId / 55]` but `GENCOUNT == 1`; IDs 55–99 would index `generators[1]` (out of range). IDs 55–99 aren't registered, so currently unreachable. `recalculators[1000]` is a member array that is **never default-filled** (only specific entries are assigned in `initialize()`), so any registered ID in 100..999 without an entry would call an indeterminate pointer. I checked by name pattern and found no registered param missing an entry (the 3 flagged names were aliases/removed entries, e.g. `MOD_GAIN_RESET` is commented out of the param list), so this is hardening, not a known crash. Fix: fill the array with a no-op in the constructor and bound-check.
 
-### B-13  Tempo compare float vs double + uninitialised `bpm`  · MED · CONFIRMED in code
+### B-13  Tempo compare float vs double + uninitialised `bpm`  · MED · CONFIRMED in code · *partly fixed 2026-11-12: `bpm` now initialised to 120 (with B-04); the float/double compare and per-chunk message are still open*
 - `Env::BPM` is `float` (`Env.h:20`), `bpm` is `double`. `recalcLfoNRate` stores `BPM = bpm` (rounded to float) and `doProcessing` compares `BPM != bpm` after every chunk. For a tempo not exactly representable as float (e.g. 133.3), the compare is always true, so `recalcLfoNRate` runs **every chunk**, and each call does `sendDoubleAttr(...)` = allocate + send an IMessage from the audio thread (`:1608`).
 - `double bpm;` (`mdaDX10Processor.h:124`) has no initialiser, but `recalcLfoNRate` is called from `setState`/`setCurrentProgram` before any `process()`; with LFO tempo-sync on, `rate = bpm / quants[...]` uses garbage.
 Fix: make `BPM` double, compare with a tolerance, initialise `bpm = 120`, and only send the rate message on real change.
@@ -212,7 +212,7 @@ See `05-sdk-mods.md` (pass 4). `customRSType` and `customRSDisplayActive` have n
 ### B-38  Hard-coded view names in the per-frame draw functions, uncaught `.at()`  · MED · CONFIRMED in code (latent)
 `drawEnv1..6` (`NVGView.cpp:1467-1930`) look up `"env1Att"`, `"env1DecToggle"`, `"lfo1Amp"`, `"lfo1Type"`, `"lfo1PhaseSlider"`, ... with `.at()`. If the uidesc ever drops or renames one of those views, `std::out_of_range` escapes `drawOpenGL` into the host. The envelope shapes drawn are a **visual approximation** from the knob positions (not computed from the real DSP coefficients), and `drawEnv1-3` fill after `nvgClosePath` without a new path.
 
-### B-39  `data.processContext` is dereferenced without a null/valid check  · MED · CONFIRMED in code
+### B-39  `data.processContext` is dereferenced without a null/valid check  · MED · **FIXED 2026-11-12 with B-04**
 `DX10Processor::doProcessing` (`mdaDX10Processor.cpp:1161`): `bpm = data.processContext->tempo;`. VST3 hosts may pass a null `processContext` (and `tempo` is only valid if `state & kTempoValid`). Null = crash on the first block; invalid tempo = garbage/zero `bpm` feeding LFO sync (see B-13). It also runs once per chunk.
 
 ## E. Pass 5 findings (filter / numerics) — read-only
@@ -270,3 +270,10 @@ Undefined behaviour for a non-void function; SDK mod file.
 ### Fix log: B-03 (2026-11-12)
 - `DX10Processor::preProcess`: each chunk gets its own `AudioBusBuffers` and local channel-pointer array (offset by the chunk start), so the host's `data.outputs[0].channelBuffers32` is never written. Also skips rendering unless output bus 0 exists with at least 2 channels (`doProcessing` writes two channels).
 - Evidence: the test no longer resets channel pointers between blocks; it checks after every block that the host pointers are unchanged and that a guard zone after each buffer is untouched, and adds a dense-MIDI case (note every 2 ms, 4 pitches). Old code: host pointers moved after 258 blocks, 41852 samples written past the buffer end. Fixed code: 0 and 0, all 14 note cases pass. Debug and Release build with 0 errors. Not yet heard in a host.
+
+### Fix log: B-04 + B-39, part of B-13 (2026-11-12)
+- `DX10Processor::preProcess`: `notes[0] = EVENTS_DONE` at the start of every block (a block without an event list no longer replays the previous block's events) and at the end. Events with an offset at/after the block end are applied after the last chunk instead of being skipped. Blocks that render nothing (zero samples, bypassed, no stereo output) still apply their notes, so a note-off is not lost.
+- Per-event handling moved unchanged into `DX10Processor::dispatchNoteEvent(note, velocity)`.
+- `DX10Processor::doProcessing`: tempo is only read if `processContext` is non-null, `kTempoValid` is set and tempo > 0; otherwise the last tempo is kept. `bpm` (processor and `DXGenerator`) initialised to 120.
+- Evidence: 4 new cases in `tests/note_off` (21 note cases total). Old code: no event list on empty blocks -> held note's minimum level 0.0002 of peak (note-on replayed every block, constant retrigger; a normally held note, the new control case, measures 0.4763); note-off with offset past block end -> hanging note at 0.9198 of peak; null `processContext` -> access violation (0xC0000005). Fixed code: 0 failures. Debug and Release build with 0 errors.
+- Seen while reading, not changed: the overflow branch of `processEvents` checks `npos < EVENTBUFFER - 1` before writing 3 slots, which can reach index `EVENTBUFFER`; harmless because `notes` has 8 spare slots (`notes[EVENTBUFFER + 8]`).

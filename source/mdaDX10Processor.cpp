@@ -977,7 +977,10 @@ void DX10Processor::preProcess(ProcessData& data)
 	if (processParameterChanges(data.inputParameterChanges))
 		recalculate();
 
-	// Pre-process events and organize them by sample position
+	// Pre-process events and organize them by sample position.
+	// B-04: start every block with an empty list, so a block without an event list does not
+	// replay the previous block's events.
+	notes[0] = EVENTS_DONE;
 	if (data.inputEvents)
 		processEvents(data.inputEvents);
 
@@ -1051,30 +1054,8 @@ void DX10Processor::preProcess(ProcessData& data)
 
 				//debugLog("Processing event: sample=%d, note=%d, vel=%d, currentSample=%d\n", notes[eventIndex], note, velocity, currentSample);
 
-				// Call noteOn to handle both note-on and note-off
-				// In a more robust implementation, we'd add a noteMap to track note->noteID mapping
-				noteOn(note, velocity, noteID);
+				dispatchNoteEvent(note, velocity);
 				processedEvents = true;
-
-				// Update noteID for note-on events
-				if (velocity > 0) {
-					// Store the mapping of note to noteID
-					noteToIDMap[note] = noteID;
-
-					if (noteID < 126)
-						noteID++;
-					else
-						noteID = 0;
-				}
-				else {
-					// For note-off, try to use the same noteID as the note-on if possible
-					// This needs a map from MIDI note number to noteID
-					auto it = noteToIDMap.find(note);
-					if (it != noteToIDMap.end()) {
-						// We found the noteID that was used for this note
-						noteToIDMap.erase(it);
-					}
-				}
 
 				// Move to next event
 				eventIndex += 3;
@@ -1087,8 +1068,48 @@ void DX10Processor::preProcess(ProcessData& data)
 			}
 		}
 
+		// B-04: events with an offset at/after the block end (out of spec for a host) are
+		// not reached by the loop; apply them now rather than dropping a note-off.
+		for (; notes[eventIndex] != EVENTS_DONE; eventIndex += 3)
+			dispatchNoteEvent(notes[eventIndex + 1], notes[eventIndex + 2]);
+
 		// Check if output is silent
 		checkSilence(data);
+	}
+	else {
+		// B-04: nothing is rendered this block (zero samples, bypassed or no stereo output).
+		// Still apply its notes so a note-off is not lost (which would hang the note).
+		for (int32 i = 0; notes[i] != EVENTS_DONE; i += 3)
+			dispatchNoteEvent(notes[i + 1], notes[i + 2]);
+	}
+	// All events of this block are consumed.
+	notes[0] = EVENTS_DONE;
+}
+
+void DX10Processor::dispatchNoteEvent(int32 note, int32 velocity)
+{
+	// Call noteOn to handle both note-on and note-off
+	// In a more robust implementation, we'd add a noteMap to track note->noteID mapping
+	noteOn(note, velocity, noteID);
+
+	// Update noteID for note-on events
+	if (velocity > 0) {
+		// Store the mapping of note to noteID
+		noteToIDMap[note] = noteID;
+
+		if (noteID < 126)
+			noteID++;
+		else
+			noteID = 0;
+	}
+	else {
+		// For note-off, try to use the same noteID as the note-on if possible
+		// This needs a map from MIDI note number to noteID
+		auto it = noteToIDMap.find(note);
+		if (it != noteToIDMap.end()) {
+			// We found the noteID that was used for this note
+			noteToIDMap.erase(it);
+		}
 	}
 }
 
@@ -1165,7 +1186,10 @@ void DX10Processor::doProcessing(ProcessData& data) {
 	sampleFrames = data.numSamples;
 	out1 = data.outputs[0].channelBuffers32[0];
 	out2 = data.outputs[0].channelBuffers32[1];
-	bpm = data.processContext->tempo;
+	// B-04: processContext is optional in VST3; keep the last tempo if it is missing or invalid.
+	if (data.processContext && (data.processContext->state & ProcessContext::kTempoValid)
+		&& data.processContext->tempo > 0.0)
+		bpm = data.processContext->tempo;
 
 	// Check for active voices or just process the chunk
 	//if (activevoices > 0) {

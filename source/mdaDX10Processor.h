@@ -121,7 +121,8 @@ public:
 	ParamRampObj rampedParams[PROCRAMPEDPARAMSLENGTH];
 	int MAINENV1_RAMPINDEX = 0;
 
-	double bpm;
+	double bpm = 120.0;  // B-04: used if the host sends no (valid) tempo
+	void dispatchNoteEvent(int32 note, int32 velocity);  // note-on (vel > 0) or note-off (vel == 0)
 
 	float testfl = 0.0;
 	

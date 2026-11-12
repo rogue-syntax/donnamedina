@@ -479,7 +479,7 @@ public:
 
 	float ratioPImX;
 	CMoogLadderFilter m_Filter1;
-	double bpm;
+	double bpm = 120.0;
 	
 
 	void createVoice();
