@@ -8,8 +8,8 @@
 #include "Map.h"
 #include "base/source/timer.h"
 #include "RVoice.h"
-#include "../SFML-2.5.1-64/include/SFML/revent/REvents.h"
-#include "../SFML-2.5.1-64/include/SFML/revent/REventable.h"
+#include "REvents.h"
+#include "REventable.h"
 #include "immintrin.h"
 
 //#include "mdaBaseprocessor.h"

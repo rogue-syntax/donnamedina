@@ -1,7 +1,7 @@
 #pragma once
 //#include <SFML/System/Thread.hpp>
 //or needs threading
-#include "../SFML-2.5.1-64/include/SFML/revent/REvent.h"
+#include "REvent.h"
 #include "NVGView.h"
 #include <iostream>
 #include "luconData.hpp"

@@ -1,8 +1,8 @@
 # Build outputs
-x64/
-Win32/
-[Dd]ebug/
-[Rr]elease/
+/x64/
+/Win32/
+/[Dd]ebug/
+/[Rr]elease/
 *.obj
 *.pdb
 *.ipdb
@@ -27,7 +27,7 @@ ipch/
 *.aps
 
 # libbcrypt local build tree (sources are kept)
-libbcrypt/build/
+/libbcrypt/build/
 
 # libbcrypt is a separate clone; its sources get vendored into external/libbcrypt
-libbcrypt/
+/libbcrypt/

@@ -4,7 +4,7 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
-#include <../SFML-2.5.1-64/include/SFML/gl/glew.h>
+#include <GL/glew.h>
 #include <GL/GL.h> // include glad to get all the required OpenGL headers
 #include <GL/GLU.h>
 

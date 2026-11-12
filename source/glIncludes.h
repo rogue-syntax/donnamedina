@@ -9,7 +9,7 @@
 //#define NANOVG_GL2_IMPLEMENTATION
 //#define GL_DEPTH24_STENCIL8
 
-#include <SFML-2.5.1-64/include/SFML/gl/glew.h>
+#include <GL/glew.h>
 
 #include <GL/GL.h>
 //#include <GL/glu.h>

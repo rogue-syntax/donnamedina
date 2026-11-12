@@ -36,3 +36,13 @@ Method: no stock SDK exists on disk. `vstgui4/vstgui.zip` (Aug 2019) is **alread
 ### New findings from this pass
 - **B-31** Custom `CView` fields uninitialised. For views whose uidesc `custom-view-name` lacks a leading `#` (e.g. `nvgView`) `customRSType` is garbage. `NVGView::attached` is safe only because every branch also requires a non-empty `customRSViewName` (empty for those views). Fragile: any code reading `customRSType` alone (e.g. `customRSDisplayActive`, also uninitialised) gets garbage.
 - **B-32** `std::stoi(*subber)` in `uiviewfactory.cpp:170` throws `std::invalid_argument` if a `#`-named view has a non-numeric `sub-controller` (a normal VSTGUI usage, e.g. `nvgViewController`). Exceptions here would escape from the editor creation path. Not reproduced; depends on the uidesc content (not checked).
+
+## Edits made during cleanup (2026-11-12)
+
+| File | Change | Backup |
+|---|---|---|
+| `vstgui4/vstgui/lib/controls/cbuttons.h:18-20` | `#include "C:/D/SFML-2.5.1-64/include/SFML/revent/REvents.h"` / `REventable.h` -> `"../../../../external/revent/REvents.h"` / `REventable.h` (relative, marked `RSEDITED`) | scratchpad `sdk_backup/vstgui4/vstgui/lib/controls/cbuttons.h` (session scratch, temporary) |
+| new `VST3_SDK/external/revent/` | single shared copy of revent (8 headers) copied from `C:\D\SFML-2.5.1-64\include\SFMLevent` | n/a (copy) |
+
+Verified: `cbuttons.cpp` compiles through the SDK's own `build/vstgui4/vstgui/lib/vstgui.vcxproj` (Release x64). The prebuilt `build/lib/*/vstgui.lib` was **not** rebuilt yet; it still contains code compiled from the identical C:\D copy. Other projects that compile `cbuttons` now need nothing extra (the include is relative).
+Seen while compiling: `CBMoreInfoButton::onMouseExited` / `onMouseEntered` (`cbuttons.cpp:2039,2051`) do not return a value on all paths (C4715) — undefined behaviour, to fix later.

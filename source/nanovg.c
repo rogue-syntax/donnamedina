@@ -23,11 +23,11 @@
 
 
 
-#include <SFML/gl/glew.h>
+#include <GL/glew.h>
 #define GLFW_INCLUDE_GLEXT
 
 #define GLFW_INCLUDE_GLEXT
-#include <SFML/gl/glfw3.h>
+// GLFW is not used; GLEW provides the GL declarations. (was: <SFML/gl/glfw3.h>)
 #include "nanovg.h"
 #define NANOVG_GL3_IMPLEMENTATION
 #include "nanovg_gl.h"

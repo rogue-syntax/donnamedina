@@ -4,7 +4,7 @@
 #pragma once
 #include <string>
 #include "vstgui4/vstgui/lib/crect.h"
-#include "../SFML-2.5.1-64/include/SFML/revent/REvent.h"
+#include "REvent.h"
 
 using namespace VSTGUI;
 

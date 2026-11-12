@@ -20,8 +20,8 @@
 #include <windows.h>
 //#include "REvents.h"
 //#include "REventable.h"
-#include "../SFML-2.5.1-64/include/SFML/revent/REvents.h"
-#include "../SFML-2.5.1-64/include/SFML/revent/REventable.h"
+#include "REvents.h"
+#include "REventable.h"
 #include "GLShader.h"
 
 //#include "glIncludes.h"
@@ -30,7 +30,7 @@
 
 
 ////instead of gl includes
-#include <SFML/gl/glew.h>
+#include <GL/glew.h>
 #define GL_GLEXT_PROTOTYPES
 #include <GL/gl.h>
 #include <GL/glu.h>
