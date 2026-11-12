@@ -349,6 +349,19 @@ public:
 
 	float paramInc = 0.0f;
 	float panSmoothCoef = 0.0075f;  // B-55: one-pole pan glide coefficient (~3 ms), set in createVoice
+
+	// Optimization: filter coefficient table (see buildFilterGTable / singleVoiceProcessing).
+	static const int kFiltGTableSize = 4096;
+	static constexpr double kFiltXMin = 0.01;
+	double filtGTable[kFiltGTableSize + 1] = {};
+	double filtGTableScale = 0.0;
+	double filtGTableT = -1.0;  // sample interval the table was built for (-1 = not built)
+	void buildFilterGTable(const CSEMFilter& f);
+	// Optimization: which per-voice LFOs (envBank indices 4..6) any modulation destination currently
+	// reads; unused ones are not computed. Bit k set = envBank[k] is read. Updated every sample in
+	// mainProcessing (cheap: a few int compares per generator, not per voice).
+	int lfoUsedMask = 0x70;
+	void updateLfoUsage();
 	float paramThresh = 0.0f;
 
 	ParamRampObj rampedParams[GENRAMPEDPARAMSLENGTH];

@@ -796,6 +796,8 @@ void DXGenerator::mainProcessing() {
 		//#pragma loop(hint_parallel(6))
 		//for (int n = 0; n < PARTVOICES; n++){
 		
+		updateLfoUsage();  // optimization: skip per-voice LFOs nothing reads
+
 		int nSize = notes.size();
 		//#pragma loop(hint_parallel(4))
 		for (int n = 0; n < nSize; n++) {
@@ -826,6 +828,34 @@ void DXGenerator::mainProcessing() {
 
 
 
+// Filter coefficient table: g(x) for the normalised cutoff x in [kFiltXMin, 1], built with the
+// exact formulas (LogScaleParameter::toPlain + CSEMFilter::gFor) for the filter's sample interval.
+// Rebuilt automatically when the sample rate changes.
+void DXGenerator::buildFilterGTable(const CSEMFilter& f) {
+	for (int i = 0; i <= kFiltGTableSize; i++) {
+		const double x = kFiltXMin + (1.0 - kFiltXMin) * i / kFiltGTableSize;
+		filtGTable[i] = f.gFor(m_pFilterLogParam->toPlain(x));
+	}
+	filtGTableScale = kFiltGTableSize / (1.0 - kFiltXMin);
+	filtGTableT = f.sampleInterval();
+}
+
+// Every modulation source index a voice reads from envBank (see singleVoiceProcessing and the
+// doXxxMod functions). If none of them is an LFO slot (4..6), that LFO's output is never used.
+void DXGenerator::updateLfoUsage() {
+	const int srcs[] = {
+		newIntEnv, newOctEnv, tuneCEnv, fineCEnv, triEnvSrc,
+		newModIntEnv, newModOctEnv, modTuneCEnv, modFineCEnv, modTriEnvSrc,
+		filterSrc, panEnvSrc,
+		ctrlValues[GAIN_ENV_SRC + paramStartIdx], ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx],
+		ctrlValues[MOD_BEAT_ENV_SRC + paramStartIdx],
+	};
+	int mask = 0;
+	for (int s : srcs)
+		if (s >= 0 && s < 31) mask |= (1 << s);
+	lfoUsedMask = mask & 0x70;
+}
+
 void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 
 
@@ -848,24 +878,31 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.voiceEnvLfo[3].cenv += voiceObj.voiceEnvLfo[3].catt * (voiceObj.e - voiceObj.voiceEnvLfo[3].cenv);
 
 	
-	voiceObj.voiceEnvLfo[4].m_dAmplitude = (*EnvLfoCtrls[4]).level;
-	voiceObj.voiceEnvLfo[4].m_dOscFo = (*EnvLfoCtrls[4]).rate;
-	voiceObj.voiceEnvLfo[4].update();
-	voiceObj.voiceEnvLfo[4].cenv = voiceObj.voiceEnvLfo[4].doOscillate();
-	voiceObj.voiceEnvLfo[4].moduloStart = (*EnvLfoCtrls[4]).phaseStart;
+	// Optimization: an LFO nothing is routed to is not computed (see updateLfoUsage); its output
+	// would not be read, so the sound is unchanged.
+	if (lfoUsedMask & (1 << 4)) {
+		voiceObj.voiceEnvLfo[4].m_dAmplitude = (*EnvLfoCtrls[4]).level;
+		voiceObj.voiceEnvLfo[4].m_dOscFo = (*EnvLfoCtrls[4]).rate;
+		voiceObj.voiceEnvLfo[4].update();
+		voiceObj.voiceEnvLfo[4].cenv = voiceObj.voiceEnvLfo[4].doOscillate();
+		voiceObj.voiceEnvLfo[4].moduloStart = (*EnvLfoCtrls[4]).phaseStart;
+	}
 
-	voiceObj.voiceEnvLfo[5].m_dAmplitude = (*EnvLfoCtrls[5]).level;
-	voiceObj.voiceEnvLfo[5].m_dOscFo = (*EnvLfoCtrls[5]).rate;
-	voiceObj.voiceEnvLfo[5].update();
-	voiceObj.voiceEnvLfo[5].cenv = voiceObj.voiceEnvLfo[5].doOscillate(); //double to float here...
-	voiceObj.voiceEnvLfo[5].moduloStart = (*EnvLfoCtrls[5]).phaseStart;
+	if (lfoUsedMask & (1 << 5)) {
+		voiceObj.voiceEnvLfo[5].m_dAmplitude = (*EnvLfoCtrls[5]).level;
+		voiceObj.voiceEnvLfo[5].m_dOscFo = (*EnvLfoCtrls[5]).rate;
+		voiceObj.voiceEnvLfo[5].update();
+		voiceObj.voiceEnvLfo[5].cenv = voiceObj.voiceEnvLfo[5].doOscillate(); //double to float here...
+		voiceObj.voiceEnvLfo[5].moduloStart = (*EnvLfoCtrls[5]).phaseStart;
+	}
 
-	
-	voiceObj.voiceEnvLfo[6].m_dAmplitude = (*EnvLfoCtrls[6]).level;
-	voiceObj.voiceEnvLfo[6].m_dOscFo = (*EnvLfoCtrls[6]).rate;
-	voiceObj.voiceEnvLfo[6].update();
-	voiceObj.voiceEnvLfo[6].cenv = voiceObj.voiceEnvLfo[6].doOscillate();
-	voiceObj.voiceEnvLfo[6].moduloStart = (*EnvLfoCtrls[6]).phaseStart;
+	if (lfoUsedMask & (1 << 6)) {
+		voiceObj.voiceEnvLfo[6].m_dAmplitude = (*EnvLfoCtrls[6]).level;
+		voiceObj.voiceEnvLfo[6].m_dOscFo = (*EnvLfoCtrls[6]).rate;
+		voiceObj.voiceEnvLfo[6].update();
+		voiceObj.voiceEnvLfo[6].cenv = voiceObj.voiceEnvLfo[6].doOscillate();
+		voiceObj.voiceEnvLfo[6].moduloStart = (*EnvLfoCtrls[6]).phaseStart;
+	}
 	/*
 	float dd = voiceObj.voiceEnvLfo[6].m_dFo;
 	float da = voiceObj.voiceEnvLfo[6].m_dFoModLin;
@@ -946,16 +983,19 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	
 		
 	//voiceObj.filterEnv = controls[FILTER_ENV] * (*voiceObj.envBank[static_cast<int>(filterEnvSrc)]);
+	// Optimization: the cutoff's log map (powf) and the filter's tan() were ~26% of the voice time.
+	// Both depend only on the normalised cutoff x (knob + modulation, clamped 0.01..1) and the sample
+	// rate, so the coefficient g(x) = tan(pi * toPlain(x) / fs) comes from a precomputed table with
+	// linear interpolation: still per sample, no added latency (see buildFilterGTable).
 	voiceObj.filterEnv = controls[FILTER_ENV] * (*voiceObj.envBank[filterSrc]);
-
-	//int ddIdx = static_cast<int>((ParamClamp2((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv, 0.01, .9999)) * 1000 );
-	//voiceObj.m_Filter1.m_dFcControl = ddMap[ddIdx];
-	voiceObj.m_Filter1.m_dFcControl = m_pFilterLogParam->toPlain(ParamClamp2((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv, 0.01, 1.0));
-	//voiceObj.m_Filter1.m_dFcControl = m_pFilterLogParam->toPlain((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv);
-	//logparamtoplain is praticularly heavy
-
-
-	voiceObj.m_Filter1.update();
+	const double fx = ParamClamp2((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv, 0.01, 1.0);
+	if (filtGTableT != voiceObj.m_Filter1.sampleInterval())
+		buildFilterGTable(voiceObj.m_Filter1);
+	const double pos = (fx - kFiltXMin) * filtGTableScale;
+	int idx = static_cast<int>(pos);
+	if (idx >= kFiltGTableSize) idx = kFiltGTableSize - 1;
+	const double frac = pos - idx;
+	voiceObj.m_Filter1.setG(filtGTable[idx] + (filtGTable[idx + 1] - filtGTable[idx]) * frac);
 	voiceObj.m_Filter1.doFilter2(voiceObj.o);
 
 

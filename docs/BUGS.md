@@ -162,7 +162,7 @@ Int 0/1 reinterpreted as float is 0 or 1.4e-45 (about zero). Consequences from r
 - `deadVoiceProcessing` uses a stale `gainerTemp` and omits modulator mix/`MOD_OSC_GAIN`, so killed-voice fades sound slightly different from live voices.
 - `carPitchMultiplier` is assigned in several recalc functions but is never read anywhere in the live source (grep of the non-backup files). The `controls[INT_]`/`controls[MOD_INT_]` writes next to it were not checked for readers.
 
-### B-26  Performance notes  · INFO
+### B-26  Performance notes  · INFO · *2026-11-12: measured and optimised ~3x, see `02-voices-and-dsp.md` "Performance"*
 Per voice per sample: `m_pFilterLogParam->toPlain` (your own comment says it's heavy; a precomputed table `ddMap` exists but is commented out), `std::deque`/`RVoicesMap[]` indexed per sample, pointer-to-member `modChoice` call, float/double mixing. Combined with B-17 this is a plausible main CPU cost, but nothing has been profiled.
 
 ### B-27  Message IDs are pointers to single `char` constants, not C strings  · LOW · **FIXED 2026-11-12** (processor side with B-10; controller side via `msgIdStr()` in `constants.h`; see fix log. See also B-53.)
@@ -217,7 +217,7 @@ See `05-sdk-mods.md` (pass 4). `customRSType` and `customRSDisplayActive` have n
 
 ## E. Pass 5 findings (filter / numerics) — read-only
 
-### B-40  No denormal protection; old voices decay into denormals forever  · MED · HYPOTHESIS (code reading; not measured)
+### B-40  No denormal protection; old voices decay into denormals forever  · MED · **FIXED 2026-11-12** (`BaseProcessor::process` sets FTZ+DAZ while rendering and restores the host's flags; old voices also leave the render list since B-17). See `02-voices-and-dsp.md` "Performance".
 No `_MM_SET_FLUSH_ZERO_MODE`, `_controlfp`, or denormal guard exists in the live source (grep). Envelope state is float and decays as `env *= cdec` with no floor (B-17: voices never leave `notes`), so e.g. with a mid decay setting (`cdec ~ exp(-4.5e-4)` at 44.1 kHz) `env` falls below ~1e-38 after ~4-5 s and stays denormal; `cenv` follows. On x86 without FTZ/DAZ, denormal float arithmetic costs tens to hundreds of cycles. Combined with up to 128 retained voices this could cause CPU growth and dropouts the longer you play. Some hosts set FTZ/DAZ on the audio thread, which would hide it. Check: profile with many distinct pitches played then released, or set FTZ/DAZ and compare.
 
 ### B-41  Filter Q knob only spans a fraction of the SVF's Q range  · INFO

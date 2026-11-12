@@ -508,10 +508,12 @@ int goldenProbe(int argc, char** argv) {
 	for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
 		std::vector<NoteEvent> ev;
 		auto note = [&](double t, double len, int16 p, float vel) {
-			NoteEvent on{at(t), true, p};
+			// notes start 0.1 s in, after the preset's switch round trip has arrived (as when you
+			// pick a preset and then play)
+			NoteEvent on{at(t + 0.1), true, p};
 			on.velocity = vel;
 			ev.push_back(on);
-			ev.push_back({at(t + len), false, p});
+			ev.push_back({at(t + 0.1 + len), false, p});
 		};
 		note(0.00, 0.80, 48, 1.0f);                       // single note
 		note(0.30, 1.20, 60, 0.8f); note(0.30, 1.20, 64, 0.7f); note(0.30, 1.20, 67, 0.6f);  // chord

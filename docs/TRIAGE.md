@@ -33,7 +33,7 @@ B-45 HKCU + once-per-instance check · B-46 weak protection (info)
 Done 2026-11-12: B-36, B-48, B-49, B-50 (see BUILDING.md). Done 2026-11-12 too: ~~B-51~~ · ~~B-24 `RVoicesMap` leak~~ · ~~B-25 dead/copy-paste items~~ (mostly) · ~~B-14~~ (checked) · ~~B-16~~ · ~~B-34 dead handler~~. Info only: B-15 (registration scheme).
 
 ## Performance / info (unmeasured)
-B-26, B-37, B-35 · B-40 denormals (mostly moot since B-17: silent voices are no longer processed; a release tail can still pass through denormal range) · B-41 Q range · B-42 filter Nyquist · B-43 LFO saw chase · ~~B-47 stale mod after changing mod type~~ (fixed 2026-11-12) · B-44 float phase accumulators
+B-26, B-37, B-35 · ~~B-40 denormals~~ (FTZ/DAZ in process(), 2026-11-12) · voice engine ~3x faster, see 02-voices-and-dsp "Performance" · B-41 Q range · B-42 filter Nyquist · B-43 LFO saw chase · ~~B-47 stale mod after changing mod type~~ (fixed 2026-11-12) · B-44 float phase accumulators
 
 ## Still unexplained from your old notes
 ~~"second voice drops out on retrig" / "modulation drops out on retrig when env too high"~~ explained and fixed 2026-11-12 (B-56: envelopes 2/3 jumped to 0 at the retrigger restart). "INIT modulation adds up on voice stealing": no accumulating code found in the note-on or steal path; likeliest past causes are fixed (B-23 corrupted the MOD_GAIN ramp, B-17 re-stole the fading voice, B-47 left stale mod on the carrier). Recheck by ear.

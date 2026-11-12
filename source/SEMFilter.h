@@ -87,6 +87,18 @@ public:
 		m_dRho = 2.0*R + g;
 	}
 
+	// Optimization: the voice looks g up in a table built with gFor (the expensive tan()) and sets
+	// it with setG (cheap). Same formulas as update().
+	inline double gFor(double fc) const { return ((2 / T)*tan((2 * pi*fc)*T / 2))*(T / 2); }
+	inline double sampleInterval() const { return T; }
+	inline void setG(double gg) {
+		g = gg;
+		R = 1.0 / (2.0*m_dQ);
+		m_dAlpha0 = 1.0 / (1.0 + 2.0*R*g + g * g);
+		m_dAlpha = g;
+		m_dRho = 2.0*R + g;
+	}
+
 	inline double doFilter(double xn) {
 
 		// form the HP output first 

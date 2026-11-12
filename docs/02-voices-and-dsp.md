@@ -53,8 +53,25 @@ Voices are removed from `notes` only by `DXGenerator::detectSilence`. Until 2026
 - Envelope attack/decay/release of a voice are **copied at note-on**, so turning those knobs affects only new notes. LFO rate/level are read every sample.
 
 ## Memory/cost notes
-- `RVoicesMap` is allocated in `DXGenerator::init()` and never freed (destructor frees `ddMap`, log-scale objects and `doRecalc`, not the voices): B-24.
+- `RVoicesMap` is allocated once in `DXGenerator::init()` and freed in the destructor (B-24, fixed 2026-11-12).
 - Before the B-17 fix voices never left `notes`, so per-sample cost grew with the number of *distinct pitches played* (up to 128 voices, each doing two oscillators, filter, 3 LFOs, a log-scale lookup). Measured in `tests/note_off`: 5 s render after 60 pitches took 2328 ms before, 1078 ms after.
+- Voice limit: `POLYCOUNT = 32` (quietest live voice is stolen beyond that; enforced since B-17). Cost is linear in voices, so raising it is a one-line change.
+
+## Performance (2026-11-12)
+Tools: `tests\note_off\bin\note_off_test.exe perf [voices...]` (held voices of the default patch, wall-clock; `PERF_PROFILE=1` adds a 1 ms sampling profiler, `PERF_SECONDS=n` the duration) and `note_off_test.exe golden [save]` (renders all 7 presets through processor + real controller and compares sample by sample with a saved reference; run `golden save` on the old code first). Rebuild the test (`build_and_run.bat <args>`) after rebuilding the plugin: it links the plugin's object files.
+
+| Step | 32 voices, ns per voice-sample | Sound vs before |
+|---|---|---|
+| baseline (after the bug fixes) | ~150-190 (~27% of one core) | - |
+| inline `rsMax/rsMin` instead of CRT `fmin/fmax`; FTZ+DAZ in `process()` | ~126 | bit-exact |
+| skip per-voice LFOs no destination reads (`updateLfoUsage`) | | bit-exact (see note) |
+| filter coefficient from a 4096-point table `g(x) = tan(pi * toPlain(x) / fs)` instead of `powf` + `tan` per sample | ~52 (~7.5% of one core) | worst preset 115.8 dB below the signal (max sample diff 2.7e-6) |
+
+So ~3x faster with the sound unchanged for practical purposes. Profile before: `tan` + filter update ~15%, `powf` (cutoff log map) ~11%, LFOs ~15%, CRT min/max ~11%. After: voice code 71%, oscillators ~18%, nothing else above 1%.
+Tried and rejected: updating the filter at control rate (every 16/8/4 samples with a linear glide) gave the same speed but differed 28-39 dB below the signal (cutoff lags its modulation); the table is per sample and exact enough.
+Note on the LFO skip: an LFO that no destination reads is not advanced. If you route a destination to that LFO while a note is already sounding, the LFO continues from where it stopped being computed (phase and delay fade-in), not from where it would have been. Fresh notes reset the LFO as before.
+Not done (bigger refactor, diminishing returns): SIMD across voices (needs struct-of-arrays voices and no per-voice function-pointer dispatch), float-only voice maths, control-rate LFOs.
+Benchmark caveat: measured with the default patch (one LFO routed). Patches that route all three LFOs gain less from the LFO skip.
 
 ## Filter and oscillator helpers (pass 5, read)
 - `CSEMFilter` (`SEMFilter.h`): a trapezoidal (TPT) state-variable filter. `update()` per voice per sample: `g = tan(pi*fc/sr)`, `R = 1/(2Q)`, then `doFilter2` does the HP->BP->LP chain and returns **LP**. Cutoff range comes from the log map 80-18000 Hz (`DXGenerator.cpp:43-47`); Q from `cookVSTGUIVariable(MIN_FILTER_Q=1.0, MAX_FILTER_Q=2.5, ...)` then `setQControl` maps 1..10 -> Q 0.5..25, so the knob only reaches Q ~= 0.5..4.6 (B-41). No clamp of fc to Nyquist (B-42). A second "Butterworth" path (`updateButterworth/doButterworth`) is unused; its `b3` default initializer reads uninitialised `K`/`norm` (harmless) and `b2` is never set.
