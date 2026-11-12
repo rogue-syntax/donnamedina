@@ -498,8 +498,100 @@ int retrigProbe(int argc, char** argv) {
 	return 0;
 }
 
+// Poor man's sampling profiler: a second thread suspends the rendering thread every ~1 ms and
+// records its instruction pointer; report() names the functions via DbgHelp (exe built with /DEBUG).
+namespace sampler {
+std::vector<DWORD64> ips;
+volatile bool run = false;
+HANDLE target = nullptr;
+DWORD WINAPI loop(LPVOID) {
+	while (run) {
+		if (SuspendThread(target) != (DWORD)-1) {
+			CONTEXT ctx{};
+			ctx.ContextFlags = CONTEXT_CONTROL;
+			if (GetThreadContext(target, &ctx)) ips.push_back(ctx.Rip);
+			ResumeThread(target);
+		}
+		Sleep(1);
+	}
+	return 0;
+}
+void report(int top) {
+	HANDLE proc = GetCurrentProcess();
+	SymSetOptions(SYMOPT_UNDNAME | SYMOPT_DEFERRED_LOADS);
+	SymInitialize(proc, nullptr, TRUE);
+	std::vector<std::pair<std::string, int>> hist;
+	for (DWORD64 ip : ips) {
+		char buf[sizeof(SYMBOL_INFO) + 512];
+		auto* sym = reinterpret_cast<SYMBOL_INFO*>(buf);
+		sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+		sym->MaxNameLen = 511;
+		DWORD64 disp = 0;
+		std::string name = SymFromAddr(proc, ip, &disp, sym) ? sym->Name : "?";
+		auto it = std::find_if(hist.begin(), hist.end(), [&](const auto& h) { return h.first == name; });
+		if (it == hist.end()) hist.push_back({name, 1}); else it->second++;
+	}
+	std::sort(hist.begin(), hist.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+	std::printf("  profile: %zu samples\n", ips.size());
+	for (int i = 0; i < top && i < static_cast<int>(hist.size()); i++)
+		std::printf("    %5.1f%%  %s\n", 100.0 * hist[i].second / ips.size(), hist[i].first.c_str());
+}
+}  // namespace sampler
+
+// Benchmark (not a test): N held voices of the default patch for `seconds`, wall-clock timed.
+// Run: note_off_test.exe perf [voices...]   e.g. perf 1 8 32
+int perfProbe(int argc, char** argv) {
+	std::vector<int> counts;
+	for (int i = 2; i < argc; i++) counts.push_back(std::atoi(argv[i]));
+	if (counts.empty()) counts = {1, 8, 32};
+	const double seconds = std::getenv("PERF_SECONDS") ? std::atof(std::getenv("PERF_SECONDS")) : 5.0;
+	const Settings s{"patch", 0.0, 0.0};
+	timeBeginPeriod(1);  // 1 ms Sleep resolution for the sampler
+	LARGE_INTEGER f;
+	QueryPerformanceFrequency(&f);
+	std::printf("perf: default patch, held notes, %.0f s at 44.1 kHz, %d-sample blocks\n", seconds, kBlock);
+	for (int n : counts) {
+		std::vector<NoteEvent> ev;
+		for (int k = 0; k < n; k++) ev.push_back({0, true, static_cast<int16>(36 + (k % 80))});
+		Options o;
+		o.keepPatchEnvelopes = true;
+		o.params = {{0.0, {ENV_1_DECAY, 1.0}}};  // hold, so all voices stay active
+		double t0 = 0, t1 = 0;
+		const bool profile = std::getenv("PERF_PROFILE") != nullptr;
+		HANDLE th = nullptr;
+		o.onCreated = [&](rs::DX10Processor&) {
+			if (profile) {
+				sampler::ips.clear();
+				DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &sampler::target,
+				                THREAD_ALL_ACCESS, FALSE, 0);
+				sampler::run = true;
+				th = CreateThread(nullptr, 0, sampler::loop, nullptr, 0, nullptr);
+			}
+			LARGE_INTEGER c; QueryPerformanceCounter(&c); t0 = (double)c.QuadPart;
+		};
+		o.inspect = [&](rs::DX10Processor& p) {
+			LARGE_INTEGER c; QueryPerformanceCounter(&c); t1 = (double)c.QuadPart;
+			if (profile) {
+				sampler::run = false;
+				WaitForSingleObject(th, INFINITE);
+				CloseHandle(th);
+				CloseHandle(sampler::target);
+			}
+			std::printf("  %3d voices (active at end: %d): ", n, p.generators[0].notes.size());
+		};
+		render(s, ev, seconds, o);
+		const double secs = (t1 - t0) / f.QuadPart - 0.080;  // render() sleeps 80 ms at the end
+		const double perVoiceSample = secs * 1e9 / (seconds * kSampleRate * n);
+		std::printf("%.3f s for %.0f s of audio = %.1f%% of one core; %.0f ns per voice-sample; ~%.0f voices fit in real time\n",
+		            secs, seconds, 100.0 * secs / seconds, perVoiceSample, (1e9 / kSampleRate) / perVoiceSample);
+		if (profile) sampler::report(28);
+	}
+	return 0;
+}
+
 int main(int argc, char** argv) {
 	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
+	if (argc > 1 && std::strcmp(argv[1], "perf") == 0) return perfProbe(argc, argv);
 	const Settings settings[] = {
 		{"decay=HOLD", 1.0, 0.5},
 		{"decay=0.6 ", 0.6, 0.5},

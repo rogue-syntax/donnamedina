@@ -38,7 +38,7 @@ rem /DEBUG: PDB so the heap report (B-10) can name the functions that allocate
 link /nologo /DEBUG /OUT:"%OUT%\note_off_test.exe" /SUBSYSTEM:CONSOLE /NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:msvcrtd.lib ^
   "%OUT%\note_off_test.obj" "%OUT%\eventlist.obj" "%OUT%\parameterchanges.obj" "%OUT%\hostclasses.obj" "%OUT%\pluginterfacesupport.obj" "%OUT%\memorystream.obj" @"%RSP%" ^
   "%LIBDIR%\base.lib" "%LIBDIR%\sdk.lib" "%LIBDIR%\vstgui.lib" "%LIBDIR%\vstgui_uidescription.lib" "%LIBDIR%\vstgui_support.lib" "%LIBDIR%\vstgui_standalone.lib" ^
-  "%PROJ%\external\glew\lib\x64\glew32s.lib" opengl32.lib dbghelp.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib || exit /b 1
+  "%PROJ%\external\glew\lib\x64\glew32s.lib" opengl32.lib dbghelp.lib winmm.lib kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib || exit /b 1
 
 "%OUT%\note_off_test.exe" %*
 exit /b %errorlevel%
