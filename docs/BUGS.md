@@ -248,13 +248,13 @@ See `06-note-event-trace.md`. B-05 (same-sample reorder) is mostly masked by B-1
 
 ## G. Found during build cleanup (2026-11-12)
 
-### B-48  The VST2 entry point wraps an unregistered class  · MED · CONFIRMED in code (not run in a VST2 host)
+### B-48  The VST2 entry point wraps an unregistered class  · MED · **RESOLVED 2026-11-12: VST2 removed** (no `VSTPluginMain` export, wrapper and dead VSTSynth*/Voice/RSSynth002Voice/Source.cpp no longer compiled)
 The `.def` exports `VSTPluginMain` (from the SDK's `vst2wrapper.sdk.cpp`, compiled into the plugin). Its `createEffectInstance` lives in the dead `VSTSynthProcessor.cpp:14` and calls `Vst2Wrapper::create(GetPluginFactory(), Steinberg::Vst::rs::Processor::cid, 'DXS0', ...)`. `rs::Processor` (the VSTSynth class) is **not** registered in `factory.cpp`, so a VST2 host loading the DLL would get no plugin. Either remove the VST2 export or point it at `DX10Processor::uid`.
 
 ### B-49  Link used `/FORCE:MULTIPLE` to hide duplicate definitions  · FIXED 2026-11-12
 `RSVERSION` (`constants.h:19`, non-const pointer defined in a header -> one definition per TU) and `MoreInfoButton::onMouseEntered` (defined out-of-class in `NVGView.h` without `inline`). Fixed (`const char* const`, `inline`) and `ForceFileOutput` removed from Debug|x64 and Release|x64.
 
-### B-50  Release|x64 compiles with C++ exceptions disabled while the code uses try/catch  · MED · CONFIRMED in build log (not fixed)
+### B-50  Release|x64 compiles with C++ exceptions disabled while the code uses try/catch  · MED · **FIXED 2026-11-12** (Release now uses the default /EHsc; C4530 gone)
 `<ExceptionHandling>false</ExceptionHandling>` in Release|x64; the compiler warns C4530 ("C++ exception handler used, but unwind semantics are not enabled") for files that use `try/catch` (registry read, GUI handlers) and STL. With /EHs- an exception thrown (e.g. by `std::stoi`, `map::at`, `std::wstring_convert`, the registry reader) is not reliably caught and destructors are not run during unwinding. Debug|x64 uses the default (/EHsc). Should be /EHsc in both.
 
 ### B-51  `CBMoreInfoButton::onMouseExited/onMouseEntered` do not return a value on every path  · LOW · CONFIRMED (C4715 in `vstgui4/.../cbuttons.cpp:2039,2051`)

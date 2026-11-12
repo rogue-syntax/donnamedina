@@ -6,6 +6,9 @@
 
 Discovery mode: **nothing here is scheduled for a fix.** Every item below is logged as *look into / possibly fix*. Details and evidence are in `BUGS.md` under the same ID. Grouping is by the symptom you would notice, not by priority. Last updated pass 5.
 
+## Notes for later (from you)
+- **Review the try/catch blocks everywhere** (GUI handlers, registry read, `NVGView` `on*` handlers). They are probably a band-aid for bad C++ cleanup or timing problems; find what they were hiding and remove them where the real cause can be fixed. Note: until 2026-11-12 Release built with exceptions off, so those catches did not work reliably anyway (B-50). Related: B-33 (null derefs inside try blocks are not exceptions).
+
 ## Likely related to symptoms in your old notes
 | ID | What | Evidence level |
 |---|---|---|

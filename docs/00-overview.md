@@ -13,7 +13,7 @@ Status of this doc: pass 1 (skeleton) + pass 2 (params/state). Passes 3 (audio/D
 
 Correction (verified after a challenge): my first version of this section was too broad.
 - **Live, via `DXGenerator`:** `RVoice.h` (`DXGenerator` has `RVoice monoVoice` and methods like `processNoteOn(RVoice&)`, `retriggerVoice(RVoice&)`, `singleVoiceProcessing(RVoice&)`) and, through it, `WTOscillatorVoice.*`. These are core engine code, so your notes about RVoice/retrigger apply to the live plugin.
-- **Compiled but not registered in the factory (dead at runtime):** `VSTSynthProcessor.*`, `VSTSynthController.*`, and what only they use: `Voice.*`, `RSSynth002Voice.*`. They are in the `.vcxproj` compile list and not excluded, so they build into the DLL but nothing in the factory instantiates them. `factory.cpp` has their includes commented out.
+- **Dead, no longer compiled (since 2026-11-12):** `VSTSynthProcessor.*`, `VSTSynthController.*`, `Voice.*`, `RSSynth002Voice.*`, `Source.cpp`, and the VST2 wrapper. The files are still in `source/` (not deleted).
 - Still unverified: whether `RSOGProc.h` / `RSOGView.h` (included by `NVGView.h` / `RVoice`-related code) are live.
 
 ## Class map (live)

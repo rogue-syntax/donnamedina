@@ -738,7 +738,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <InlineFunctionExpansion>AnySuitable</InlineFunctionExpansion>
       <OmitFramePointers>false</OmitFramePointers>
       <StringPooling>true</StringPooling>
-      <ExceptionHandling>false</ExceptionHandling>
       <BufferSecurityCheck>true</BufferSecurityCheck>
       <FunctionLevelLinking>false</FunctionLevelLinking>
       <EnableEnhancedInstructionSet>NotSet</EnableEnhancedInstructionSet>
@@ -1025,7 +1024,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="..\..\..\..\source\main\dllmain.cpp" />
     <ClCompile Include="..\..\..\..\source\main\pluginfactoryvst3.cpp" />
     <ClCompile Include="..\..\..\..\source\common\pluginview.cpp" />
-    <ClCompile Include="..\..\..\..\source\vst\vst2wrapper\vst2wrapper.sdk.cpp" />
     <ClCompile Include="..\..\..\..\source\vst\vstaudioeffect.cpp" />
     <ClCompile Include="..\..\..\..\source\vst\vstbus.cpp" />
     <ClCompile Include="..\..\..\..\source\vst\vstcomponent.cpp" />
@@ -1043,12 +1041,10 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="..\..\..\..\..\vstgui4\vstgui\plugin-bindings\vst3padcontroller.cpp" />
     <ClCompile Include="..\..\..\..\..\vstgui4\vstgui\vstgui_uidescription_win32.cpp" />
     <ClCompile Include="..\..\..\..\..\vstgui4\vstgui\vstgui_win32.cpp" />
-    <ClCompile Include="Source.cpp" />
     <ClCompile Include="source\CLFOscillator.cpp" />
     <ClCompile Include="source\constants.cpp" />
     <ClCompile Include="source\GLShader.cpp" />
     <ClCompile Include="source\NVGViewController.cpp" />
-    <ClCompile Include="source\RSSynth002Voice.cpp" />
     <ClCompile Include="source\CParamSmooth.cpp" />
     <ClCompile Include="source\DCA.cpp" />
     <ClCompile Include="source\DXGenerator.cpp" />
@@ -1087,9 +1083,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
     <ClCompile Include="source\SEMFilter.cpp" />
     <ClCompile Include="source\SineWave.cpp" />
     <ClCompile Include="source\VAOnePoleFilter.cpp" />
-    <ClCompile Include="source\Voice.cpp" />
-    <ClCompile Include="source\VSTSynthController.cpp" />
-    <ClCompile Include="source\VSTSynthProcessor.cpp" />
     <ClCompile Include="source\VSwitchListener.cpp" />
     <ClCompile Include="source\WTOscillator.cpp" />
     <ClCompile Include="source\WTOscillatorVoice.cpp" />

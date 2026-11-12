@@ -103,9 +103,6 @@
     <ClCompile Include="..\..\..\..\source\vst\vsteditcontroller.cpp">
       <Filter>Source Files\public.sdk\vst</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\source\vst\vst2wrapper\vst2wrapper.sdk.cpp">
-      <Filter>Source Files\public.sdk\vst</Filter>
-    </ClCompile>
     <ClCompile Include="source\DCA.cpp">
       <Filter>Source Files\SynthCore</Filter>
     </ClCompile>
@@ -131,9 +128,6 @@
       <Filter>Source Files\SynthCore</Filter>
     </ClCompile>
     <ClCompile Include="source\VAOnePoleFilter.cpp">
-      <Filter>Source Files\SynthCore</Filter>
-    </ClCompile>
-    <ClCompile Include="source\Voice.cpp">
       <Filter>Source Files\SynthCore</Filter>
     </ClCompile>
     <ClCompile Include="source\mdaBaseController.cpp">
@@ -196,20 +190,8 @@
     <ClCompile Include="source\Env.cpp">
       <Filter>Source Files\VSTSource</Filter>
     </ClCompile>
-    <ClCompile Include="source\RSSynth002Voice.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="source\VSTSynthController.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="source\VSTSynthProcessor.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="source\CLFOscillator.cpp">
       <Filter>Source Files\SynthCore</Filter>
-    </ClCompile>
-    <ClCompile Include="Source.cpp">
-      <Filter>Source Files\VSTSource</Filter>
     </ClCompile>
     <ClCompile Include="source\GLShader.cpp">
       <Filter>Source Files\VSTSource</Filter>
