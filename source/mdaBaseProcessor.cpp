@@ -478,28 +478,42 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 
 	IBStreamer streamer (state, kLittleEndian);
 
-	uint32 temp;
-	streamer.readInt32u (temp); // numParams or Header
+	// B-08: robust against short, longer or damaged states:
+	// - the old loop `i < temp, i < GPARAMS` used the comma operator, so it always read GPARAMS
+	//   values whatever the stream held; on a shorter state it read past the data and then took
+	//   the stale parameter count as the bypass flag (bypass on = silence).
+	// - read results were not checked; the program number was not range-checked.
+	uint32 temp = 0;
+	if (!streamer.readInt32u (temp)) // numParams or Header
+		return kResultFalse;
 
 	if (temp == BaseController::kMagicNumber)
 	{
-		// read current Program
-		streamer.readInt32u (temp);
-		setCurrentProgram (temp);
+		// read current Program (setCurrentProgram clamps it)
+		uint32 program = 0;
+		if (!streamer.readInt32u (program))
+			return kResultFalse;
+		setCurrentProgram (program);
 
-		streamer.readInt32u (temp);
+		if (!streamer.readInt32u (temp))
+			return kResultFalse;
 	}
 
-	// read each parameter
-	for (uint32 i = 0; i < temp, i < GPARAMS; i++)
+	// read each parameter: as many as the state has, at most GPARAMS; skip any extra ones
+	const uint32 count = temp;
+	for (uint32 i = 0; i < count; i++)
 	{
-		//streamer.readDouble (params[i]);
-		streamer.readDouble(floatParams[i]);
+		double v = 0.0;
+		if (!streamer.readDouble (v))
+			return kResultFalse;  // truncated: keep what was read so far
+		if (i < GPARAMS && std::isfinite (v))
+			floatParams[i] = v;
 	}
 
-	// bypass
-	streamer.readInt32u (temp);
-	bypassState = temp > 0;
+	// bypass (older states may end before it)
+	uint32 bypass = 0;
+	if (streamer.readInt32u (bypass))
+		bypassState = bypass > 0;
 
 	//recalculate ();
 
@@ -525,8 +539,9 @@ tresult PLUGIN_API BaseProcessor::getState (IBStream* state)
 		streamer.writeInt32u (temp);
 	}
 
-	// save number of parameter
-	streamer.writeInt32u (numParams);
+	// save number of parameter (B-08: the count of values written below; numParams is GPARAMS too,
+	// so saved states are byte-identical to before)
+	streamer.writeInt32u (static_cast<uint32> (GPARAMS));
 
 	// save each parameter
 	for (uint32 i = 0; i < GPARAMS; i++)

@@ -370,23 +370,14 @@ no viewindex at 153!*/
 
 	}
 
-	//wtf
+	// IControlListener callback. Probably never called (no setListener(this) is active, see
+	// setupRCButton). B-34: it computed the reset index as WIDTH_RESET - pid (reversed sign,
+	// negative index) with no checks; it now does the same as onResetButton, which has the right
+	// index and the bounds/null checks.
 	void NVGView::valueChanged(CControl* pControl) {
-		int pid = pControl->getTag();
-		int idx = WIDTH_RESET - pid;
-		controlMap[resetSwitch[idx]]->setValueNormalized(0.5f);
-		Anima ar;
-		ar.animName = BUTTON_BLINK_;
-		ar.controlIdx = pid;
-		ar.animState = 0;
-		for (auto it = animationReel.begin(); it != animationReel.end(); ++it) {
-			if (it->animName == ar.animName && it->controlIdx == ar.controlIdx) {
-				animationReel.erase(it);
-				break;
-			}
-		}
-		initResetWidthAnim(pid);
-		animationReel.push_back(ar);
+		if (!pControl)
+			return;
+		onResetButton(pControl->getTag());
 	}
 
 	void NVGView::controlEndEdit(CControl* pControl) {

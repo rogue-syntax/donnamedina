@@ -783,7 +783,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		if (isViewReady()) {//not enough to know if the things the the view are really ready
 			(this->*onCtrlChange.at(tag))(tag, value);
 
-			if (tag <  173 ) {
+			if (tag < STEP_BUTTONS_FIRST) {
 
 				res = BaseController::setParamNormalized(tag, value);
 			}
@@ -792,10 +792,10 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 			}
 
 		}
-		else if (tag < 173) {
+		else if (tag < STEP_BUTTONS_FIRST) {
 			res = BaseController::setParamNormalized(tag, value);
 			// the GUI catches up from these in onNVGViewReady() when the editor opens.
-			// (tags >= 173 are momentary step buttons; their handler performs an edit, so they are
+			// (tags >= STEP_BUTTONS_FIRST are momentary step buttons; their handler performs an edit, so they are
 			// not replayed.)
 			pendingStateUpdates[tag] = value;
 			hasPendingState = true;
@@ -812,7 +812,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		for (int32 i = 0; i < GPARAMS; i++) {
 			const ParamValue v = DX10Processor::programParams[program][i];
 			BaseController::setParamNormalized(i, v);
-			if (!viewReady && i < 173 && EditController::getParameterObject(i)) {
+			if (!viewReady && i < STEP_BUTTONS_FIRST && EditController::getParameterObject(i)) {
 				pendingStateUpdates[i] = v;  // GUI catches up when the editor opens
 				hasPendingState = true;
 			}

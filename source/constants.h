@@ -443,6 +443,9 @@ const int STEP_CTRL_9 = 181;
 const int STEP_CTRL_10 = 182;
 const int STEP_CTRL_11 = 183;
 const int STEP_CTRL_12 = 184;
+// B-07: tags from here on are the momentary step-control buttons (GUI only: they are not stored as
+// values or edited as host parameters). Replaces the magic number 173 in the controllers.
+const int STEP_BUTTONS_FIRST = STEP_CTRL_1;
 
 const int FINAL_PAN = 190;
 

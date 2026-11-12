@@ -157,7 +157,7 @@ Parameter* BaseController::getParameterObject (ParamID tag)
 tresult BaseController::beginEdit (ParamID tag)
 {
 	if (EditController::getParameterObject (tag))
-		if (tag < 173) {
+		if (tag < STEP_BUTTONS_FIRST) {
 			return EditController::beginEdit(tag);
 		}
 	return kResultFalse;
@@ -170,7 +170,7 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 	//if (isViewReady() == false) {
 	//	return kResultFalse;
 	//}
-	if (tag < 173) {
+	if (tag < STEP_BUTTONS_FIRST) {
 		if (EditController::getParameterObject(tag))
 			if (linkTune == 1) {
 				if (tag == TUNE_) {
@@ -203,7 +203,9 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 
 		return EditController::performEdit(tag, valueNormalized);
 	}
-	//return kResultTrue;
+	// B-07: step buttons are not host parameters; this path used to fall off the end of a
+	// non-void function (undefined behaviour).
+	return kResultFalse;
 }
 
 
@@ -211,7 +213,7 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 tresult BaseController::endEdit (ParamID tag)
 {
 	if (EditController::getParameterObject (tag))
-		if (tag < 173) {
+		if (tag < STEP_BUTTONS_FIRST) {
 			return EditController::endEdit(tag);
 		}
 	return kResultFalse;

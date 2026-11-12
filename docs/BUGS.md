@@ -78,18 +78,18 @@ Fix: stable sort by offset only (`std::stable_sort` on a small struct array), or
 Fix: `voice.velocity = (*velocity) / 127.0f;` (optionally a curve), in all three places.
 Dropped from this item: my earlier claim that `processEvents`' `velocity*127` truncation loses velocities. Tested with float32: hosts sending `v/127.0f` round-trip exactly for all 127 values. Only a host using a different scale (e.g. v/128) would be off by one; the event's `noteId`/`channel` are ignored (low priority).
 
-### B-07  Missing return + magic 173 in `BaseController::performEdit`  · MED · OPEN
+### B-07  Missing return + magic 173 in `BaseController::performEdit`  · MED · **FIXED 2026-11-12** (see fix log group 3)
 `mdaBaseController.cpp:168-207`: the function only returns inside `if (tag < 173)`; for other tags it falls off the end (undefined behaviour in a non-void function). `173` is also hard-coded in begin/end edit and `setParamNormalized`.
 Fix: return `kResultFalse` at the end; replace `173` with a named constant.
 
-### B-08  State loading robustness  · MED · OPEN
+### B-08  State loading robustness  · MED · **FIXED 2026-11-12** (see fix log group 3; measured effect corrected there)
 `BaseProcessor::setState` (`mdaBaseProcessor.cpp:407-439`):
 - `for (i < temp, i < GPARAMS; ...)` uses the comma operator, so the `i < temp` test is ignored: always reads GPARAMS doubles even if the stream's count differs; any change to GPARAMS makes old sessions misread the bypass flag and everything after.
 - `setCurrentProgram(temp)` is called with the value from the stream, no range check, indexes `programParams[20]`.
 - `readDouble` result not checked.
 Fix: loop `min(temp, GPARAMS)`, skip the remainder, range-check program, check stream returns. Consider adding a state version number.
 
-### B-09  Instance-id filter compares a variable with itself  · LOW · OPEN
+### B-09  Instance-id filter compares a variable with itself  · LOW · **RESOLVED 2026-11-12** (dead filter removed, behaviour unchanged; see fix log group 3)
 `DX10Processor::notify` (`:811`): `this->myInstanceId != myInstanceId` (the local read from the message is `myInstanceId_`). The condition is always false, so the filter never rejects anything. Probably harmless (connection points are per-instance), but the id plumbing (`this` pointer as int64) is then dead complexity. Decide: remove, or fix the typo.
 
 ### B-10  Real-time safety  · MED · **FIXED 2026-11-12** (heap use inside `process()` measured and now 0 in all test scenarios; see "B-10 heap measurement" and "Fix log: B-10" below; the paragraph under this heading is the original code-reading note)
@@ -100,7 +100,7 @@ Fix: queue UI notifications via a lock-free queue and send from a non-audio cont
 `DX10Processor::programParams` is `static` and filled in `DX10Processor::DX10Processor()`. The **controller reads it directly** (`:163`, `:797`). If a host constructs the controller without ever constructing a processor (some scanners/validators/split-process setups), presets are all zeros; with multiple instances the ctor re-writes the same static concurrently. Also the processor's `setCurrentProgram(val)` and the controller's preset handler use the same table, but they are applied via **two independent paths** (host param → processor; host param → controller), so ordering/timing differences can leave GUI and DSP disagreeing (B-01/B-02).
 Fix: make the preset table a `const` global initialised once (static initialiser or function-local static), not instance-constructed.
 
-### B-12  Latent hardening issues in `processParameterChanges`  · LOW · latent
+### B-12  Latent hardening issues in `processParameterChanges`  · LOW · **FIXED 2026-11-12 with B-52**
 `:1878-1886`: `paramId < NPARAMS(100)` → `generators[paramId / 55]` but `GENCOUNT == 1`; IDs 55–99 would index `generators[1]` (out of range). IDs 55–99 aren't registered, so currently unreachable. `recalculators[1000]` is a member array that is **never default-filled** (only specific entries are assigned in `initialize()`), so any registered ID in 100..999 without an entry would call an indeterminate pointer. I checked by name pattern and found no registered param missing an entry (the 3 flagged names were aliases/removed entries, e.g. `MOD_GAIN_RESET` is commented out of the param list), so this is hardening, not a known crash. Fix: fill the array with a no-op in the constructor and bound-check.
 
 ### B-13  Tempo compare float vs double + uninitialised `bpm`  · MED · **FIXED 2026-11-12** (`bpm` init with B-04; compare + sync toggle in its own fix log, verified with `tests/note_off`)
@@ -108,13 +108,13 @@ Fix: make the preset table a `const` global initialised once (static initialiser
 - `double bpm;` (`mdaDX10Processor.h:124`) has no initialiser, but `recalcLfoNRate` is called from `setState`/`setCurrentProgram` before any `process()`; with LFO tempo-sync on, `rate = bpm / quants[...]` uses garbage.
 Fix: make `BPM` double, compare with a tolerance, initialise `bpm = 120`, and only send the rate message on real change.
 
-### B-14  NVGView lifecycle  · MED · CHECK
+### B-14  NVGView lifecycle  · MED · **CHECKED 2026-11-12**: the editor-memory part was B-54 (fixed), the null `baseController` in `removed()` is B-30 (fixed). `nvgViewReady = true` in the constructor is still early, but with the B-33 guards the handlers it enables are safe before `attached()`; `onNVGViewReady()` per frame only replays queued updates. Left as is.
 `nvgViewReady = true` is set in the NVGView **constructor** (`NVGView.h:490`), before GL context/resources exist; `drawOpenGL` calls `onNVGViewReady()` every frame (`NVGView.cpp:1394`); `removed()` dereferences `baseController` without a null check (`:1140`) and clears containers but the commented-out section suggests cleanup of NanoVG context/shaders/textures may not be complete. Relevant to the 30 MB/open leak report.
 
 ### B-15  Registration scheme  · INFO
 Password is a hard-coded string in the DLL and the registry value is its bcrypt hash; anyone who finds the string can generate a valid key; no per-user/machine data. If you intend this as real licensing, it needs per-license keys (signed). Also failure mode is total silence with no UI explanation except the "bad reg" view. Registry read is HKEY_CURRENT_USER, not HKLM (corrected pass 5; see B-45).
 
-### B-16  Housekeeping  · INFO
+### B-16  Housekeeping  · INFO · **DONE 2026-11-12** (VST2 wrapper and `Source.cpp` out of the build, `BUILDING.md` replaces `HowToCompile_VS.txt`; dead files kept but not compiled)
 `vst2wrapper.sdk.cpp` compiled into a VST3 target; `Source.cpp` empty; duplicate/backup sources; build instructions (`HowToCompile_VS.txt`) refer to VS2013/2015 and SDK 3.6.7.
 
 ## C. Pass 3 findings (voices / DSP) — read-only, not run
@@ -152,10 +152,10 @@ My first version assumed `cenv` lags `env` during the fade. Wrong: `retriggerVoi
 | 138 | `rampedParams[3]` `.thresh` |
 Int 0/1 reinterpreted as float is 0 or 1.4e-45 (about zero). Consequences from reading `ParamRampObj` (not heard): width level is forced to ~0 right after a preset/state load and glides back; FILTER `.inc` ~0 freezes that ramp, but `setLevels2` recomputes `inc` on the next filter change and `initLevel` has already put level on target, so likely harmless; **MOD_GAIN `.thresh` ~0 stays that way** (only set at construction), which removes the `inc` clamp and the final snap, so the MOD_GAIN smoother may jitter by up to its step (~0.0002) around the target forever. Probably minor, not the cause of big failures, but it is a real corruption and a data race with the audio thread. Downgraded from HIGH. Fix: bounds-check, or size `ctrlValues` to GPARAMS.
 
-### B-24  `RVoicesMap` is never freed  · LOW · CONFIRMED in code
+### B-24  `RVoicesMap` is never freed  · LOW · **FIXED 2026-11-12** (see fix log group 3)
 `new RVoice[PARTVOICES]` in `DXGenerator::init()`; `~DXGenerator` does not `delete[]` it (it frees `filterLogScale2`, `m_pFilterLogParam`, `ddMap`, `doRecalc`). One leak of 128 `RVoice` objects per plugin instance creation.
 
-### B-25  Smaller dead / copy-paste items in the voice code  · LOW · CONFIRMED in code
+### B-25  Smaller dead / copy-paste items in the voice code  · LOW · **MOSTLY FIXED 2026-11-12** (pan smoothing = B-55; index typos fixed; see fix log group 3)
 - `interpolateVoice` `:688-689`: LFO 2/3 amplitude ramps use LFO 1's amplitude (`[4]`); and `saveTargValues` (`:416-418`, `:422-424`) writes the ramp step into `m_dAmplitude` instead of `envInc` for LFOs 4-6. Harmless today because `singleVoiceProcessing` resets `m_dAmplitude` from the global level every sample, and killed voices don't render LFOs.
 - `DXGenerator::init` `:98`: `doRecalc[FINE_ENV_SRC] = &recalcFineEnv` (should be `recalcFineEnvSrc`). Harmless: `controls[FINE_ENV_SRC]` is never read (voices read `ctrlValues` directly).
 - Pan smoothing in `singleVoiceProcessing`/`deadVoiceProcessing` is a no-op (`prePan = pan` then `panDiff = pan - prePan`).
@@ -195,7 +195,7 @@ See `05-sdk-mods.md` (pass 4). `customRSType` and `customRSDisplayActive` have n
 - Draw handlers use `RViewsMap.at(name)` / `knobMap.at(name)` (`drawKnob` `:2234`, `drawKnob2`): `std::out_of_range` is not caught anywhere in `drawOpenGL`, so a draw handler registered without a matching map entry would terminate the host. All current setup paths insert into both, so this is latent.
 - All the `try { } catch (const std::exception&) { }` blocks swallow errors silently; none of them can catch the null-deref/OOB cases above.
 
-### B-34  `NVGView::valueChanged` has the reset index sign reversed  · LOW · CONFIRMED in code, probably dead
+### B-34  `NVGView::valueChanged` has the reset index sign reversed  · LOW · **FIXED 2026-11-12** (delegates to `onResetButton`)
 `NVGView.cpp:438-441` computes `idx = WIDTH_RESET - pid` (negative for pids above WIDTH_RESET) and indexes `resetSwitch[idx]`, while `onResetButton` uses `pid - WIDTH_RESET`. The method is marked "wtf" in the source; `NVGView` is declared an `IControlListener`, but the only `setListener(this)` is commented out (`:474`), so it is likely never called. Unverified.
 
 ### B-35  GUI text effect and animations advance per drawn frame, not per unit of time  · INFO
@@ -257,7 +257,7 @@ The `.def` exports `VSTPluginMain` (from the SDK's `vst2wrapper.sdk.cpp`, compil
 ### B-50  Release|x64 compiles with C++ exceptions disabled while the code uses try/catch  · MED · **FIXED 2026-11-12** (Release now uses the default /EHsc; C4530 gone)
 `<ExceptionHandling>false</ExceptionHandling>` in Release|x64; the compiler warns C4530 ("C++ exception handler used, but unwind semantics are not enabled") for files that use `try/catch` (registry read, GUI handlers) and STL. With /EHs- an exception thrown (e.g. by `std::stoi`, `map::at`, `std::wstring_convert`, the registry reader) is not reliably caught and destructors are not run during unwinding. Debug|x64 uses the default (/EHsc). Should be /EHsc in both.
 
-### B-51  `CBMoreInfoButton::onMouseExited/onMouseEntered` do not return a value on every path  · LOW · CONFIRMED (C4715 in `vstgui4/.../cbuttons.cpp:2039,2051`)
+### B-51  `CBMoreInfoButton::onMouseExited/onMouseEntered` do not return a value on every path  · LOW · **FIXED 2026-11-12** (SDK edit, returns `kMouseEventNotHandled`; logged in 05-sdk-mods)
 Undefined behaviour for a non-void function; SDK mod file.
 
 ### Fix log: B-18 + B-05 (2026-11-12)
@@ -373,6 +373,18 @@ Background found while fixing: the controller's two dispatch tables have differe
 `DXGenerator::processNoteOn` set `voiceEnvLfo[2].cenv` and `[3].cenv` (envelopes 2 and 3, the modulation sources) to 0 on every start, including the restart at the end of a retrigger fade. The amp envelope fades to 0 before that restart, but envelopes 2/3 jumped from their current level to 0 and re-attacked, so whatever they drive (mod depth = the "second voice", filter, pitch, width...) dropped out at the retrigger, by as much as the envelope's level at that moment.
 Fix: `processNoteOn(..., bool retrig)`; the restart from `interpolateVoice` passes `true`, and then envelopes 2/3 keep their current level and attack from there (target reset to full as before). Fresh notes and stolen voices are unchanged.
 Evidence (`tests/note_off` B-56, env-2 attack 0.6, decay hold, note re-struck at 1.0 s): env 2 before the re-strike 1.000; 50 ms after the restart old 0.763 (re-attacking from 0, same as a fresh note at 55 ms: 0.759), new 1.000. Retrigger pop probe unchanged (no restart kinks). Not changed: the per-voice LFOs still restart (phase and delay fade-in) on a retrigger; if modulation from an LFO still seems to drop out on retrig, that is the next candidate (a "keep LFO running on retrigger" option).
+
+### Fix log: group 3, plumbing and cleanup (B-07, B-08, B-09, B-24, B-25, B-34, B-51) (2026-11-12)
+- B-07: `BaseController::performEdit` returns `kResultFalse` for step-button tags (it fell off the end of a non-void function). The magic `173` is now `STEP_BUTTONS_FIRST` (= `STEP_CTRL_1`, `constants.h`) in both controllers.
+- B-08: `BaseProcessor::setState` reads exactly the count of values the state holds (skips any beyond `GPARAMS`), checks every read, ignores non-finite values, and reads the bypass flag only if present; returns `kResultFalse` on a truncated state (`DX10Processor::setState` still applies what was read, then returns that result). `DX10Processor::setCurrentProgram` clamps the program to the 7 presets. `getState` writes `GPARAMS` as the count (identical bytes: `numParams` was already `GPARAMS`), so existing projects load exactly as before (round-trip test).
+  Correction of the original note: a shorter state did **not** switch bypass on (`IBStreamer` stores 0 for a failed read); what it did was read on past the data and set every remaining parameter to 0.0, i.e. zero the rest of the patch.
+  Evidence (`tests/note_off` B-08): round trip passes old and new. Old code: short state (10 params) -> ENV_1_DECAY 0.000 instead of preset 2's 0.930; program 50 in a state -> current program 50 (read past the 7 presets); truncated state -> reported success. New: 0.930, program 6, `kResultFalse`.
+- B-09: the dead instance-id filter in `DX10Processor::notify` is removed (it compared a variable with itself). Not "fixed" on purpose: a connection point is per instance, and enabling it would drop messages from a controller that has not yet received `InstanceID`. Behaviour unchanged.
+- B-24: `DXGenerator::RVoicesMap` is initialised to nullptr, allocated once in `init()` and freed in `~DXGenerator`.
+- B-25: `doRecalc[FINE_ENV_SRC]` points at `recalcFineEnvSrc` (was `recalcFineEnv`); `interpolateVoice` ramps LFO 2/3 amplitude from their own value (was LFO 1's). Neither is audible (values are overwritten/unused). Not changed: `deadVoiceProcessing` still uses the last `gainerTemp` and no modulator mix during the 21 ms steal fade; `carPitchMultiplier` is still assigned and never read.
+- B-34: `NVGView::valueChanged` delegates to `onResetButton` (right index, bounds/null checks).
+- B-51 (SDK, `cbuttons.cpp`, logged in 05-sdk-mods): both functions return `kMouseEventNotHandled` on the fall-through path.
+- All `tests/note_off` and `tests/editor_cycle` checks pass; Debug and Release build with 0 errors.
 
 ### Fix log: try/catch review + GUI hazards (B-30, B-31, B-32, B-33, B-38, B-53) (2026-11-12)
 Your note: "lets see if we can do away with try catch everywhere, its probably my band aid for bad c++ clean up or timing". Inventory of the live sources: 15 `try { } catch (const std::exception&) { }` blocks in the `NVGView` GUI handlers (`onEnv`, `onEnvBipolar`, `onPanEnv`, `onEnvLev`, `onTuneSwitch`, `onOnOffBtn`, `onEnvSrc`, `onChangeOSCType`, `onChangeLFOOSCType`, `onChangeModType`, `onResetButton`, `onStepCtrlButton`, `onStepCtrlSwitch`, `onToggleButton`, `onRCButtonUp`), plus the registry read in the processor and controller constructors.

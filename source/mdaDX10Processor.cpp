@@ -826,12 +826,11 @@ tresult PLUGIN_API DX10Processor::notify(IMessage* message) {
 	BaseProcessor::notify(message);
 	msgInt = (*message->getMessageID());
 
-	int64 myInstanceId_ = -1;
-	message->getAttributes()->getInt("id", myInstanceId_);
-
-	if (this->myInstanceId != myInstanceId && myInstanceId_ != -1 ) {
-		return kResultFalse;
-	}
+	// B-09: there was an instance-id filter here that compared this->myInstanceId with itself
+	// (typo for the message's id), so it never rejected anything. It is removed rather than
+	// "fixed": a VST3 connection point links exactly one processor with one controller, so the
+	// filter protects nothing, and enabling it would drop messages from a controller that has not
+	// received the InstanceID message yet (e.g. the switch replies the engine depends on).
 
 	int64 pid;
 	switch (msgInt) {
@@ -954,6 +953,10 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 
 //-----------------------------------------------------------------------------
 void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
+	// B-08: the program number can come from a saved state; only kNumPrograms presets exist
+	// (programParams has 20 rows, 7 filled).
+	if (val >= static_cast<Steinberg::uint32>(kNumPrograms))
+		val = kNumPrograms - 1;
 	currentProgram = val;
 
 	for (int32 i = 0; i < GPARAMS; i++) {
@@ -2029,7 +2032,8 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 
 
 tresult DX10Processor::setState(IBStream* state) {
-	BaseProcessor::setState(state);
+	// B-08: apply whatever was read even if the state was truncated, then report the result.
+	const tresult readResult = BaseProcessor::setState(state);
 	//////////////////////////////////////////////
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);
@@ -2065,7 +2069,7 @@ tresult DX10Processor::setState(IBStream* state) {
 	
 	BaseProcessor::recalculate();
 
-	return kResultTrue;
+	return readResult;
 }
 
 }}} // namespaces

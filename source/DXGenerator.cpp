@@ -29,7 +29,9 @@ namespace rs {
 			//dX10Processor = dx10p;
 			ratioBounds = 50.0f;
 
-			RVoicesMap = new RVoice[PARTVOICES];
+			// B-24: allocate once (init can run again if the host re-initializes); freed in ~DXGenerator
+			if (!RVoicesMap)
+				RVoicesMap = new RVoice[PARTVOICES];
 
 			//parentProcessor = parent;
 
@@ -95,7 +97,7 @@ namespace rs {
 			doRecalc[TUNE_ENV_SRC] = &DXGenerator::recalcTuneEnvSrc;
 			doRecalc[FINE_] = &DXGenerator::recalcFine;
 			doRecalc[FINE_ENV] = &DXGenerator::recalcFineEnv;
-			doRecalc[FINE_ENV_SRC] = &DXGenerator::recalcFineEnv;
+			doRecalc[FINE_ENV_SRC] = &DXGenerator::recalcFineEnvSrc;  // B-25: was recalcFineEnv (copy-paste)
 
 			doRecalc[OCT_] = &DXGenerator::recalcOct;
 			doRecalc[OCT_ENV] = &DXGenerator::recalcOctEnv;
@@ -725,8 +727,10 @@ void DXGenerator::interpolateVoice(RVoice& voiceObj) {
 		voiceObj.voiceEnvLfo[1].env = voiceObj.voiceEnvLfo[1].env + voiceObj.voiceEnvLfo[1].envInc;
 
 		voiceObj.voiceEnvLfo[4].m_dAmplitude = voiceObj.voiceEnvLfo[4].m_dAmplitude + voiceObj.voiceEnvLfo[4].envInc;
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = voiceObj.voiceEnvLfo[4].m_dAmplitude + voiceObj.voiceEnvLfo[5].envInc;
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = voiceObj.voiceEnvLfo[4].m_dAmplitude + voiceObj.voiceEnvLfo[6].envInc;
+		// B-25: LFO 2/3 used LFO 1's amplitude here (copy-paste). No audible effect either way:
+		// singleVoiceProcessing resets m_dAmplitude from the global LFO level every sample.
+		voiceObj.voiceEnvLfo[5].m_dAmplitude = voiceObj.voiceEnvLfo[5].m_dAmplitude + voiceObj.voiceEnvLfo[5].envInc;
+		voiceObj.voiceEnvLfo[6].m_dAmplitude = voiceObj.voiceEnvLfo[6].m_dAmplitude + voiceObj.voiceEnvLfo[6].envInc;
 		//copysign(signer, voiceObj.o);
 		//0.0 - voiceObj.o
 		//voiceObj.o = voiceObj.o + (voiceObj.voiceEnvLfo[1].envInc * signer);

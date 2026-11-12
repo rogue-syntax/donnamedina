@@ -14,6 +14,8 @@
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
 #include "pluginterfaces/vst/ivstmessage.h"
+#include "public.sdk/source/common/memorystream.h"
+#include "base/source/fstreamer.h"
 #include <functional>
 #include "pluginterfaces/vst/ivstprocesscontext.h"
 
@@ -899,6 +901,93 @@ int main(int argc, char** argv) {
 		if (!ok) failures++;
 		std::printf("  %d of 9 velocities give distinct levels, monotonic %s, linear %s, vel 1 audible %s  %s\n", distinct,
 		            monotonic ? "yes" : "no", linear ? "yes" : "no", lv[0] > 0.0f ? "yes" : "no", ok ? "PASS" : "FAIL");
+	}
+
+	// ---- B-08: processor state loading ----
+	{
+		std::printf("\nB-08 processor setState robustness\n");
+		static HostApplication shost;
+		auto fresh = [&]() {
+			auto* p = new rs::DX10Processor();
+			p->initialize(&shost);
+			return p;
+		};
+		auto done = [](rs::DX10Processor* p) { p->terminate(); p->release(); };
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[160];
+
+		// 1. round trip: a saved state loads back exactly (compatibility with existing projects)
+		{
+			auto* a = fresh();
+			a->floatParams[FILTER_] = 0.37;
+			a->floatParams[ENV_2_DECAY] = 0.61;
+			MemoryStream ms;
+			static_cast<IComponent*>(a)->getState(&ms);
+			ms.seek(0, IBStream::kIBSeekSet, nullptr);
+			auto* b = fresh();
+			const tresult r = static_cast<IComponent*>(b)->setState(&ms);
+			std::snprintf(buf, sizeof(buf), "result %d, FILTER_ %.3f, ENV_2_DECAY %.3f, bypass %d", (int)r,
+			              b->floatParams[FILTER_], b->floatParams[ENV_2_DECAY], b->isBypassed() ? 1 : 0);
+			check("round trip (getState -> setState)",
+			      r == kResultTrue && std::fabs(b->floatParams[FILTER_] - 0.37) < 1e-9 &&
+			          std::fabs(b->floatParams[ENV_2_DECAY] - 0.61) < 1e-9 && !b->isBypassed(), buf);
+			done(a);
+			done(b);
+		}
+		// 2. a shorter state (10 params, then bypass = 0): must not read past it or turn bypass on
+		{
+			MemoryStream ms;
+			IBStreamer w(&ms, kLittleEndian);
+			w.writeInt32u(rs::BaseController::kMagicNumber);
+			w.writeInt32u(2);  // program
+			w.writeInt32u(10);  // count
+			for (int i = 0; i < 10; i++) w.writeDouble(0.123);
+			w.writeInt32u(0);  // bypass off
+			ms.seek(0, IBStream::kIBSeekSet, nullptr);
+			auto* p = fresh();
+			static_cast<IComponent*>(p)->setState(&ms);
+			// params after the 10 in the state keep preset 2's values (the old loop read on past the
+			// data and IBStreamer stores 0.0 for a failed read, zeroing the rest of the patch)
+			const double want = rs::DX10Processor::programParams[2][ENV_1_DECAY];
+			std::snprintf(buf, sizeof(buf), "param 0 %.3f, ENV_1_DECAY %.3f (want %.3f), bypass %d", p->floatParams[0],
+			              p->floatParams[ENV_1_DECAY], want, p->isBypassed() ? 1 : 0);
+			check("short state (10 params)", std::fabs(p->floatParams[0] - 0.123) < 1e-9 &&
+			          std::fabs(p->floatParams[ENV_1_DECAY] - want) < 1e-6 && !p->isBypassed(), buf);
+			done(p);
+		}
+		// 3. program number out of range
+		{
+			MemoryStream ms;
+			IBStreamer w(&ms, kLittleEndian);
+			w.writeInt32u(rs::BaseController::kMagicNumber);
+			w.writeInt32u(50);  // program 50 (only 7 exist)
+			w.writeInt32u(0);
+			w.writeInt32u(0);
+			ms.seek(0, IBStream::kIBSeekSet, nullptr);
+			auto* p = fresh();
+			static_cast<IComponent*>(p)->setState(&ms);
+			std::snprintf(buf, sizeof(buf), "current program %u (want %d)", p->getCurrentProgram(), rs::DX10Processor::kNumPrograms - 1);
+			check("program 50 in state", p->getCurrentProgram() == static_cast<uint32>(rs::DX10Processor::kNumPrograms - 1), buf);
+			done(p);
+		}
+		// 4. truncated state (cut in the middle of the params)
+		{
+			MemoryStream ms;
+			IBStreamer w(&ms, kLittleEndian);
+			w.writeInt32u(rs::BaseController::kMagicNumber);
+			w.writeInt32u(0);
+			w.writeInt32u(1000);
+			for (int i = 0; i < 3; i++) w.writeDouble(0.5);
+			ms.seek(0, IBStream::kIBSeekSet, nullptr);
+			auto* p = fresh();
+			const tresult r = static_cast<IComponent*>(p)->setState(&ms);
+			std::snprintf(buf, sizeof(buf), "result %d (want kResultFalse=%d), bypass %d", (int)r, (int)kResultFalse, p->isBypassed() ? 1 : 0);
+			check("truncated state", r == kResultFalse && !p->isBypassed(), buf);
+			done(p);
+		}
 	}
 
 	// ---- B-01 / B-02: controller with the editor closed (no view, as when the GUI is not open) ----

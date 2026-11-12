@@ -92,6 +92,8 @@ public:
 	void init();
 
 	DXGenerator::~DXGenerator() {
+		delete[] RVoicesMap;  // B-24: was never freed (128 voices per plugin instance)
+		RVoicesMap = nullptr;
 		delete filterLogScale2;
 		delete m_pFilterLogParam;
 		delete[] ddMap;
@@ -565,7 +567,7 @@ public:
 	//REvents Voices;
 	double targOscFo;
 	//RVoice RVoicesMap[PARTVOICES];
-	RVoice * RVoicesMap;
+	RVoice * RVoicesMap = nullptr;  // B-24
 	float foDifference = 0.0f;
 	bool seekAndReplace;
 
