@@ -84,6 +84,10 @@ public:
 	void checkPendingPreset();
 
 	virtual void doFromBase(int pid, double value);
+	void onNVGViewControllerDestroyed(void* c) override {
+		if (static_cast<void*>(nvgViewController) == c)
+			nvgViewController = nullptr;  // B-29: editor closed, sub-controller deleted by VSTGUI
+	}
 
 	String128 stringCtrlTChar;
 

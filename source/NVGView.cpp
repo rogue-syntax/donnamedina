@@ -941,7 +941,9 @@ no viewindex at 153!*/
 		}
 
 		vg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
-		fontInt = nvgCreateFontMem(vg, "lucon", lucon_ttf, lucon_ttf_len, 1);
+		// freeData = 0: lucon_ttf is a static array (luconData.hpp); with 1, fontstash would free()
+		// it when the NanoVG context is deleted (crash), which is why that delete had been disabled.
+		fontInt = nvgCreateFontMem(vg, "lucon", lucon_ttf, lucon_ttf_len, 0);
 		
 		nvgFontSize(vg, 9.0f);
 
@@ -1167,9 +1169,18 @@ no viewindex at 153!*/
 		}
 
 		if (vg) {
+			// B-28: nvgDeleteGL3 issues glDelete* calls (shaders, buffers, textures, font atlas,
+			// images). Make this view's GL context current first, otherwise they go to whatever
+			// context is current on this thread (e.g. another instance's editor) or nowhere.
+			IPlatformOpenGLView* glView = getPlatformOpenGLView();
+			if (glView) {
+				glView->lockContext();
+				glView->makeContextCurrent();
+			}
 			nvgDeleteGL3(vg);
 			vg = nullptr;
-
+			if (glView)
+				glView->unlockContext();
 		}
 
 		COpenGLView::removed(parent);

@@ -18,13 +18,13 @@ Discovery mode: **nothing here is scheduled for a fix.** Every item below is log
 | ~~B-17~~ | ~~Voices never leave the active list~~ **fixed 2026-11-12** (also enforces the 32-voice limit), test `tests/note_off` | reproduced and verified in the real code |
 | ~~B-21~~ | ~~TRI shape discontinuity / overshoot with width~~ **fixed 2026-11-12** (mirror above 0.5 + polyBLEP), test `tests/note_off` | measured on the real oscillator; link to the "buzz" still to confirm by ear |
 | B-20 | `recalcWidth` writes wrong variable | code |
-| B-28 | NanoVG GL context deleted without context current (+30 MB per open?) | code; unmeasured |
+| ~~B-28~~, ~~B-29~~, ~~B-54~~ | ~~NanoVG context deleted without context current; dangling `nvgViewController`; font stash leaked per editor close (0.37 MB)~~ **fixed 2026-11-12**, test `tests/editor_cycle` | measured with the real editor (200 open/close cycles) |
 
 ## Preset / state / parameter plumbing
 ~~B-01 pending preset never applied · B-02 controller drops host changes with editor closed~~ (fixed 2026-11-12) · B-07 missing return + magic 173 · B-08 state load robustness · B-09 instance-id compare · B-11 shared static presets · B-12 hardening · B-23 `ctrlValues` overflow (layout known; minor effect) · B-27 message IDs not C strings (processor side fixed; controller side open)
 
 ## Crash / robustness hazards (latent)
-~~B-04 null checks~~ (fixed 2026-11-12) · ~~B-10 real-time safety~~ (fixed 2026-11-12: 0 heap allocations in `process()`, messages queued to a main-thread timer) · B-52 params 55-99 out of bounds (latent) · B-53 colliding 2-char message IDs (see B-27) · ~~B-13 tempo float/double compare~~ (fixed 2026-11-12) · ~~B-39 `processContext` null~~ (fixed with B-04) · B-22 osc-1 note index · B-29 dangling `nvgViewController` · B-30 editor open/close ordering · B-31 uninitialised CView fields · B-32 `stoi` throw · B-33 missing-view derefs · B-38 hard-coded view names
+~~B-04 null checks~~ (fixed 2026-11-12) · ~~B-10 real-time safety~~ (fixed 2026-11-12: 0 heap allocations in `process()`, messages queued to a main-thread timer) · B-52 params 55-99 out of bounds (latent) · B-53 colliding 2-char message IDs (see B-27) · ~~B-13 tempo float/double compare~~ (fixed 2026-11-12) · ~~B-39 `processContext` null~~ (fixed with B-04) · B-22 osc-1 note index · ~~B-29 dangling `nvgViewController`~~ (fixed 2026-11-12) · B-30 editor open/close ordering · B-31 uninitialised CView fields · B-32 `stoi` throw · B-33 missing-view derefs · B-38 hard-coded view names
 
 ## Registration
 B-45 HKCU + once-per-instance check · B-46 weak protection (info)

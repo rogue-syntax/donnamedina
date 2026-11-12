@@ -123,6 +123,9 @@ protected:
 
 	virtual void doFromBase(int pid, double value) {};
 
+	// B-29: called from ~NVGViewController (editor closed); the derived controller drops its pointer.
+	virtual void onNVGViewControllerDestroyed(void* /*nvgViewController*/) {};
+
 	virtual int onStepCtrlButton(int pid, double value) { return 0; };
 
 	virtual void setViewsFromBase() {};

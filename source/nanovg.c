@@ -356,9 +356,13 @@ void nvgDeleteInternal(NVGcontext* ctx)
 	if (ctx == NULL) return;
 	if (ctx->commands != NULL) free(ctx->commands);
 	if (ctx->cache != NULL) nvg__deletePathCache(ctx->cache);
-	//RSEDITED
-	if (ctx->fs)
-		//fonsDeleteInternal(ctx->fs);
+	//RSEDITED: fonsDeleteInternal had been commented out (it crashed because the font was added
+	// with freeData = 1 on static data, see NVGView::attached). That leaked the whole font stash
+	// (512x512 atlas, 96 KB scratch, font tables: ~0.37 MB) on every editor close. Restored (B-28 fix log).
+	if (ctx->fs) {
+		fonsDeleteInternal(ctx->fs);
+		ctx->fs = NULL;
+	}
 
 	for (i = 0; i < NVG_MAX_FONTIMAGES; i++) {
 		if (ctx->fontImages[i] != 0) {

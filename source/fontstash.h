@@ -1644,8 +1644,8 @@ void fonsDeleteInternal(FONScontext* stash)
 	if (stash->fonts) free(stash->fonts);
 	if (stash->texData) free(stash->texData);
 	if (stash->scratch) free(stash->scratch);
+	fons__tt_done(stash);  // RSEDITED: was called after free(stash) (use after free)
 	free(stash);
-	fons__tt_done(stash);
 }
 
 void fonsSetErrorCallback(FONScontext* stash, void (*callback)(void* uptr, int error, int val), void* uptr)

@@ -34,7 +34,7 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 
 | Symptom | Status | Notes |
 |---|---|---|
-| Memory +30 MB per window open | CHECK (you believe fixed) | NVGView/NanoVG create/destroy; `~DX10Controller` has delete commented out; verify with VS diagnostic tools: open/close editor 20x, watch heap + GPU memory. See B-14, B-18. |
+| Memory +30 MB per window open | **Measured 2026-11-12** (`tests/editor_cycle`): a real leak of 0.37 MB per open/close (font stash, B-54, fixed); first open ~40 MB one-time. "+30 MB per open" itself not reproduced; recheck in FL. Original note: | NVGView/NanoVG create/destroy; `~DX10Controller` has delete commented out; verify with VS diagnostic tools: open/close editor 20x, watch heap + GPU memory. See B-14, B-18. |
 | Load presets changes control views but not processor params | HYPOTHESIS → B-01, B-02, B-11 | Controller preset path vs processor program path are separate; see below. |
 | Second voice drops out on retrigger | OPEN (related: B-05, B-18) | Those explain a *ghost/hanging* note on same-pitch retrigger, not a drop-out. The drop-out itself is not explained. |
 | Modulation drops out on retrigger when env too high | OPEN | B-19 was withdrawn; no explanation yet. |
@@ -170,10 +170,10 @@ Per voice per sample: `m_pFilterLogParam->toPlain` (your own comment says it's h
 
 ## D. Pass 4 findings (GUI lifecycle) — read-only, not run
 
-### B-28  `NVGView::removed()` deletes the NanoVG GL context without making the GL context current  · MED · CONFIRMED in code (effect unverified) → candidate for the "+30 MB per window open" note
+### B-28  `NVGView::removed()` deletes the NanoVG GL context without making the GL context current  · MED · **FIXED 2026-11-12** (context made current around `nvgDeleteGL3`). Not the cause of the memory growth: measured, it made no difference with one instance (the GL context is destroyed on close anyway); it matters with several editors open. The memory growth was B-54.
 `NVGView.cpp:1137-1178`: `nvgDeleteGL3(vg)` issues `glDelete*` calls (programs, buffers, textures, the font atlas, and the images made by `nvgCreateImageMem`). The only places that call `lockContext()/makeContextCurrent()` are `platformOpenGLViewCreated` and `platformOpenGLViewSizeChanged` (grep). `removed()` runs before `COpenGLView::removed`, but nothing there guarantees the thread's current context is this view's. If it isn't, the deletes go to the wrong context or nowhere and the GPU/driver memory stays allocated. Not measured; confirm with a memory counter across open/close cycles. Also: `images[]` ids are never passed to `nvgDeleteImage`, they rely on `nvgDeleteGL3`.
 
-### B-29  `DX10Controller::nvgViewController` is a raw pointer that is never cleared  · MED · CONFIRMED in code (ownership unverified)
+### B-29  `DX10Controller::nvgViewController` is a raw pointer that is never cleared  · MED · **FIXED 2026-11-12** (confirmed with `tests/editor_cycle`: after closing the editor it pointed to a freed `NVGViewController`; now cleared from `~NVGViewController`)
 `mdaDX10Controller.cpp:83`: set on every `createSubController`; nothing nulls it when the editor closes. `~NVGViewController` does not delete `nvgView` (commented out) and who releases the controller/view depends on VSTGUI's ref-counting (not traced). Handlers at `mdaDX10Controller.cpp:358-466` call `nvgViewController->nvgView->...` with no null check and no view-ready check of their own; they are protected only by callers checking `nvgViewReady`. If any path reaches them with the editor closed, it dereferences a freed object. Also `NVGViewController::isCreated` is just `iController != nullptr`.
 
 ### B-30  Editor open/close ordering hazards in `NVGView`  · LOW-MED · CONFIRMED in code (not reproduced)
@@ -335,6 +335,23 @@ Background found while fixing: the controller's two dispatch tables have differe
 - `DXGenerator.cpp` (3 places: `noteOn` both modes, `processNoteOn`) now use `velocityGain(v)` = `clamp(v, 1, 127) / 127` (new inline in `DXGenerator.h`; change the curve there). Also removes a division by zero the old formula had for velocity 0.
 - Evidence: new B-06 section in `tests/note_off` renders a held note at velocities 1-127 through the real `process()`. Old: levels 0 / 0.14 / 0.33 / 0.50 / 1.0 / 1.0 / 1.0 / 1.0 / 1.0 for 1/16/32/48/64/80/96/112/127. New: exactly v/127 (0.0079 ... 1.0), all distinct. All earlier cases pass. Debug and Release build with 0 errors.
 - Effect on sound: everything below velocity 127 is quieter than before (velocity 64 was full level, now half). Existing patches played at medium velocity will sound softer; a curve (e.g. `sqrt` or `pow(x, 0.6)`) would keep more level at medium velocities.
+
+### B-54  Font stash leaked on every editor close (~0.37 MB per open/close)  · HIGH · **FIXED 2026-11-12** (the measured cause of the "memory grows per window open" note)
+`nanovg.c` `nvgDeleteInternal`: the call `fonsDeleteInternal(ctx->fs)` was commented out (`//RSEDITED`), so each close leaked the whole font stash (512x512 glyph atlas 262144 B, scratch buffer 96000 B, font tables 21120 + 8192 + 1536 + 1280 B = 0.372 MB). The probable reason it was disabled: `NVGView::attached` added the embedded font with `freeData = 1`, but `lucon_ttf` is a static array (`luconData.hpp`), so deleting the stash would `free()` static memory and crash. Side effect of the commented call: the bare `if (ctx->fs)` then governed the font-image loop below it. Also `fonsDeleteInternal` called `fons__tt_done(stash)` after `free(stash)` (use after free; harmless with stb_truetype, whose done is empty).
+
+### Fix log: B-28 + B-29 + B-54 (2026-11-12)
+- `NVGView::attached`: `nvgCreateFontMem(..., freeData = 0)` (static font data is not owned by fontstash).
+- `nanovg.c`: `fonsDeleteInternal(ctx->fs)` restored, with braces, `ctx->fs = NULL`. `fontstash.h`: `fons__tt_done` before `free(stash)`.
+- `NVGView::removed`: lock + make the view's GL context current around `nvgDeleteGL3`, unlock after (B-28).
+- `NVGViewController` stores its owner; `~NVGViewController` calls the new `BaseController::onNVGViewControllerDestroyed`, which `DX10Controller` uses to null `nvgViewController` (B-29).
+- New test `tests/editor_cycle` (build_and_run.bat [cycles]): opens the real editor (`createView("editor")`, attached to a real window, so the NanoVG/OpenGL view is created and draws for 400 ms) and closes it, N times; links the plugin objects and its .res; counts private memory, operator-new bytes, process-heap (malloc) bytes, handles, GDI/USER objects, live `NVGView`s, and whether the controller's pointer is dangling.
+- Results, before -> after:
+  - `NVGView` objects alive after N closes: 0 -> 0 (the view was always freed; an earlier idea that `remember()` in `setThreaded` leaked it was wrong).
+  - operator-new heap growth per cycle: 0 -> 0. Handles / GDI / USER objects: flat -> flat.
+  - malloc growth per cycle: **0.373 MB -> 0.002 MB** (heap diff showed the six font-stash blocks per cycle).
+  - private memory over 200 cycles: 41.6 -> 144.8 MB (steady +0.38 MB/cycle after cycle 75) -> 42.6 -> 78.3 MB (+0.05 MB/cycle after 75, driver noise of +-20 MB).
+  - controller pointer after close: freed object -> nullptr.
+- The first open costs ~40 MB (GL context, driver, VSTGUI, fonts); that is one-time in this test. I did not reproduce "+30 MB per open" itself; in FL the per-open figure may include the host's own window and the first-open cost. Recheck in FL with Task Manager over ~10 open/close cycles.
 
 ### B-53  Colliding 2-char message IDs, dead ID compares (extends B-27)  · LOW · CONFIRMED in code
 - (Same root as B-27, which was logged earlier; kept here for the extra findings below.) `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.
