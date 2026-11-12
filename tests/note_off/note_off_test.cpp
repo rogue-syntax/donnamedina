@@ -9,6 +9,7 @@
 #include <windows.h>  // mdaBaseProcessor.h includes the Windows <bcrypt.h>, which needs this first
 #include "../../source/mdaDX10Processor.h"
 #include "../../source/mdaBaseController.h"  // kPresetParam
+#include "../../source/mdaDX10Controller.h"  // B-01/B-02 controller test
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
@@ -659,6 +660,57 @@ int main() {
 			if (g_deliveredMsgs) std::printf("      delivered by id:  %s\n", byId(g_msgsOut));
 			if (!ok) heapwatch::report("      ");
 		}
+	}
+
+	// ---- B-01 / B-02: controller with the editor closed (no view, as when the GUI is not open) ----
+	{
+		std::printf("\nB-01/B-02 controller, editor closed\n");
+		static HostApplication chost;
+		static CountingPeer cpeer;
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-58s %-40s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[128];
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&chost);
+		ctrl->connect(&cpeer);
+		pumpMessages();
+		resetMsgCounts();
+		const bool viewClosed = !ctrl->isViewReady();
+		check("editor is closed (nvgViewReady false)", viewClosed, "");
+
+		// B-02: host automation of a continuous param
+		ctrl->setParamNormalized(FILTER_, 0.37);
+		const double f = ctrl->getParamNormalized(FILTER_);
+		std::snprintf(buf, sizeof(buf), "stored %.3f (sent 0.370)", f);
+		check("automation of FILTER_ is stored", std::fabs(f - 0.37) < 1e-6, buf);
+
+		// B-02: host automation of a vertical switch: the processor must get the integer position
+		resetMsgCounts();
+		ctrl->setParamNormalized(OCT_, 0.8);
+		const double o = ctrl->getParamNormalized(OCT_);
+		const int sw = g_msgsOut[static_cast<unsigned char>(PMSG_STEP_SWITCH_CHAR)];
+		std::snprintf(buf, sizeof(buf), "stored %.3f, switch msgs to processor %d", o, sw);
+		check("automation of OCT_ (vertical switch) stored + sent", std::fabs(o - 0.8) < 1e-6 && sw >= 1, buf);
+
+		// B-01: preset change with the editor closed
+		const int prog = 2;
+		ctrl->setParamNormalized(rs::BaseController::kPresetParam, (prog + 0.5) / rs::DX10Processor::kNumPrograms);
+		int mismatches = 0;
+		const ParamID probe[] = {OSC_, WIDTH_, FILTER_, GAIN_, ENV_1_ATTACK, ENV_1_DECAY, LFO_1_RATE, MOD_OSC_};
+		for (ParamID id : probe)
+			if (std::fabs(ctrl->getParamNormalized(id) - rs::DX10Processor::programParams[prog][id]) > 1e-6) mismatches++;
+		std::snprintf(buf, sizeof(buf), "%d of 8 probed params differ from preset %d", mismatches, prog);
+		check("preset change applied to the controller", mismatches == 0, buf);
+
+		// the GUI update is queued for when the editor opens
+		std::snprintf(buf, sizeof(buf), "%zu queued", ctrl->pendingStateUpdates.size());
+		check("GUI updates queued for onNVGViewReady", !ctrl->pendingStateUpdates.empty(), buf);
+
+		ctrl->disconnect(&cpeer);
+		ctrl->terminate();
+		ctrl->release();
 	}
 
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----

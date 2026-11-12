@@ -773,37 +773,51 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 	tresult res = 0;
 
 	if (tag < GPARAMS) {
-		
+		// B-02: values from the host (automation, MIDI CC, presets, state) are always stored and the
+		// engine is always kept in sync; only the GUI part waits for the editor.
+		// onCtrlChange2 = engine sync (vertical switches: sends the integer position to the
+		// processor, which only gets ctrlValues this way); onCtrlChange = GUI handlers (nvgView).
+		(this->*onCtrlChange2.at(tag))(tag, value);
+
 		if (isViewReady()) {//not enough to know if the things the the view are really ready
-			(this->*onCtrlChange2.at(tag))(tag, value);
 			(this->*onCtrlChange.at(tag))(tag, value);
-			
+
 			if (tag <  173 ) {
-				
+
 				res = BaseController::setParamNormalized(tag, value);
 			}
 			else {
 				onStepCtrlButton(tag, value);
 			}
-			
+
+		}
+		else if (tag < 173) {
+			res = BaseController::setParamNormalized(tag, value);
+			// the GUI catches up from these in onNVGViewReady() when the editor opens.
+			// (tags >= 173 are momentary step buttons; their handler performs an edit, so they are
+			// not replayed.)
+			pendingStateUpdates[tag] = value;
+			hasPendingState = true;
 		}
 
-	} else if (tag == kPresetParam){ 
-
-		if (isViewReady()) {
-			// Apply the preset immediately if the view is ready
-			int32 program = (int32)parameters.getParameter(tag)->toPlain(value);
-			for (int32 i = 0; i < GPARAMS; i++) {
-				res = BaseController::setParamNormalized(i, DX10Processor::programParams[program][i]);
+	} else if (tag == kPresetParam){
+		// B-01: apply the preset now, editor open or not (it used to be parked in presetPending,
+		// which nothing ever applied, so the controller kept the old values).
+		res = BaseController::setParamNormalized(tag, value);
+		int32 program = (int32)parameters.getParameter(tag)->toPlain(value);
+		program = std::max<int32>(0, std::min<int32>(DX10Processor::kNumPrograms - 1, program));
+		const bool viewReady = isViewReady();
+		for (int32 i = 0; i < GPARAMS; i++) {
+			const ParamValue v = DX10Processor::programParams[program][i];
+			BaseController::setParamNormalized(i, v);
+			if (!viewReady && i < 173 && EditController::getParameterObject(i)) {
+				pendingStateUpdates[i] = v;  // GUI catches up when the editor opens
+				hasPendingState = true;
 			}
-			presetPending = false;
+		}
+		presetPending = false;
+		if (componentHandler)
 			componentHandler->restartComponent(kParamValuesChanged);
-		}
-		else {
-			// Defer preset loading
-			presetPending = true;
-			pendingPresetIndex = (int32)parameters.getParameter(tag)->toPlain(value);
-		}
 	}
 	return res;
 }

@@ -560,9 +560,10 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 			}
 		}
 		else {
+			// B-02: store the value now (it used to be only queued, so the controller reported
+			// defaults until the editor was opened); the derived controller queues the GUI update.
+			setParamNormalized(i, value);
 			hasPendingState = true;
-			// Defer the update if the view is not ready
-			pendingStateUpdates[i] = value;
 		}
 		
 	}

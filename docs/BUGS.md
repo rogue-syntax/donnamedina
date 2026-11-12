@@ -7,8 +7,8 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 
 | Item | Confidence | How checked |
 |---|---|---|
-| B-01 pending preset never applied | High | Re-read `createView`; grep shows `checkPendingPreset` has no other caller. |
-| B-02 params dropped while editor closed | High | Re-read `setParamNormalized`; `BaseController` does not override it, so the skipped call is the only store. Not run in a host. |
+| B-01 pending preset never applied | High | **FIXED 2026-11-12.** Reproduced with a headless `DX10Controller`: preset 2 selected with the editor closed -> 7 of 8 probed params kept old values. 0 after. |
+| B-02 params dropped while editor closed | High | **FIXED 2026-11-12.** Reproduced headless: automation of FILTER_ not stored (0.93 kept), OCT_ (vertical switch) neither stored nor sent to the processor. Stored and sent after. GUI catch-up on editor open not testable headless. |
 | B-03 output pointer corruption | High | **FIXED 2026-11-12.** Reproduced in the real `DX10Processor::process()` (host pointers moved after 258 blocks, 41852 samples written past the buffer end); 0/0 after the fix. Not run in a host. |
 | B-04 stale events / null processContext | Medium | **FIXED 2026-11-12.** Reproduced in the real `process()`: null `processContext` = access violation; no event list = note-on replayed every block; note-off past block end = hanging note. All pass after the fix. (A claim that `notes[]` was uninitialised was WRONG: `initialize()` sets `notes[0]=EVENTS_DONE`. Removed.) |
 | B-05 reorder kills retriggered note | Medium | `cutNote` defaults to true, `noteOff` is keyed by pitch (`DXGenerator.cpp:594`), so the mechanism holds; exact audible end-state not run. |
@@ -47,12 +47,12 @@ All "found" items below are from **reading code only (pass 1–2)**; none have b
 
 ## B. New findings
 
-### B-01  Pending preset is never applied  · HIGH · OPEN
+### B-01  Pending preset is never applied  · HIGH · **FIXED 2026-11-12** with B-02 (see "Fix log: B-01 + B-02")
 `DX10Controller::createView` (`mdaDX10Controller.cpp:170-185`) returns inside the `if (name == kEditor)` branch, so `checkPendingPreset()` on line 183 is only reached for *non-editor* view names (never in practice). `onNVGViewReady()` only flushes `pendingStateUpdates`, not `presetPending`.
 Effect: a preset selected while the editor was closed (or before the view was "ready") is stored in `presetPending` and **never applied to the controller**, so the GUI shows old values while the processor (which got `kPresetParam` from the host) plays the new preset.
 Fix: call `checkPendingPreset()` from `onNVGViewReady()` (or after the editor is attached), and make it clear the flag only after applying.
 
-### B-02  Controller drops host param changes while editor is closed  · HIGH · OPEN
+### B-02  Controller drops host param changes while editor is closed  · HIGH · **FIXED 2026-11-12** (see "Fix log: B-01 + B-02"; worse than noted: vertical-switch automation also never reached the engine while the editor was closed)
 `DX10Controller::setParamNormalized` (`:771-809`): for `tag < GPARAMS` it only calls `BaseController::setParamNormalized` when `isViewReady()`. When the editor is closed, **automation, MIDI mapped CC, and preset-driven value changes are discarded** by the controller. Reopening the editor shows stale values (and hosts that read controller values, e.g. automation lanes, see stale values). Also for `tag >= 173` (still `< GPARAMS`) it calls `onStepCtrlButton` and never stores the value.
 Fix: always store the value (`BaseController::setParamNormalized`) and only skip the *GUI-side dispatch* (`onCtrlChange*`) when the view isn't ready; when the view becomes ready, re-sync the GUI from stored param values (`getParamNormalized`) instead of replaying queued writes.
 
@@ -165,7 +165,7 @@ Int 0/1 reinterpreted as float is 0 or 1.4e-45 (about zero). Consequences from r
 ### B-26  Performance notes  · INFO
 Per voice per sample: `m_pFilterLogParam->toPlain` (your own comment says it's heavy; a precomputed table `ddMap` exists but is commented out), `std::deque`/`RVoicesMap[]` indexed per sample, pointer-to-member `modChoice` call, float/double mixing. Combined with B-17 this is a plausible main CPU cost, but nothing has been profiled.
 
-### B-27  Message IDs are pointers to single `char` constants, not C strings  · LOW · CONFIRMED in code (found during review)
+### B-27  Message IDs are pointers to single `char` constants, not C strings  · LOW · CONFIRMED in code (found during review) · *processor side fixed 2026-11-12 with B-10 (sends a real 1-char string); controller-side sends (`changeVertSwitch`, `changeLFORate`, the `PMSG_STEP_SWITCH2` reply in `BaseController::notify`) still use `&X_CHAR`. See also B-53.*
 `constants.h:230-252`: e.g. `const char PMSG_STEP_SWITCH_CHAR = '3';` and the code calls `msg->setMessageID(&PMSG_STEP_SWITCH_CHAR)`. `setMessageID` expects a NUL-terminated string; the host's `IMessage` implementation will typically `strlen`/copy it, reading past the one-byte constant into whatever follows in read-only memory. It works because the receivers only look at the first character (`*message->getMessageID()`), but it is undefined behaviour and the stored ID string is arbitrary. Also `BaseController::notify` first does `strcmp(getMessageID(), "InstanceID")` on these. Fix: use real string literals (and compare with `strcmp`) or `const char X[] = "3"`.
 
 ## D. Pass 4 findings (GUI lifecycle) — read-only, not run
@@ -323,8 +323,16 @@ Remaining sources: (1) `noteToIDMap` (`unordered_map`) in `dispatchNoteEvent`, u
 
 - Not changed: the morph shape keeps a DC offset of 0.13-0.15 at widths away from 0.5 (it had that below 0.5 before; above 0.5 it was -0.23..-0.51); the filter/HP path removes some, a DC correction could be added. The polyBLEP uses the oscillator's own increment, so with heavy phase modulation from osc 2 it is approximate. The modulator (`WTOsc2`) uses the same class, so it gets the same fix when set to TRI. Patches with width > 0.5 on TRI (factory preset 6 modulator 0.69, preset 5 modulator 0.54) sound different now (no overshoot/DC jump).
 
-### B-53  Message IDs sent as non-terminated strings; colliding 2-char IDs  · LOW · CONFIRMED in code · *send side fixed with B-10*
-- `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.
+### Fix log: B-01 + B-02 (2026-11-12)
+Background found while fixing: the controller's two dispatch tables have different jobs. `onCtrlChange2` is engine sync: for the vertical switches it is `changeVertSwitch`, which sends the integer position to the processor (`PMSG_STEP_SWITCH`); the processor's `ctrlValues` (osc type, octave, interval, env sources, ...) are only ever set by that message. `onCtrlChange` is the GUI side (handlers that update `nvgView`, some unguarded). The old code skipped both, and the store, whenever the editor was closed.
+- `DX10Controller::setParamNormalized` (`tag < GPARAMS`): always runs `onCtrlChange2` (engine sync). If the view is ready: GUI handlers + store as before. If not: stores the value and queues it in `pendingStateUpdates`, which `onNVGViewReady()` already replays into the GUI when the editor opens. Tags >= 173 (momentary step buttons, whose handler calls `performEdit`) are not stored or replayed, as before.
+- `kPresetParam`: the preset is applied to the controller immediately whether the editor is open or not (stores the preset param itself too, which the old code never did), queues the GUI catch-up if closed, and `restartComponent` is null-guarded. `presetPending`/`checkPendingPreset` are no longer used.
+- `BaseController::setComponentState` (editor closed): stores each value through `setParamNormalized` instead of only queueing it. Side effect: state values >= 173 are no longer replayed on editor open (the old replay would have called `performEdit` for step buttons).
+- Evidence: new B-01/B-02 section in `tests/note_off` drives a headless `DX10Controller` (real `initialize`, counting peer, no editor). Old code: 4 of 4 checks fail (FILTER_ automation kept 0.93 instead of 0.37; OCT_ stored 0.0 and 0 switch messages; preset 2 -> 7 of 8 probed params wrong; 0 GUI updates queued). Fixed: all pass (95 GUI updates queued for the editor). All earlier cases pass. Debug and Release build with 0 errors.
+- Not tested: the GUI replay itself when the editor opens (needs a host). The controller reads factory presets from `DX10Processor::programParams`, which the processor constructor fills (B-11); in the test a processor existed first.
+
+### B-53  Colliding 2-char message IDs, dead ID compares (extends B-27)  · LOW · CONFIRMED in code
+- (Same root as B-27, which was logged earlier; kept here for the extra findings below.) `constants.h:221-269` defines message IDs as single `char` constants and the processor passed `&PMSG_..._CHAR` to `setMessageID(const char*)`, which copies a C string: it read past the 1-byte constant until a 0 byte (undefined behaviour; the controller only looks at the first char, which is why it worked). Since B-10 the processor sends a proper 1-char string.
 - `PMSG_STEP_CTRL_CHAR = 'sc'` and `PMSG_STEP_CTRL_N_CHAR = 's1'..'sB'` are multi-character literals truncated to one `char` (MSVC keeps the last char): `'sc'` -> `'c'`, `'s1'` -> `'1'` (same as `CMSG_LINK_TUNE_CHAR`), `'s2'` -> `'2'`, ... Only `PMSG_STEP_CTRL_CHAR` is sent (from `recalcStepCtrlN`), and `'c'` is unique, so no live collision found; the `_N_` constants are traps.
 - Controller (`mdaBaseController.cpp:448,456`): `message->getMessageID == CMSG_ON_GET_SAMPLE_RATE` compares a member-function pointer, and `getMessageID() == "2"` compares pointers; both are always false (dead branches).
 
