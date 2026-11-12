@@ -687,7 +687,7 @@ void DXGenerator::detectSilence( int32* activeVoices ) {
 				v.voiceEnvLfo[1].cenv = 0.0f;
 				v.killIt = false;
 				v.releasePending = false;
-				notes.erase(notes.begin() + i);
+				notes.eraseAt(i);
 				i -= 1;
 			}
 		}

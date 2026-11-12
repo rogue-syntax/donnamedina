@@ -51,6 +51,26 @@ public:
 
 class DX10Processor;
 
+// B-10: fixed-capacity, allocation-free render list (was std::deque<int32>, which allocated on the
+// audio thread as it grew). Holds at most one entry per pitch; order is preserved on erase.
+struct VoiceList {
+	static const int kCapacity = 128;
+	int32 items[kCapacity];
+	int count = 0;
+	int size() const { return count; }
+	int32& operator[](int i) { return items[i]; }
+	const int32& operator[](int i) const { return items[i]; }
+	bool push_back(int32 x) {
+		if (count >= kCapacity) return false;
+		items[count++] = x;
+		return true;
+	}
+	void eraseAt(int i) {
+		for (int k = i; k < count - 1; k++) items[k] = items[k + 1];
+		count--;
+	}
+};
+
 // this defines a logarithmig scaling for the filter Fc control
 
 //class DXGenerator : public REventable, public RDataConsumer, public FObject, public ITimerCallback, public Constants  {
@@ -552,7 +572,7 @@ public:
 	bool pushNote;
 	int32 notes3[10];
 	int32 voiceCounter = 0;
-	std::deque<int32> notes;
+	VoiceList notes;  // pitches being rendered (B-17/B-10)
 	std::deque<RVoice> notes2;
 
 	//ADD THESE TO VOICE?
