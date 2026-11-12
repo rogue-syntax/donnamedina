@@ -127,7 +127,7 @@ namespace rs {
 		}
 	};
 
-	CMouseEventResult MoreInfoButton::onMouseEntered(CPoint& where, const CButtonState& buttons) {
+	inline CMouseEventResult MoreInfoButton::onMouseEntered(CPoint& where, const CButtonState& buttons) {
 		if (onMouseEnterCallback) {
 			onMouseEnterCallback();
 		}

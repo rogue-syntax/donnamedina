@@ -16,7 +16,7 @@ typedef unsigned int uint32;
 
 #ifndef __RSVERSION__
 #define __RSVERSION__
-const char* RSVERSION = "Version 1.0.1";
+const char* const RSVERSION = "Version 1.0.1"; // const pointer: internal linkage, one copy per TU is fine
 #endif
 
 //

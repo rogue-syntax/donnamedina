@@ -633,7 +633,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <LinkTimeCodeGeneration>Default</LinkTimeCodeGeneration>
       <OptimizeReferences>false</OptimizeReferences>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
-      <ForceFileOutput>Enabled</ForceFileOutput>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
     <PostBuildEvent>
@@ -771,7 +770,6 @@ if %errorlevel% neq 0 goto :VCEnd</Command>
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <IgnoreAllDefaultLibraries>false</IgnoreAllDefaultLibraries>
       <AdditionalOptions>/NODEFAULTLIB:libcmt.lib /NODEFAULTLIB:libcmtd.lib /NODEFAULTLIB:msvcrtd.lib %(AdditionalOptions)</AdditionalOptions>
-      <ForceFileOutput>MultiplyDefinedSymbolOnly</ForceFileOutput>
       <StackReserveSize>8388608</StackReserveSize>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
