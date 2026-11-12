@@ -498,6 +498,82 @@ int retrigProbe(int argc, char** argv) {
 	return 0;
 }
 
+// Golden-audio check (optimization safety net): renders every factory preset through the real
+// processor + controller path with a fixed note/automation pattern. `golden save` writes the output
+// to bin\golden.f32; `golden` compares a new render against it and reports the difference.
+int goldenProbe(int argc, char** argv) {
+	const bool save = argc > 2 && std::strcmp(argv[2], "save") == 0;
+	const double seconds = 3.0;
+	std::vector<float> all;
+	for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
+		std::vector<NoteEvent> ev;
+		auto note = [&](double t, double len, int16 p, float vel) {
+			NoteEvent on{at(t), true, p};
+			on.velocity = vel;
+			ev.push_back(on);
+			ev.push_back({at(t + len), false, p});
+		};
+		note(0.00, 0.80, 48, 1.0f);                       // single note
+		note(0.30, 1.20, 60, 0.8f); note(0.30, 1.20, 64, 0.7f); note(0.30, 1.20, 67, 0.6f);  // chord
+		for (int k = 0; k < 6; k++) note(1.0 + 0.12 * k, 0.07, 72, 0.5f + 0.08f * k);  // repeats
+		note(1.9, 0.9, 36, 0.9f);                         // low note into the tail
+		Options o;
+		o.keepPatchEnvelopes = true;
+		o.params = {{0.0, {rs::BaseController::kPresetParam, (prog + 0.5) / rs::DX10Processor::kNumPrograms}},
+		            {1.4, {FILTER_, 0.35}}, {1.8, {FILTER_, 0.8}}, {2.2, {MOD_GAIN_, 0.6}}};
+		static HostApplication ghost;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&ghost);
+		o.peer = ctrl;
+		o.onCreated = [ctrl](rs::DX10Processor& p) { ctrl->connect(&p); };
+		// deterministic message delivery: what the 15 ms main-thread timer does, but after every
+		// block instead of at wall-clock times (the render runs much faster than real time)
+		o.perBlock = [](rs::DX10Processor& p, double) { p.flushMessageQueue(); };
+		std::vector<float> L, R;
+		o.captureL = &L;
+		o.captureR = &R;
+		render(Settings{"golden", 0.0, 0.0}, ev, seconds, o);
+		ctrl->disconnect(nullptr);
+		ctrl->terminate();
+		ctrl->release();
+		for (size_t i = 0; i < L.size(); i++) { all.push_back(L[i]); all.push_back(R[i]); }
+	}
+	const char* path = "tests\\note_off\\bin\\golden.f32";
+	if (save) {
+		FILE* f = std::fopen(path, "wb");
+		if (!f) { std::printf("cannot write %s\n", path); return 2; }
+		std::fwrite(all.data(), sizeof(float), all.size(), f);
+		std::fclose(f);
+		std::printf("golden saved: %zu samples (%d presets x %.0f s, stereo)\n", all.size(), rs::DX10Processor::kNumPrograms, seconds);
+		return 0;
+	}
+	std::vector<float> ref(all.size());
+	FILE* f = std::fopen(path, "rb");
+	if (!f) { std::printf("no golden file; run 'golden save' first\n"); return 2; }
+	const size_t got = std::fread(ref.data(), sizeof(float), ref.size(), f);
+	std::fclose(f);
+	if (got != ref.size()) { std::printf("golden size mismatch\n"); return 2; }
+	const size_t perProg = all.size() / rs::DX10Processor::kNumPrograms;
+	double worstDb = -400.0;
+	float worstAbs = 0.0f;
+	for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
+		double sig = 0, err = 0;
+		float maxAbs = 0;
+		for (size_t i = prog * perProg; i < (prog + 1) * perProg; i++) {
+			sig += double(ref[i]) * ref[i];
+			const double d = double(all[i]) - ref[i];
+			err += d * d;
+			maxAbs = std::max(maxAbs, static_cast<float>(std::fabs(d)));
+		}
+		const double db = err > 0 ? 10.0 * std::log10(err / std::max(sig, 1e-30)) : -400.0;
+		worstDb = std::max(worstDb, db);
+		worstAbs = std::max(worstAbs, maxAbs);
+		std::printf("  preset %d: difference %7.1f dB below the signal, max sample diff %.2e\n", prog, -db, maxAbs);
+	}
+	std::printf("golden: worst preset difference %.1f dB below signal, max sample diff %.2e\n", -worstDb, worstAbs);
+	return 0;
+}
+
 // Poor man's sampling profiler: a second thread suspends the rendering thread every ~1 ms and
 // records its instruction pointer; report() names the functions via DbgHelp (exe built with /DEBUG).
 namespace sampler {
@@ -592,6 +668,7 @@ int perfProbe(int argc, char** argv) {
 int main(int argc, char** argv) {
 	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "perf") == 0) return perfProbe(argc, argv);
+	if (argc > 1 && std::strcmp(argv[1], "golden") == 0) return goldenProbe(argc, argv);
 	const Settings settings[] = {
 		{"decay=HOLD", 1.0, 0.5},
 		{"decay=0.6 ", 0.6, 0.5},

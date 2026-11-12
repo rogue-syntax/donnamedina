@@ -22,6 +22,7 @@
 
 #include <cmath>
 #include <cstdlib>
+#include <xmmintrin.h>  // _mm_getcsr / _mm_setcsr (FTZ/DAZ)
 #include "base/source/fstreamer.h"
 
 
@@ -128,9 +129,17 @@ BaseProcessor::~BaseProcessor ()
 
 tresult PLUGIN_API BaseProcessor::process (ProcessData& data)
 {
+	// Optimization / B-40: flush denormals to zero while we render (FTZ + DAZ). Decaying filter and
+	// envelope tails otherwise pass through denormal range, which is many times slower. The host's
+	// flags are restored before returning.
+	const unsigned int savedCsr = _mm_getcsr ();
+	_mm_setcsr (savedCsr | 0x8040);  // bit 15 FTZ, bit 6 DAZ
+
 	tl_inProcess = true;  // B-10: messages sent from here on are queued, not sent
 	preProcess(data);
 	tl_inProcess = false;
+
+	_mm_setcsr (savedCsr);
 	/*
 	if (processParameterChanges(data.inputParameterChanges))
 		

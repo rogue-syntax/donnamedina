@@ -175,7 +175,7 @@ int DXGenerator::doNothing() {
 }
 
 void DXGenerator::ParamClamp(float* n) {
-	(*n) = fmax(fmin((*n), 1.0), 0.0);
+	(*n) = rsMax(rsMin((*n), 1.0), 0.0);
 }
 
 
@@ -896,7 +896,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.newNote = ParamClamp2(voiceObj.newNote, 0, 127);
 	voiceObj.tuneC = (((controls[TUNE_]) + (controls[TUNE_ENV] * (*voiceObj.envBank[tuneCEnv])))) + (((controls[FINE_] ) + (controls[FINE_ENV] * (*voiceObj.envBank[fineCEnv]))) / 100 );
 	voiceObj.WTOsc.m_dOscFo = (midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneC);
-	voiceObj.WTOsc.m_dOscFo = fmax(OSC_FO_MIN, voiceObj.WTOsc.m_dOscFo);
+	voiceObj.WTOsc.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc.m_dOscFo);
 	//DElETE ? REMOVE
 	/*
 	if (POLYCOUNT == 1) {
@@ -914,7 +914,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	*/
 	voiceObj.WTOsc.update();
 	voiceObj.WTOsc.triCutoff = ((rampedParams[WIDTH_RAMPINDEX].level) + ((controls[WIDTH_ENV] * widthPole) * (*voiceObj.envBank[triEnvSrc])));
-	voiceObj.WTOsc.triCutoff = fmax(fmin(voiceObj.WTOsc.triCutoff, 0.9), 0.1);
+	voiceObj.WTOsc.triCutoff = rsMax(rsMin(voiceObj.WTOsc.triCutoff, 0.9), 0.1);
 	//MODULATOR TUNING
 	voiceObj.newModInt = ctrlValues[MOD_INT_ + paramStartIdx] + static_cast<int>(controls[MOD_INT_ENV] * (*voiceObj.envBank[newModIntEnv]) * 13);
 	voiceObj.newModOct = (ctrlValues[MOD_OCT_ + paramStartIdx]) + static_cast<int>((controls[MOD_OCT_ENV] * (*voiceObj.envBank[newModOctEnv]) * 13));
@@ -923,12 +923,12 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.tuneM = (((controls[MOD_TUNE_]) + (controls[modTuneEnv] * (*voiceObj.envBank[modTuneCEnv])))) + (((controls[MOD_FINE_]) + (controls[MOD_FINE_ENV] * (*voiceObj.envBank[modFineCEnv]))) / 100);
 
 	voiceObj.WTOsc2.m_dOscFo = (midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneM);
-	voiceObj.WTOsc2.m_dOscFo = fmax(OSC_FO_MIN, voiceObj.WTOsc2.m_dOscFo);
+	voiceObj.WTOsc2.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc2.m_dOscFo);
 
 	
 
 	voiceObj.WTOsc2.triCutoff = ((rampedParams[MOD_WIDTH_RAMPINDEX].level) + (((controls[MOD_WIDTH_ENV] * modWidthPole) * (*voiceObj.envBank[modTriEnvSrc]))));
-	voiceObj.WTOsc2.triCutoff = fmax(fmin(voiceObj.WTOsc2.triCutoff, 0.9), 0.1);
+	voiceObj.WTOsc2.triCutoff = rsMax(rsMin(voiceObj.WTOsc2.triCutoff, 0.9), 0.1);
 	
 	
 	//DO MODULATIONS 
@@ -1049,7 +1049,7 @@ int DXGenerator::doPhaseMod(RVoice* voiceObj) {
 	voiceObj->WTOsc2.update();
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
 	//voiceObj->WTOsc.m_dPhaseMod = (fmax(0.0, fmin(1.0, (controls[MOD_GAIN_] + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]][0])))))) * ((voiceObj->WTOsc.m_dOscFo / 50) * voiceObj->WTOsc2.doOscillate());
-	voiceObj->WTOsc.m_dPhaseMod = (fmax(0.003, fmin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]])))))) *  voiceObj->osc2out;
+	voiceObj->WTOsc.m_dPhaseMod = (rsMax(0.003, rsMin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]])))))) *  voiceObj->osc2out;
 	voiceObj->WTOsc.m_dFoModLin = 0.0;  // B-47: clear what freq/detune mod left behind
 	return 0;
 }
@@ -1057,7 +1057,7 @@ int DXGenerator::doPhaseMod(RVoice* voiceObj) {
 int DXGenerator::doFreqMod(RVoice* voiceObj) {
 	voiceObj->WTOsc2.update();
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
-	voiceObj->WTOsc.m_dFoModLin = (fmax(0.003, fmin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 4) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
+	voiceObj->WTOsc.m_dFoModLin = (rsMax(0.003, rsMin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 4) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
 	voiceObj->WTOsc.m_dPhaseMod = 0.0;  // B-47: clear what phase mod left behind
 	return 0;
 }
@@ -1066,7 +1066,7 @@ int DXGenerator::doDetuneMod(RVoice* voiceObj) {
 	voiceObj->WTOsc2.m_dOscFo = voiceObj->WTOsc2.m_dOscFo + ((bpm / 60) * ((controls[MOD_BEAT_] + static_cast<int>(controls[MOD_BEAT_ENV] * (*voiceObj->envBank[ctrlValues[MOD_BEAT_ENV_SRC + paramStartIdx]]) * 13)) / 4));
 	voiceObj->WTOsc2.update();
 	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
-	voiceObj->WTOsc.m_dFoModLin = (fmax(0.003, fmin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 8) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
+	voiceObj->WTOsc.m_dFoModLin = (rsMax(0.003, rsMin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 8) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
 	voiceObj->WTOsc.m_dPhaseMod = 0.0;  // B-47: clear what phase mod left behind
 	return 0;
 }
