@@ -6,7 +6,11 @@ Order within a section is a rough priority (impact for effort).
 ## 0. Make room
 - [x] Move all controls -35,-15 to remove the dead frame space; draw the 1148x542 art at that offset in code;
       widen the editor to 1248 (grid fills the new space). `source/editorLayout.h`, `resources/vstgui.uidesc`.
-- [ ] Design the extended right column (≈170 px of new space right of the logo/pan/control column).
+- [~] Right column remake: one framed column, bands for title / preset / readout / scope / master / voices / logo.
+  - [x] Step 1: layout and frames, pan knobs moved to the master row, logo is the about button.
+  - [ ] Step 2: readout with units.  - [ ] Step 3: scope.  - [ ] Step 4: voice strip.  - [ ] Step 5: preset bar.
+  - [ ] Optional: transparent title/logo PNGs (2x) to replace the crops from the art.
+  - [ ] Optional: master VOL knob (new parameter).
 - [ ] Optional: re-export the background art at 1248x542 with the panels moved, then set the art offset to 0.
 - [ ] Optional: use or trim the ≈24 px now free at the bottom.
 

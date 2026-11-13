@@ -28,4 +28,35 @@ constexpr float artY (float y) { return y + kArtOffsetY; }
 // Background grid of the art: 5 px cells, line colour on multiples of 5.
 constexpr int kGridStep = 5;
 
+// Right column (window coordinates), drawn by NVGView::drawRightColumn. The art's own right column
+// (title, pan, control, build info, logo boxes) is covered with grid from kBlankArtX0 (art x) rightwards;
+// the title and logo are redrawn from the art at the positions below.
+namespace column {
+constexpr float kBlankArtX0 = 950.0f;
+constexpr float kX0 = 928.0f;
+constexpr float kX1 = 1240.0f;
+constexpr float kCenterX = (kX0 + kX1) * 0.5f;
+
+struct Band { float y0, y1; constexpr float h () const { return y1 - y0; } };
+constexpr Band kTitle {3.0f, 71.0f};
+constexpr Band kPreset {77.0f, 105.0f};
+constexpr Band kReadout {111.0f, 175.0f};
+constexpr Band kScope {181.0f, 277.0f};
+constexpr Band kMaster {283.0f, 351.0f};
+constexpr Band kVoices {357.0f, 379.0f};
+constexpr Band kLogo {385.0f, 518.0f};
+
+// Source rectangles in the art (art coordinates) for the redrawn title and logo.
+struct Rect { float x, y, w, h; };
+constexpr Rect kTitleArt {967.0f, 29.0f, 143.0f, 63.0f};
+constexpr Rect kLogoArt {972.0f, 389.0f, 133.0f, 124.0f};
+
+// Master row knobs (must match the origins/sizes of #panLR, #panLREnv, #panLREnvSrc in vstgui.uidesc).
+constexpr Rect kPanKnob {966.0f, 300.0f, 40.0f, 40.0f};
+constexpr Rect kPanAmtKnob {1069.0f, 305.0f, 30.0f, 30.0f};
+constexpr Rect kPanSrcKnob {1167.0f, 305.0f, 30.0f, 30.0f};
+// #moreInfo (opens the about window) sits on the logo.
+constexpr Rect kMoreInfo {kCenterX - 70.0f, 387.0f, 140.0f, 129.0f};
+} // namespace column
+
 } // namespace editorLayout

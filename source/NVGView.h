@@ -987,6 +987,17 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		// Fills the editor outside the art with the art's background grid (the area the wider
 		// window adds around the 1148x542 art, see editorLayout.h).
 		void drawGrid();
+		// Fills a rectangle with the art's grid (aligned to the window origin like the art).
+		void fillGrid(float x, float y, float w, float h);
+
+		// Right column (editorLayout::column): covers the art's old column with grid and draws the
+		// new framed column (title, preset, readout, scope, master, voices, logo). Called from drawBkg,
+		// so it is under the controls.
+		void drawRightColumn();
+		void drawColumnSectionLabel(float x, float y, const char* text);
+		void drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy);
+		void drawKnobWell(const ::editorLayout::column::Rect& knob, int ticks);
+		void drawInset(float x, float y, float w, float h, NVGcolor border);
 
 
 		void drawSFML(HWND hwnd, const CRect& updateRect) ;//unused, remove from copenglview

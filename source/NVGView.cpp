@@ -741,6 +741,20 @@ no viewindex at 153!*/
 			moreInfoBtn->onMouseEnterCallback = std::bind(&NVGView::onMoreInfoBtnEnter, this);
 			moreInfoBtn->onMouseExitCallback = std::bind(&NVGView::onMoreInfoBtnExit, this);
 			moreInfoBtn->onMouseDownCallback = std::bind(&NVGView::onMoreInfoBtnDown, this);
+			{
+				// The SDK default outline (cbuttons.h) is in fixed art coordinates of the old BUILD INFO
+				// box; the click test and the hover glow use it, so derive it from where the view is.
+				const CRect r = (*viewListIter).get()->getViewSize();
+				const CCoord c = 6.0;
+				moreInfoBtn->pathOutline[0] = CPoint(r.left, r.top);
+				moreInfoBtn->pathOutline[1] = CPoint(r.right - c, r.top);
+				moreInfoBtn->pathOutline[2] = CPoint(r.right, r.top + c);
+				moreInfoBtn->pathOutline[3] = CPoint(r.right, r.bottom);
+				moreInfoBtn->pathOutline[4] = CPoint(r.left + c, r.bottom);
+				moreInfoBtn->pathOutline[5] = CPoint(r.left, r.bottom - c);
+				moreInfoBtn->pathOutline[6] = CPoint(r.left, r.top + c);
+				moreInfoBtn->pathOutline[7] = CPoint(r.left, r.top);
+			}
 			RSBView newBView((*viewListIter).get()->customRSViewName);
 			newBView.type = 1; //(*viewListIter).get()->customRSType;
 			newBView.drawRect = CRect((*viewListIter).get()->getViewSize());
@@ -2336,15 +2350,15 @@ no viewindex at 153!*/
 	}
 
 
-	void NVGView::drawGrid() {
+	void NVGView::fillGrid(float x, float y, float w, float h) {
 		using namespace ::editorLayout;
 		if (images[GRID_TILE] < 1) {
 			// Same colours as the grid painted in bkg1.png: line pixels on multiples of 5.
 			unsigned char tile[kGridStep * kGridStep * 4];
-			for (int y = 0; y < kGridStep; y++) {
-				for (int x = 0; x < kGridStep; x++) {
-					unsigned char* p = &tile[(y * kGridStep + x) * 4];
-					const bool line = (x == 0 || y == 0);
+			for (int ty = 0; ty < kGridStep; ty++) {
+				for (int tx = 0; tx < kGridStep; tx++) {
+					unsigned char* p = &tile[(ty * kGridStep + tx) * 4];
+					const bool line = (tx == 0 || ty == 0);
 					p[0] = line ? 4 : 11;
 					p[1] = line ? 5 : 12;
 					p[2] = line ? 16 : 23;
@@ -2354,20 +2368,27 @@ no viewindex at 153!*/
 			images[GRID_TILE] = nvgCreateImageRGBA(vg, kGridStep, kGridStep,
 				NVG_IMAGE_REPEATX | NVG_IMAGE_REPEATY | NVG_IMAGE_NEAREST, tile);
 		}
-		// Only outside the art: the art has transparent windows that the envelope/LFO displays
-		// (drawn before the background) show through, so the grid must not cover them.
-		const int ax0 = kArtOffsetX, ay0 = kArtOffsetY;
-		const int ax1 = kArtOffsetX + kArtWidth, ay1 = kArtOffsetY + kArtHeight;
-		const int W = kEditorWidth, H = kEditorHeight;
+		if (w <= 0 || h <= 0)
+			return;
 		NVGpaint gridPaint = nvgImagePattern(vg, 0, 0, kGridStep, kGridStep, 0.0f, images[GRID_TILE], 1.0f);
 		nvgBeginPath(vg);
-		if (ay0 > 0) nvgRect(vg, 0, 0, W, ay0);                                          // above
-		if (ay1 < H) nvgRect(vg, 0, ay1, W, H - ay1);                                    // below
-		const int my0 = ay0 > 0 ? ay0 : 0, my1 = ay1 < H ? ay1 : H;
-		if (ax0 > 0) nvgRect(vg, 0, my0, ax0, my1 - my0);                                // left
-		if (ax1 < W) nvgRect(vg, ax1, my0, W - ax1, my1 - my0);                          // right
+		nvgRect(vg, x, y, w, h);
 		nvgFillPaint(vg, gridPaint);
 		nvgFill(vg);
+	}
+
+	void NVGView::drawGrid() {
+		using namespace ::editorLayout;
+		// Only outside the art: the art has transparent windows that the envelope/LFO displays
+		// (drawn before the background) show through, so the grid must not cover them.
+		const float ax0 = kArtOffsetX, ay0 = kArtOffsetY;
+		const float ax1 = kArtOffsetX + kArtWidth, ay1 = kArtOffsetY + kArtHeight;
+		const float W = kEditorWidth, H = kEditorHeight;
+		const float my0 = ay0 > 0 ? ay0 : 0, my1 = ay1 < H ? ay1 : H;
+		fillGrid(0, 0, W, ay0);                    // above
+		fillGrid(0, ay1, W, H - ay1);              // below
+		fillGrid(0, my0, ax0, my1 - my0);          // left
+		fillGrid(ax1, my0, W - ax1, my1 - my0);    // right
 	}
 
 	void NVGView::drawBkg(RData& reIn) {
@@ -2381,27 +2402,150 @@ no viewindex at 153!*/
 		nvgRect(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight);
 		nvgFillPaint(vg, imgPaint);
 		nvgFill(vg);
+
+		drawRightColumn();
+	}
+
+	// ---- right column ------------------------------------------------------------------------
+	namespace {
+		const NVGcolor kColFrame = nvgRGBA(4, 186, 232, 255);   // frame cyan of the art
+		const NVGcolor kColLabel = nvgRGBA(0, 204, 255, 255);   // label text cyan of the art
+		const NVGcolor kColMagenta = nvgRGBA(93, 32, 93, 255);  // CONTROL box magenta of the art
+		const NVGcolor kColDimFrame = nvgRGBA(4, 186, 232, 120);
+	}
+
+	void NVGView::drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy) {
+		using namespace ::editorLayout;
+		// src is in art coordinates; place the art so that src lands at (dx, dy).
+		NVGpaint p = nvgImagePattern(vg, dx - src.x, dy - src.y, kArtWidth, kArtHeight, 0.0f, images[MAIN_ROW_BKG], 1.0f);
+		nvgBeginPath(vg);
+		nvgRect(vg, dx, dy, src.w, src.h);
+		nvgFillPaint(vg, p);
+		nvgFill(vg);
+	}
+
+	void NVGView::drawColumnSectionLabel(float x, float y, const char* text) {
+		nvgFontSize(vg, 11.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+		nvgFillColor(vg, kColLabel);
+		nvgText(vg, x, y, text, NULL);
+	}
+
+	void NVGView::drawInset(float x, float y, float w, float h, NVGcolor border) {
+		// Black slot with a chamfered bottom-right corner, like the art's CONTROL/VALUE boxes.
+		const float c = 5.0f;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x, y);
+		nvgLineTo(vg, x + w, y);
+		nvgLineTo(vg, x + w, y + h - c);
+		nvgLineTo(vg, x + w - c, y + h);
+		nvgLineTo(vg, x, y + h);
 		nvgClosePath(vg);
-		
-		//nvgBeginFrame(vg, 940, 440, 1.0);
+		nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
+		nvgFill(vg);
+		nvgStrokeColor(vg, border);
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
+	}
 
-		//nvgBeginPath(vg);
-		//nvgRect(vg, 5.0, 5.0, 1140.0, 540.0);
-		//nvgStrokeColor(vg, nvgRGBA(0, 160, 192, 255));
-		//nvgStrokeWidth(vg, 1.0f);
-		//nvgStroke(vg);
+	void NVGView::drawKnobWell(const ::editorLayout::column::Rect& k, int ticks) {
+		// The art paints a dark well and tick dots under each knob; the moved knobs need their own.
+		const float cx = k.x + k.w * 0.5f, cy = k.y + k.h * 0.5f, r = k.w * 0.5f;
+		NVGpaint well = nvgRadialGradient(vg, cx, cy - r * 0.3f, r * 0.1f, r, nvgRGBA(25, 56, 78, 255), nvgRGBA(6, 6, 10, 255));
+		nvgBeginPath(vg);
+		nvgCircle(vg, cx, cy, r);
+		nvgFillPaint(vg, well);
+		nvgFill(vg);
+		// ticks over the knob's 270 degree range (angle-start 135)
+		const float a0 = NVG_PI * 0.75f, range = NVG_PI * 1.5f;
+		nvgFillColor(vg, nvgRGBA(4, 186, 232, 150));
+		for (int i = 0; i < ticks; i++) {
+			const float a = a0 + range * (ticks > 1 ? float(i) / float(ticks - 1) : 0.5f);
+			nvgBeginPath(vg);
+			nvgCircle(vg, cx + cosf(a) * (r + 5.0f), cy + sinf(a) * (r + 5.0f), 1.2f);
+			nvgFill(vg);
+		}
+	}
 
-		//nvgEndFrame(vg);
-		//getPlatformOpenGLView()->swapBuffers();
-	
-			
-		
+	void NVGView::drawRightColumn() {
+		using namespace ::editorLayout;
+		using namespace ::editorLayout::column;
 
-		//glFlush();
-		//getPlatformOpenGLView()->swapBuffers();
-			
+		// 1. Cover the art's old column (title, pan, control, build info, logo) with grid.
+		const float blankX = artX(kBlankArtX0);
+		fillGrid(blankX, 0, (kArtOffsetX + kArtWidth) - blankX, kEditorHeight);
 
-	};
+		// 2. One continuous frame: chamfered top-right and bottom-left corners, like the art's boxes.
+		const float x0 = kX0, x1 = kX1, y0 = kTitle.y0, y1 = kLogo.y1, c = 10.0f;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x0, y0);
+		nvgLineTo(vg, x1 - c, y0);
+		nvgLineTo(vg, x1, y0 + c);
+		nvgLineTo(vg, x1, y1);
+		nvgLineTo(vg, x0 + c, y1);
+		nvgLineTo(vg, x0, y1 - c);
+		nvgClosePath(vg);
+		NVGpaint fill = nvgLinearGradient(vg, 0, y0, 0, y1, nvgRGBA(32, 4, 14, 235), nvgRGBA(16, 8, 30, 235));
+		nvgFillPaint(vg, fill);
+		nvgFill(vg);
+		nvgStrokeColor(vg, kColFrame);
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
+
+		// separators between the bands
+		const Band bands[] = {kTitle, kPreset, kReadout, kScope, kMaster, kVoices, kLogo};
+		const int nBands = int(sizeof(bands) / sizeof(bands[0]));
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 110));
+		nvgStrokeWidth(vg, 1.0f);
+		for (int i = 0; i + 1 < nBands; i++) {
+			const float y = floorf((bands[i].y1 + bands[i + 1].y0) * 0.5f) + 0.5f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x0 + 6, y);
+			nvgLineTo(vg, x1 - 6, y);
+			nvgStroke(vg);
+		}
+
+		const float lx = x0 + 9;  // label / content left edge
+		const float rx = x1 - 9;  // content right edge
+
+		// 3. Title (from the art)
+		drawArtCrop(kTitleArt, floorf(kCenterX - kTitleArt.w * 0.5f), floorf(kTitle.y0 + (kTitle.h() - kTitleArt.h) * 0.5f));
+
+		// 4. Preset bar (filled in a later step)
+		drawInset(lx, kPreset.y0 + 3, rx - lx, kPreset.h() - 6, kColDimFrame);
+
+		// 5. Readout: parameter name and value slots (text drawn by drawCtrlValueOutput)
+		drawColumnSectionLabel(lx, kReadout.y0 + 2, "CONTROL");
+		drawInset(lx, kReadout.y0 + 17, rx - lx, 20, kColMagenta);
+		drawInset(lx, kReadout.y0 + 41, rx - lx, 20, kColMagenta);
+
+		// 6. Scope (filled in a later step)
+		drawColumnSectionLabel(lx, kScope.y0 + 2, "SCOPE");
+		drawInset(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21, kColDimFrame);
+
+		// 7. Master: pan knobs
+		drawColumnSectionLabel(lx, kMaster.y0 + 2, "MASTER");
+		drawKnobWell(kPanKnob, 11);
+		drawKnobWell(kPanAmtKnob, 11);
+		drawKnobWell(kPanSrcKnob, 7);
+		nvgFontSize(vg, 9.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+		nvgFillColor(vg, kColLabel);
+		const float ly = kMaster.y1 - 10;
+		nvgText(vg, kPanKnob.x + kPanKnob.w * 0.5f, ly, "PAN L/R", NULL);
+		nvgText(vg, kPanAmtKnob.x + kPanAmtKnob.w * 0.5f, ly, "ENV AMT", NULL);
+		nvgText(vg, kPanSrcKnob.x + kPanSrcKnob.w * 0.5f, ly, "ENV SRC", NULL);
+
+		// 8. Voices (filled in a later step)
+		drawInset(lx, kVoices.y0 + 2, rx - lx, kVoices.h() - 4, kColDimFrame);
+
+		// 9. Logo (from the art) in a black framed slot; the #moreInfo button (kMoreInfo) covers the
+		//    slot and opens the about window.
+		drawInset(kMoreInfo.x, kMoreInfo.y, kMoreInfo.w, kMoreInfo.h, kColDimFrame);
+		drawArtCrop(kLogoArt, floorf(kCenterX - kLogoArt.w * 0.5f), floorf(kMoreInfo.y + (kMoreInfo.h - kLogoArt.h) * 0.5f));
+	}
 
 	void NVGView::drawOGL() {
 		GLPoint p1Scale;
@@ -2487,17 +2631,13 @@ no viewindex at 153!*/
 		nvgLineTo(vg, moreInfoBtn->pathOutline[7].x, moreInfoBtn->pathOutline[7].y);
 		nvgLineTo(vg, moreInfoBtn->pathOutline[0].x, moreInfoBtn->pathOutline[0].y);
 
-		nvgFillColor(vg, nvgRGBA(255, 255, 255, (255.0 * rsbView->blinkIntensity) ));
-		nvgFill(vg);
 		nvgClosePath(vg);
-
-		std::string copyWriteStr = "BUILD INFO";
-		nvgFontSize(vg, 11.0f);
-		nvgFontFace(vg, "lucon");
-		nvgTextAlign(vg, NVG_ALIGN_LEFT);
-		nvgFillColor(vg, nvgRGBA(153, 102, 153, 255));
-		nvgText(vg, ::editorLayout::artX(1000), ::editorLayout::artY(349), copyWriteStr.c_str(), NULL);
-		//end build info button
+		// The button now sits on the logo: a cyan hover glow instead of the old white fill.
+		nvgFillColor(vg, nvgRGBA(4, 186, 232, (int)(45.0 * rsbView->blinkIntensity)));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, (int)(255.0 * rsbView->blinkIntensity)));
+		nvgStrokeWidth(vg, 1.5f);
+		nvgStroke(vg);
 
 		
 
