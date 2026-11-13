@@ -2,6 +2,7 @@
 #include "mdaBaseController.h"
 #include "mdaParameter.h"
 #include "helpers.h"
+#include "editorLayout.h"
 #include "pluginterfaces/base/ibstream.h"
 #include "base/source/fstreamer.h"
 #include "vstgui/uidescription/delegationcontroller.h"
@@ -59,7 +60,7 @@ namespace rs {
 		if (name == ViewType::kEditor) {
 			// --- create the editor using the .uidesc file (in our Resources, edited with WYSIWYG editor in client)
 			//
-			CRect viewRect(0, 0, 1148, 542);
+			CRect viewRect(0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
 			rsView = new RSView(this, "Editor", "vstgui.uidesc", viewRect);
 			
 			return rsView;

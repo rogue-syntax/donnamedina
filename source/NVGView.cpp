@@ -1108,6 +1108,9 @@ no viewindex at 153!*/
 			}
 			nvgDeleteGL3(vg);
 			vg = nullptr;
+			// The image handles died with the context; clear them so a re-attach recreates them.
+			for (int& img : images)
+				img = 0;
 			if (glView)
 				glView->unlockContext();
 		}
@@ -1368,7 +1371,7 @@ no viewindex at 153!*/
 			glClearColor(0, 0, 0, 0);
 			glStencilMask(0xff);
 			glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT | GL_STENCIL_BUFFER_BIT);
-			nvgBeginFrame(vg, 1148, 542, 1);
+			nvgBeginFrame(vg, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight, 1);
 			frameBegun = true;
 
 			//dravw envs
@@ -1435,7 +1438,7 @@ no viewindex at 153!*/
 		//lfo1OriginX = lfo1OriginStartX + (lfo1Slider * (t_lfo1Width)) - (t_lfo1Width*.25) - (ceil(lfo1Slider) * t_lfo1Width);
 		
 		nvgBeginPath(vg);
-		nvgScissor(vg, 0, 0, 1148, 542);
+		nvgScissor(vg, 0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
 		nvgIntersectScissor(vg, lfo1OriginStartX, lfo1OriginY - lfoHeight / 2, lfoWidth, lfoHeight);
 		nvgMoveTo(vg, lfo1OriginX, lfo1OriginY);
 		switch (lfo1Type) {
@@ -1552,7 +1555,7 @@ no viewindex at 153!*/
 		//lfo2OriginX = lfo2OriginStartX + (lfo2Slider * (t_lfo2Width)) - (t_lfo2Width*.25) - (ceil(lfo2Slider) * t_lfo2Width);
 
 		nvgBeginPath(vg);
-		nvgScissor(vg, 0, 0, 1148, 542);
+		nvgScissor(vg, 0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
 		nvgIntersectScissor(vg, lfo2OriginStartX, lfo2OriginY - lfoHeight / 2, lfoWidth, lfoHeight);
 		nvgMoveTo(vg, lfo2OriginX, lfo2OriginY);
 		switch (lfo2Type) {
@@ -1667,7 +1670,7 @@ no viewindex at 153!*/
 		//lfo3OriginX = lfo3OriginStartX + (lfo3Slider * (t_lfo3Width)) - (t_lfo3Width*.25) - (ceil(lfo3Slider) * t_lfo3Width);
 
 		nvgBeginPath(vg);
-		nvgScissor(vg, 0, 0, 1148, 542);
+		nvgScissor(vg, 0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
 		nvgIntersectScissor(vg, lfo3OriginStartX, lfo3OriginY - lfoHeight / 2, lfoWidth, lfoHeight);
 		nvgMoveTo(vg, lfo3OriginX, lfo3OriginY);
 		switch (lfo3Type) {
@@ -2107,15 +2110,15 @@ no viewindex at 153!*/
 		}
 
 		nvgBeginPath(vg);
-		nvgCircle(vg, 758, 261, 3);
+		nvgCircle(vg, ::editorLayout::artX(758), ::editorLayout::artY(261), 3);
 		nvgFillColor(vg, nvgRGBA(245, 40, 145, (255 * beatModOnLev)));
 		nvgClosePath(vg);
 		nvgFill(vg);
 
-		lightPaint = nvgRadialGradient(vg, 758, 261, 3, 7, nvgRGBA(245, 40, 145, (100 * beatModOnLev)), nvgRGBA(245, 40, 145, (0 * beatModOnLev)));
+		lightPaint = nvgRadialGradient(vg, ::editorLayout::artX(758), ::editorLayout::artY(261), 3, 7, nvgRGBA(245, 40, 145, (100 * beatModOnLev)), nvgRGBA(245, 40, 145, (0 * beatModOnLev)));
 
 		nvgBeginPath(vg);
-		nvgCircle(vg, 758, 261, 7);
+		nvgCircle(vg, ::editorLayout::artX(758), ::editorLayout::artY(261), 7);
 		nvgFillPaint(vg, lightPaint);
 		nvgClosePath(vg);
 		nvgFill(vg);
@@ -2127,7 +2130,7 @@ no viewindex at 153!*/
 	void NVGView::drawBadReg() {
 
 		nvgBeginPath(vg);
-		nvgRect(vg, 237,90, 646, 341);
+		nvgRect(vg, ::editorLayout::artX(237), ::editorLayout::artY(90), 646, 341);
 		nvgFillColor(vg, nvgRGBA(0, 0, 0, 235));
 		nvgStrokeColor(vg, nvgRGBA(255, 102, 0, 255));
 		nvgStrokeWidth(vg, 1.0f);
@@ -2139,9 +2142,9 @@ no viewindex at 153!*/
 		nvgFontFace(vg, "lucon");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
 		nvgFillColor(vg, nvgRGB(255, 153, 255));
-		nvgText(vg, 560, 230, "No registration detected! ", NULL);
-		nvgText(vg, 560, 260, "Please go on-line to rogue-syntax.com and register.", NULL);
-		nvgText(vg, 560, 290, "Registration is quick, easy, and dirt cheap!", NULL);
+		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(230), "No registration detected! ", NULL);
+		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(260), "Please go on-line to rogue-syntax.com and register.", NULL);
+		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(290), "Registration is quick, easy, and dirt cheap!", NULL);
 	}
 
 
@@ -2229,7 +2232,7 @@ no viewindex at 153!*/
 		nvgFontFace(vg, "lucon");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		nvgFillColor(vg, nvgRGB(0, 160, 192) );
-		nvgText(vg, 975, 273, envSrcNames[selectedEnvSrc], NULL);
+		nvgText(vg, ::editorLayout::artX(975), ::editorLayout::artY(273), envSrcNames[selectedEnvSrc], NULL);
 		*/
 		//make ctrl handles
 		CPoint cpt;// make meber
@@ -2315,9 +2318,9 @@ no viewindex at 153!*/
 		nvgFontFace(vg, "lucon");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT);
 		nvgFillColor(vg, nvgRGBA(255, 204, 153, 255 * targDisplayTxt.textDisplayDecay));
-		//nvgText(vg, 980, 248, selectedCtrlTarg, NULL);
-		nvgText(vg, 980, 248, targDisplayTxt.selectedCtrlTargBuilder.c_str(), NULL);
-		nvgText(vg, 980, 283, targValueTxt.selectedCtrlTargBuilder.c_str(), NULL);
+		//nvgText(vg, ::editorLayout::artX(980), ::editorLayout::artY(248), selectedCtrlTarg, NULL);
+		nvgText(vg, ::editorLayout::artX(980), ::editorLayout::artY(248), targDisplayTxt.selectedCtrlTargBuilder.c_str(), NULL);
+		nvgText(vg, ::editorLayout::artX(980), ::editorLayout::artY(283), targValueTxt.selectedCtrlTargBuilder.c_str(), NULL);
 	}
 
 	void NVGView::drawImage(RData& reIn) {
@@ -2333,15 +2336,49 @@ no viewindex at 153!*/
 	}
 
 
-	void NVGView::drawBkg(RData& reIn) {
-		//RViewsMap[reIn.eventName]->x = 0;
-
-
-		NVGpaint imgPaint;
-		//imgPaint = nvgImagePattern(vg, 0.0, 0.0, 1148.0, 542.0, 0.0f / 180.0f*NVG_PI, images[MAIN_ROW_BKG], 1.0);
-		imgPaint = nvgImagePattern(vg, 0, 0, 1148, 542, 0.0f, images[MAIN_ROW_BKG], 1.0);
+	void NVGView::drawGrid() {
+		using namespace ::editorLayout;
+		if (images[GRID_TILE] < 1) {
+			// Same colours as the grid painted in bkg1.png: line pixels on multiples of 5.
+			unsigned char tile[kGridStep * kGridStep * 4];
+			for (int y = 0; y < kGridStep; y++) {
+				for (int x = 0; x < kGridStep; x++) {
+					unsigned char* p = &tile[(y * kGridStep + x) * 4];
+					const bool line = (x == 0 || y == 0);
+					p[0] = line ? 4 : 11;
+					p[1] = line ? 5 : 12;
+					p[2] = line ? 16 : 23;
+					p[3] = 255;
+				}
+			}
+			images[GRID_TILE] = nvgCreateImageRGBA(vg, kGridStep, kGridStep,
+				NVG_IMAGE_REPEATX | NVG_IMAGE_REPEATY | NVG_IMAGE_NEAREST, tile);
+		}
+		// Only outside the art: the art has transparent windows that the envelope/LFO displays
+		// (drawn before the background) show through, so the grid must not cover them.
+		const int ax0 = kArtOffsetX, ay0 = kArtOffsetY;
+		const int ax1 = kArtOffsetX + kArtWidth, ay1 = kArtOffsetY + kArtHeight;
+		const int W = kEditorWidth, H = kEditorHeight;
+		NVGpaint gridPaint = nvgImagePattern(vg, 0, 0, kGridStep, kGridStep, 0.0f, images[GRID_TILE], 1.0f);
 		nvgBeginPath(vg);
-		nvgRoundedRect(vg,0, 0, 1148, 542, 0.0);
+		if (ay0 > 0) nvgRect(vg, 0, 0, W, ay0);                                          // above
+		if (ay1 < H) nvgRect(vg, 0, ay1, W, H - ay1);                                    // below
+		const int my0 = ay0 > 0 ? ay0 : 0, my1 = ay1 < H ? ay1 : H;
+		if (ax0 > 0) nvgRect(vg, 0, my0, ax0, my1 - my0);                                // left
+		if (ax1 < W) nvgRect(vg, ax1, my0, W - ax1, my1 - my0);                          // right
+		nvgFillPaint(vg, gridPaint);
+		nvgFill(vg);
+	}
+
+	void NVGView::drawBkg(RData& reIn) {
+		using namespace ::editorLayout;
+		drawGrid();
+
+		// The panel art is drawn at its offset (editorLayout.h); the grid fills the rest.
+		NVGpaint imgPaint;
+		imgPaint = nvgImagePattern(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight, 0.0f, images[MAIN_ROW_BKG], 1.0);
+		nvgBeginPath(vg);
+		nvgRect(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight);
 		nvgFillPaint(vg, imgPaint);
 		nvgFill(vg);
 		nvgClosePath(vg);
@@ -2459,7 +2496,7 @@ no viewindex at 153!*/
 		nvgFontFace(vg, "lucon");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT);
 		nvgFillColor(vg, nvgRGBA(153, 102, 153, 255));
-		nvgText(vg, 1000, 349, copyWriteStr.c_str(), NULL);
+		nvgText(vg, ::editorLayout::artX(1000), ::editorLayout::artY(349), copyWriteStr.c_str(), NULL);
 		//end build info button
 
 		
@@ -2488,11 +2525,14 @@ no viewindex at 153!*/
 		//info window
 		if (moreInfoWindowOpen) {
 			
+			using namespace ::editorLayout;
+			// The about art is the same size as the panel art; fill the space around it with the grid
+			// so controls added outside the art do not show through.
+			drawGrid();
 			NVGpaint imgPaint;
-			//imgPaint = nvgImagePattern(vg, 0.0, 0.0, 1148.0, 542.0, 0.0f / 180.0f*NVG_PI, images[MAIN_ROW_BKG], 1.0);
-			imgPaint = nvgImagePattern(vg, 0, 0, 1148, 542, 0.0f, images[DM_ABOUT_WINDOW], 1.0);
+			imgPaint = nvgImagePattern(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight, 0.0f, images[DM_ABOUT_WINDOW], 1.0);
 			nvgBeginPath(vg);
-			nvgRoundedRect(vg, 0, 0, 1148, 542, 0.0);
+			nvgRect(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight);
 			nvgFillPaint(vg, imgPaint);
 			nvgFill(vg);
 			nvgClosePath(vg);
@@ -2501,13 +2541,13 @@ no viewindex at 153!*/
 			nvgFontFace(vg, "lucon");
 			nvgTextAlign(vg, NVG_ALIGN_LEFT);
 			nvgFillColor(vg, nvgRGB(255, 153, 255));
-			nvgText(vg, 290, 400, version.c_str(), NULL);
+			nvgText(vg, artX(290), artY(400), version.c_str(), NULL);
 
 			nvgFontSize(vg, 10.0f);
 			nvgFontFace(vg, "lucon");
 			nvgTextAlign(vg, NVG_ALIGN_LEFT);
 			nvgFillColor(vg, nvgRGB(255, 153, 255));
-			nvgText(vg, 261, 454, copyw.c_str(), NULL);
+			nvgText(vg, artX(261), artY(454), copyw.c_str(), NULL);
 		}
 	}
 

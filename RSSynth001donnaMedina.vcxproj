@@ -340,6 +340,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\RSView.h" />
     <ClInclude Include="source\RVoice.h" />
     <ClInclude Include="source\SEMFilter.h" />
+    <ClInclude Include="source\editorLayout.h" />
     <ClInclude Include="source\SineWave.h" />
     <ClInclude Include="source\ska.h" />
     <ClInclude Include="source\stb_image.h" />

@@ -465,6 +465,9 @@
     <ClInclude Include="source\SEMFilter.h">
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>
+    <ClInclude Include="source\editorLayout.h">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClInclude>
     <ClInclude Include="source\Env.h">
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>

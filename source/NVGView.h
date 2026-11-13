@@ -7,6 +7,7 @@
 //#include "SFClass.h"
 //#include "mdaDX10Controller.h"
 #include "mdaBaseController.h"
+#include "editorLayout.h"
 #include "constants.h"
 #include <time.h> 
 #include "vstgui/lib/controls/ccontrol.h"
@@ -647,8 +648,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float env1Dec;
 		float env1Rel;
 		float env1Toggle;
-		float env1OriginX = 55.0;
-		float env1OriginY = 370.0;
+		float env1OriginX = ::editorLayout::artX(55.0f);
+		float env1OriginY = ::editorLayout::artY(370.0f);
 		float env1AttX;
 		float env1AttY;
 		float env1DecX;
@@ -662,8 +663,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float env2Dec;
 		float env2Rel;
 		float env2Toggle;
-		float env2OriginX = 204.0;
-		float env2OriginY = 370.0;
+		float env2OriginX = ::editorLayout::artX(204.0f);
+		float env2OriginY = ::editorLayout::artY(370.0f);
 		float env2AttX;
 		float env2AttY;
 		float env2DecX;
@@ -677,8 +678,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float env3Dec;
 		float env3Rel;
 		float env3Toggle;
-		float env3OriginX = 352.0;
-		float env3OriginY = 370.0;
+		float env3OriginX = ::editorLayout::artX(352.0f);
+		float env3OriginY = ::editorLayout::artY(370.0f);
 		float env3AttX;
 		float env3AttY;
 		float env3DecX;
@@ -697,10 +698,10 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		int64 lfo1Type;
 		double *lfo1Rate;
 		float lfo1Slider;
-		float lfo1OriginX = 494.0;
-		float lfo1OriginStartX = 494.0;
-		float lfo1OriginY = 344.0;
-		float lfo1Max = 634.0;
+		float lfo1OriginX = ::editorLayout::artX(494.0f);
+		float lfo1OriginStartX = ::editorLayout::artX(494.0f);
+		float lfo1OriginY = ::editorLayout::artY(344.0f);
+		float lfo1Max = ::editorLayout::artX(634.0f);
 		float lfo1HMax = 0.0;
 		float t_lfo1Width = 0.0;
 		float lfo1oX = 0.0;
@@ -714,10 +715,10 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		int64 lfo2Type;
 		double *lfo2Rate;
 		float lfo2Slider;
-		float lfo2OriginX = 642.0;
-		float lfo2OriginStartX = 642.0;
-		float lfo2OriginY = 344.0;
-		float lfo2Max = 782.0;
+		float lfo2OriginX = ::editorLayout::artX(642.0f);
+		float lfo2OriginStartX = ::editorLayout::artX(642.0f);
+		float lfo2OriginY = ::editorLayout::artY(344.0f);
+		float lfo2Max = ::editorLayout::artX(782.0f);
 		float lfo2HMax = 0.0;
 		float t_lfo2Width = 0.0;
 		float lfo2oX = 0.0;
@@ -732,10 +733,10 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		double *lfo3Rate;
 		float lfo3Slider;
 
-		float lfo3OriginX = 792.0;
-		float lfo3OriginStartX = 792.0;
-		float lfo3OriginY = 344.0;
-		float lfo3Max = 932.0;
+		float lfo3OriginX = ::editorLayout::artX(792.0f);
+		float lfo3OriginStartX = ::editorLayout::artX(792.0f);
+		float lfo3OriginY = ::editorLayout::artY(344.0f);
+		float lfo3Max = ::editorLayout::artX(932.0f);
 		float lfo3HMax = 0.0;
 		float t_lfo3Width = 0.0;
 		float lfo3oX = 0.0;
@@ -981,6 +982,11 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		const int RELEASE_OVERLAY = 9;
 		const int MAIN_ROW_BKG = 10;
 		const int DM_ABOUT_WINDOW = 11;
+		const int GRID_TILE = 12;   // 5x5 repeating tile of the art's background grid (drawBkg)
+
+		// Fills the editor outside the art with the art's background grid (the area the wider
+		// window adds around the 1148x542 art, see editorLayout.h).
+		void drawGrid();
 
 
 		void drawSFML(HWND hwnd, const CRect& updateRect) ;//unused, remove from copenglview

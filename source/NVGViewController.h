@@ -20,7 +20,7 @@ public:
 	BaseController* owner = nullptr;  // B-29: told when this controller is destroyed
 
 	NVGViewController(IController* iController, BaseController* dx10ptr): DelegationController(iController), owner(dx10ptr) {
-		nvgView = new NVGView(CRect(0, 0, 1148, 542), dx10ptr);
+		nvgView = new NVGView(CRect(0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight), dx10ptr);
 		if (iController == nullptr) {
 			isCreated = false;
 		}

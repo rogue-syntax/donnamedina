@@ -119,6 +119,94 @@ std::vector<Block> heapSnapshot() {
 	return v;
 }
 
+// EDITOR_SHOT=<file.bmp>: open the editor once in an on-screen window sized from IPlugView::getSize,
+// let it draw, and save the client area as a 24-bit BMP (for checking layout changes by eye).
+int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
+	IPlugView* view = ctrl->createView(ViewType::kEditor);
+	if (!view) { std::printf("createView failed\n"); return 2; }
+	ViewRect vr;
+	view->getSize(&vr);
+	const int w = vr.getWidth(), h = vr.getHeight();
+	std::printf("editor size %d x %d\n", w, h);
+	RECT r{0, 0, w, h};
+	AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
+	HWND hwnd = CreateWindowExW(WS_EX_TOPMOST, L"STATIC", L"DonnaMedina editor shot", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+	                            0, 0, r.right - r.left, r.bottom - r.top, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
+	ShowWindow(hwnd, SW_SHOW);
+	pumpFor(100);
+	if (view->attached(hwnd, kPlatformTypeHWND) != kResultTrue) { std::printf("attached failed\n"); return 2; }
+	// As a host does after attaching. VST3Editor::onSize ignores a size equal to the frame's own,
+	// and without a host IPlugFrame the platform window was never sized, so go via another size.
+	ViewRect tmp(0, 0, w - 1, h - 1);
+	view->onSize(&tmp);
+	view->onSize(&vr);
+	// No processor here, so the registration overlay would hide the panel; drop it for the shot.
+	if (ctrl->nvgViewController && ctrl->nvgViewController->nvgView)
+		ctrl->nvgViewController->nvgView->badReg = false;
+	pumpFor(1500);
+
+	// Copy the client area from the screen (the window is topmost): PrintWindow misses the
+	// plugin's OpenGL child window.
+	SetForegroundWindow(hwnd);
+	pumpFor(300);
+	// The VSTGUI child windows come up 0x0 in this bare host (no IPlugFrame); size them directly.
+	const SIZE editorSize{w, h};
+	EnumChildWindows(hwnd, [](HWND c, LPARAM lp) -> BOOL {
+		RECT cr{};
+		GetWindowRect(c, &cr);
+		if (cr.right - cr.left == 0) {
+			const SIZE* sz = reinterpret_cast<const SIZE*>(lp);
+			SetWindowPos(c, nullptr, 0, 0, sz->cx, sz->cy, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+		}
+		return TRUE;
+	}, reinterpret_cast<LPARAM>(&editorSize));
+	pumpFor(500);
+	EnumChildWindows(hwnd, [](HWND c, LPARAM) -> BOOL {
+		char cls[128] = {};
+		GetClassNameA(c, cls, sizeof(cls));
+		RECT cr{};
+		GetWindowRect(c, &cr);
+		std::printf("  child %s  %ld,%ld %ldx%ld  visible %d\n", cls, cr.left, cr.top, cr.right - cr.left, cr.bottom - cr.top, IsWindowVisible(c));
+		return TRUE;
+	}, 0);
+	POINT org{0, 0};
+	ClientToScreen(hwnd, &org);
+	HDC wdc = GetDC(nullptr);
+	HDC mdc = CreateCompatibleDC(wdc);
+	HBITMAP bmp = CreateCompatibleBitmap(wdc, w, h);
+	HGDIOBJ old = SelectObject(mdc, bmp);
+	BitBlt(mdc, 0, 0, w, h, wdc, org.x, org.y, SRCCOPY);
+	SelectObject(mdc, old);
+
+	BITMAPINFOHEADER bi{};
+	bi.biSize = sizeof(bi);
+	bi.biWidth = w;
+	bi.biHeight = h;  // bottom-up, as BMP files store it
+	bi.biPlanes = 1;
+	bi.biBitCount = 24;
+	const int stride = ((w * 3 + 3) / 4) * 4;
+	std::vector<unsigned char> px(static_cast<size_t>(stride) * h);
+	GetDIBits(mdc, bmp, 0, h, px.data(), reinterpret_cast<BITMAPINFO*>(&bi), DIB_RGB_COLORS);
+	BITMAPFILEHEADER bf{};
+	bf.bfType = 0x4D42;
+	bf.bfOffBits = sizeof(bf) + sizeof(bi);
+	bf.bfSize = bf.bfOffBits + static_cast<DWORD>(px.size());
+	if (FILE* f = std::fopen(path, "wb")) {
+		std::fwrite(&bf, sizeof(bf), 1, f);
+		std::fwrite(&bi, sizeof(bi), 1, f);
+		std::fwrite(px.data(), 1, px.size(), f);
+		std::fclose(f);
+		std::printf("saved %s\n", path);
+	}
+	DeleteObject(bmp);
+	DeleteDC(mdc);
+	ReleaseDC(nullptr, wdc);
+	view->removed();
+	view->release();
+	DestroyWindow(hwnd);
+	return 0;
+}
+
 double privateMB() {
 	PROCESS_MEMORY_COUNTERS_EX pmc{};
 	pmc.cb = sizeof(pmc);
@@ -155,6 +243,9 @@ int main(int argc, char** argv) {
 		std::printf("B-11 preset 2 with no processor constructed: OSC_ %.3f (want 0.900), MOD_OSC_ %.3f (want 0.600)  %s\n",
 		            osc, mosc, ok ? "PASS" : "FAIL");
 	}
+
+	if (const char* shot = std::getenv("EDITOR_SHOT"))
+		return takeEditorShot(ctrl, shot);
 
 	HWND hwnd = CreateWindowExW(0, L"STATIC", L"DonnaMedina editor cycle test", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 	                            -3000, 0, 1200, 600, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);

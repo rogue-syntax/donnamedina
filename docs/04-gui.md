@@ -2,11 +2,19 @@
 
 Read, not run. Only the editor lifecycle has been traced so far.
 
+## Layout (2026-11-13)
+- Editor size and art placement live in `source/editorLayout.h` (`editorLayout::kEditorWidth/Height`, `kArtOffsetX/Y`, `artX()/artY()`). The window is 1248x542.
+- The panel art (`resources/bkg1.png`, 1148x542, bitmap `BKG1.png`) is drawn at (-35,-15) by `NVGView::drawBkg`; the about art (`dm_about_window.png`) the same way. `NVGView::drawGrid` fills the area outside the art with the art's 5 px grid. It must stay outside the art: the art has transparent windows that the envelope/LFO displays (drawn before the background) show through.
+- Control positions in `vstgui.uidesc` are window coordinates; all controls in template `basicControlls1` were moved by (-35,-15) at the same time. The `#mainRowBkg` and `#dmAboutWindow` views only hold bitmaps; their positions are not used.
+- Positions written against the art in `NVGView` (envelope/LFO display origins, beat-mod dot, CONTROL readout text, BUILD INFO, registration box, about text) go through `artX()/artY()`.
+- If the art is re-exported at window size with the panels moved, set the offsets to 0.
+- `tests/editor_cycle`: `EDITOR_SHOT=<file.bmp>` opens the editor on screen once and saves a screenshot (the registration overlay is turned off for it, as the test has no processor).
+
 ## Creation chain
-`DX10Controller::createView` -> `RSView` (VST3Editor subclass, uidesc `vstgui.uidesc`) -> uidesc asks for sub-controller `nvgViewController` -> `DX10Controller::createSubController` (`mdaDX10Controller.cpp:79`) does `new NVGViewController(editor, this)`, whose ctor does `new NVGView(CRect(0,0,1148,542), controller)`. `NVGViewController::createView` returns that `nvgView` when the uidesc view has `custom-view-name="nvgView"`. So **one new NVGView per editor open**.
+`DX10Controller::createView` -> `RSView` (VST3Editor subclass, uidesc `vstgui.uidesc`) -> uidesc asks for sub-controller `nvgViewController` -> `DX10Controller::createSubController` (`mdaDX10Controller.cpp:79`) does `new NVGViewController(editor, this)`, whose ctor does `new NVGView(CRect(0,0,kEditorWidth,kEditorHeight), controller)`. `NVGViewController::createView` returns that `nvgView` when the uidesc view has `custom-view-name="nvgView"`. So **one new NVGView per editor open**.
 
 ## NVGView
-- `NVGView : COpenGLView` draws the whole UI with NanoVG into one GL view (1148x542). The normal VSTGUI controls (modded `CBKnob`, `CBButton`, `CBSlider`, `CBVerticalSwitch`, `CBStepCtrlButton`) still exist as hidden/transparent input handlers; their look is drawn by NanoVG.
+- `NVGView : COpenGLView` draws the whole UI with NanoVG into one GL view (1248x542 since 2026-11-13, see Layout below). The normal VSTGUI controls (modded `CBKnob`, `CBButton`, `CBSlider`, `CBVerticalSwitch`, `CBStepCtrlButton`) still exist as hidden/transparent input handlers; their look is drawn by NanoVG.
 - `attached()` (`NVGView.cpp:934`): create GL3 NanoVG context + font; walk **all views in the frame** (`getFrame()->getViewsAll`, an SDK mod), and for each one whose `customRSType > -1` call a `setupX` function by type number: 1 knob, 2 button, 3/10 slider, 4 vertical switch, 5 vertical slider, 6 osc-symbol (name decides sine/saw/tri/square), 7 knob2 (via setupRKnob), 8 image, 9 click button, 11 step-ctrl button, 12 knob2, 13 more-info, 14 close-window button. Each `setup` builds an `RSBView` data record, stores it in `RViewsMap`, indexes it by control tag in `viewIndex[tag]`, and registers a draw handler in `RDrawVector[layer]` (the `Draw`/`REvent` data+binder system).
 - `drawOpenGL()` (`:1391`) every frame: `onNVGViewReady()` flush, animations, draw envelopes/LFOs, then each registered draw handler, then overlays; `glFinish(); invalid();` (continuous redraw).
 - `removed()` (`:1137`): clears flag, makes the GL context current and deletes `vg` (B-28 fix; `nvgDeleteGL3` now also frees the font stash again, B-54), `views` cleared. VSTGUI then frees the `NVGView` and deletes the `NVGViewController`, which clears `DX10Controller::nvgViewController` (B-29). Measured with `tests/editor_cycle`.
