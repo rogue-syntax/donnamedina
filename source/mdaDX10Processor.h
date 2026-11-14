@@ -99,6 +99,10 @@ public:
 
 	float sampleRate;
 
+	// master output volume (MASTER_VOL): current smoothed gain and the one-pole coefficient (setActive)
+	float masterGain = 1.0f;
+	float masterGainCoef = 0.005f;
+
 	float mainEnv1Rel;
 	float mainEnv1ReleaseToggle = 1.0;
 	float mainEnv1Att = 0.0;

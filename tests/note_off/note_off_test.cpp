@@ -1216,6 +1216,115 @@ int main(int argc, char** argv) {
 		ctrl->release();
 	}
 
+	// ---- master volume (MASTER_VOL, 2026-11-14): level, state compatibility, presets ----
+	{
+		std::printf("\nMaster volume (MASTER_VOL)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[160];
+		static HostApplication mhost;
+		auto fresh = [&]() {
+			auto* p = new rs::DX10Processor();
+			p->initialize(&mhost);
+			return p;
+		};
+		auto done = [](rs::DX10Processor* p) { p->terminate(); p->release(); };
+
+		// 1. level: held note, peak over 0.5..1.0 s, at 0 dB / -6 dB (v 0.5) / off (v 0)
+		auto heldPeak = [&](double vol, bool setIt) {
+			Options o;
+			if (setIt) o.params.push_back({0.0, {MASTER_VOL, vol}});
+			auto pk = render(Settings{"vol", 0.995, 0.5}, {{0, true, 60}}, 1.0, o);
+			float m = 0.0f;
+			for (size_t i = 50; i < pk.size(); i++) m = std::max(m, pk[i]);
+			return m;
+		};
+		const float p0 = heldPeak(0.0, false), pHalf = heldPeak(0.5, true), pOff = heldPeak(0.0, true);
+		const double ratioDb = 20.0 * std::log10(std::max(1e-9, (double)pHalf / std::max(1e-9f, p0)));
+		std::snprintf(buf, sizeof(buf), "default %.4f, v 0.5 %.4f (%+.2f dB, want -6.02), v 0 %.6f", p0, pHalf, ratioDb, pOff);
+		check("output level follows the knob", p0 > 0.01f && std::fabs(ratioDb + 6.02) < 0.1 && pOff < 1e-6f, buf);
+
+		// 2. a fresh instance is at 0 dB
+		{
+			auto* p = fresh();
+			std::snprintf(buf, sizeof(buf), "%.6f (want %.6f)", p->floatParams[MASTER_VOL], DEFAULT_MASTER_VOL);
+			check("fresh processor at 0 dB", std::fabs(p->floatParams[MASTER_VOL] - DEFAULT_MASTER_VOL) < 1e-6, buf);
+			done(p);
+		}
+		// 3. a state saved before the parameter existed (slot 146 = 0, no tagged block) loads at 0 dB
+		auto oldState = [](MemoryStream& ms) {
+			IBStreamer w(&ms, kLittleEndian);
+			w.writeInt32u(rs::BaseController::kMagicNumber);
+			w.writeInt32u(0);
+			w.writeInt32u(GPARAMS);
+			for (int i = 0; i < GPARAMS; i++) w.writeDouble(i == MASTER_VOL ? 0.0 : rs::DX10Processor::programParams[0][i]);
+			w.writeInt32u(0);  // bypass
+			ms.seek(0, IBStream::kIBSeekSet, nullptr);
+		};
+		{
+			MemoryStream ms;
+			oldState(ms);
+			auto* p = fresh();
+			static_cast<IComponent*>(p)->setState(&ms);
+			std::snprintf(buf, sizeof(buf), "%.6f (want %.6f)", p->floatParams[MASTER_VOL], DEFAULT_MASTER_VOL);
+			check("old state (no volume block) loads at 0 dB", std::fabs(p->floatParams[MASTER_VOL] - DEFAULT_MASTER_VOL) < 1e-6, buf);
+			done(p);
+		}
+		// 4. round trip keeps the value; 5. a preset change keeps it
+		{
+			auto* a = fresh();
+			a->floatParams[MASTER_VOL] = 0.42;
+			MemoryStream ms;
+			static_cast<IComponent*>(a)->getState(&ms);
+			ms.seek(0, IBStream::kIBSeekSet, nullptr);
+			auto* b = fresh();
+			const tresult r = static_cast<IComponent*>(b)->setState(&ms);
+			std::snprintf(buf, sizeof(buf), "result %d, %.4f (want 0.4200), bypass %d", (int)r, b->floatParams[MASTER_VOL], b->isBypassed() ? 1 : 0);
+			check("round trip keeps the volume", r == kResultTrue && std::fabs(b->floatParams[MASTER_VOL] - 0.42) < 1e-9 && !b->isBypassed(), buf);
+			b->setCurrentProgram(3);
+			std::snprintf(buf, sizeof(buf), "%.4f after preset 3 (want 0.4200)", b->floatParams[MASTER_VOL]);
+			check("preset change keeps the volume (processor)", std::fabs(b->floatParams[MASTER_VOL] - 0.42) < 1e-9, buf);
+			done(a);
+			done(b);
+		}
+		// 6. controller: old state -> 0 dB, new state -> value, preset change keeps it, host text in dB
+		{
+			static HostApplication chost2;
+			auto* ctrl = new rs::DX10Controller();
+			ctrl->initialize(&chost2);
+			const double initV = ctrl->getParamNormalized(MASTER_VOL);
+			MemoryStream ms;
+			oldState(ms);
+			ctrl->setComponentState(&ms);
+			const double oldV = ctrl->getParamNormalized(MASTER_VOL);
+			auto* a = fresh();
+			a->floatParams[MASTER_VOL] = 0.3;
+			MemoryStream ms2;
+			static_cast<IComponent*>(a)->getState(&ms2);
+			ms2.seek(0, IBStream::kIBSeekSet, nullptr);
+			ctrl->setComponentState(&ms2);
+			const double newV = ctrl->getParamNormalized(MASTER_VOL);
+			ctrl->setParamNormalized(rs::BaseController::kPresetParam, (2 + 0.5) / rs::DX10Processor::kNumPrograms);
+			const double afterPreset = ctrl->getParamNormalized(MASTER_VOL);
+			String128 s0, s1;
+			ctrl->getParamStringByValue(MASTER_VOL, DEFAULT_MASTER_VOL, s0);
+			ctrl->getParamStringByValue(MASTER_VOL, 0.5, s1);
+			char t0[32], t1[32];
+			for (int i = 0; i < 32; i++) { t0[i] = (char)s0[i]; t1[i] = (char)s1[i]; if (!s0[i] && !s1[i]) break; }
+			t0[31] = t1[31] = 0;
+			std::snprintf(buf, sizeof(buf), "init %.3f old %.3f new %.3f preset %.3f, '%s' '%s'", initV, oldV, newV, afterPreset, t0, t1);
+			check("controller: default, states, preset, dB text",
+			      std::fabs(initV - DEFAULT_MASTER_VOL) < 1e-6 && std::fabs(oldV - DEFAULT_MASTER_VOL) < 1e-6 &&
+			          std::fabs(newV - 0.3) < 1e-9 && std::fabs(afterPreset - 0.3) < 1e-9 &&
+			          std::strcmp(t0, "0.0") == 0 && std::strcmp(t1, "-6.0") == 0, buf);
+			done(a);
+			ctrl->terminate();
+			ctrl->release();
+		}
+	}
+
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----
 	{
 		std::printf("\nB-21 TRI waveshape, CQBLimitedOscillator alone, 44.1 kHz\n");

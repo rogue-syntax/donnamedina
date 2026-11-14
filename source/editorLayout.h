@@ -51,10 +51,12 @@ struct Rect { float x, y, w, h; };
 constexpr Rect kTitleArt {967.0f, 29.0f, 143.0f, 63.0f};
 constexpr Rect kLogoArt {972.0f, 389.0f, 133.0f, 124.0f};
 
-// Master row knobs (must match the origins/sizes of #panLR, #panLREnv, #panLREnvSrc in vstgui.uidesc).
-constexpr Rect kPanKnob {966.0f, 300.0f, 40.0f, 40.0f};
-constexpr Rect kPanAmtKnob {1069.0f, 305.0f, 30.0f, 30.0f};
-constexpr Rect kPanSrcKnob {1167.0f, 305.0f, 30.0f, 30.0f};
+// Master row knobs, four equal slots (must match the origins/sizes of #masterVol, #panLR, #panLREnv,
+// #panLREnvSrc in vstgui.uidesc).
+constexpr Rect kVolKnob {954.0f, 300.0f, 40.0f, 40.0f};
+constexpr Rect kPanKnob {1027.0f, 300.0f, 40.0f, 40.0f};
+constexpr Rect kPanAmtKnob {1106.0f, 305.0f, 30.0f, 30.0f};
+constexpr Rect kPanSrcKnob {1179.0f, 305.0f, 30.0f, 30.0f};
 // #moreInfo (opens the about window) sits on the logo.
 constexpr Rect kMoreInfo {kCenterX - 70.0f, 387.0f, 140.0f, 129.0f};
 } // namespace column

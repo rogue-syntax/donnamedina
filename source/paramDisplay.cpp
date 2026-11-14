@@ -107,6 +107,17 @@ const char* const kSources[7] = {"OFF", "AMP ENV", "ENV 2", "ENV 3", "LFO 1", "L
 
 } // namespace
 
+std::string masterVolText (double v)
+{
+	const double g = masterVolGain (v);
+	if (g < 1e-5)  // below -100 dB
+		return "-inf dB";
+	const double db = 20.0 * std::log10 (g);
+	if (std::fabs (db) < 0.05)
+		return "0.0 dB";
+	return fmt ("%+.1f dB", db);
+}
+
 const char* sourceName (int src)
 {
 	return (src >= 0 && src < 7) ? kSources[src] : "";
@@ -143,6 +154,7 @@ const char* label (int pid)
 		case MOD_OSC_GAIN: return "MOD LEVEL";
 		case SYNC_GEN_MOD_TUNE: return "LINK MOD TUNE";
 		case STEP_CTRL_TARG: return "STEP TARGET";
+		case MASTER_VOL: return "VOLUME";
 		default: break;
 	}
 	if (pid >= ENV_1_ATTACK && pid < ENV_1_ATTACK + 15)
@@ -271,6 +283,8 @@ std::string value (int pid, double v, const Context& ctx)
 			return fmt ("Q %.2f", 0.5 + 24.5 * (1.5 * clamp01 (v)) / 9.0);
 		case MOD_OSC_GAIN:
 			return percent (v);
+		case MASTER_VOL:
+			return masterVolText (v);
 		default:
 			break;
 	}

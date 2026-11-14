@@ -396,6 +396,20 @@ const int LFO_3_PHASE = 142;
 
 const int STEP_CTRL_TARG = 143;
 
+// Master output volume (2026-11-14). Global: not part of the presets (a preset change keeps it) and
+// saved in a tagged block after the bypass flag (see BaseProcessor::getState), because older states
+// hold 0 in this slot of the parameter array. 144/145 are left free: vstgui.uidesc still has old
+// control-tag names on them.
+const int MASTER_VOL = 146;
+// Squared taper: gain = 2 v^2, so 0 = silence, 0.7071 = 0 dB (default), 1 = +6 dB.
+const double DEFAULT_MASTER_VOL = 0.70710678118654752;
+inline double masterVolGain (double v) {
+	if (!(v > 0.0)) return 0.0;  // also catches NaN
+	if (v > 1.0) v = 1.0;
+	return 2.0 * v * v;
+}
+const unsigned int MASTER_VOL_STATE_TAG = 0x4C4F564Du;  // "MVOL" (little endian)
+
 //const int SYNC_MOD_TUNE_MAIN = 143;
 
 //const int SYNC_MOD_TUNE_FINE = 143;

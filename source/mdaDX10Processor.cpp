@@ -632,6 +632,11 @@ void DX10Processor::fillFactoryPresets () {
 	programParams[6][LFO_3_PHASE] = 0.5f;
 	programParams[6][LFO_1_DELAY] = 0.0f;
 	programParams[6][LFO_3_DELAY] = 0.0f;
+
+	// master volume is not a preset setting (preset changes keep it); 0 dB in every row so that any
+	// path that copies a whole row still leaves the plugin audible.
+	for (int32 p = 0; p < 20; p++)
+		programParams[p][MASTER_VOL] = static_cast<float> (DEFAULT_MASTER_VOL);
 }
 
 
@@ -880,6 +885,9 @@ tresult PLUGIN_API DX10Processor::setActive (TBool state){
 		for (genCountIdx = 0; genCountIdx < GENCOUNT; genCountIdx++) {
 			generators[genCountIdx].setActive();
 		}
+		const double sr = getSampleRate () > 0.0 ? getSampleRate () : 44100.0;
+		masterGainCoef = static_cast<float> (1.0 - std::exp (-1.0 / (0.010 * sr)));
+		masterGain = static_cast<float> (masterVolGain (floatParams[MASTER_VOL]));
 
 
 
@@ -927,9 +935,11 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 		const float* newParams = programParams[currentProgram];
 
 		if (newParams) {
+			const ParamValue keepVol = floatParams[MASTER_VOL];  // global, not part of presets
 			for (int32 i = 0; i < GPARAMS; i++) {
 				floatParams[i] = newParams[i];
 			}	
+			floatParams[MASTER_VOL] = keepVol;
 		}
 
 	} else if (index == BaseController::kModWheelParam){ // mod wheel
@@ -959,11 +969,13 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 		val = kNumPrograms - 1;
 	currentProgram = val;
 
+	const ParamValue keepVol = floatParams[MASTER_VOL];  // global, not part of presets
 	for (int32 i = 0; i < GPARAMS; i++) {
 		//setParameter(i, programParams[val][i], 0);
 		floatParams[i] = programParams[val][i];
 		//generators[0].partParams[i] = &floatParams[i];
 	}
+	floatParams[MASTER_VOL] = keepVol;
 
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);
@@ -1217,15 +1229,21 @@ void DX10Processor::doProcessing(ProcessData& data) {
 		&& data.processContext->tempo > 0.0)
 		bpm = data.processContext->tempo;
 
+	// master volume, smoothed per sample (masterGainCoef: about 10 ms) so knob moves do not click
+	const float masterTarg = static_cast<float> (masterVolGain (floatParams[MASTER_VOL]));
+
 	// Check for active voices or just process the chunk
 	//if (activevoices > 0) {
 		// Process all samples in this chunk
 		for (int32 i = 0; i < sampleFrames; i++) {
 			// Generate audio for all active generators
 			generators[0].mainProcessing();
-			*out1++ = generators[0].o1;
-			*out2++ = generators[0].o2;
+			masterGain += (masterTarg - masterGain) * masterGainCoef;
+			*out1++ = generators[0].o1 * masterGain;
+			*out2++ = generators[0].o2 * masterGain;
 		}
+		if (std::fabs (masterGain - masterTarg) < 1e-6f)
+			masterGain = masterTarg;  // settle exactly (no denormal tail)
 
 		// Update BPM-dependent parameters if needed.
 		// B-13: Env::BPM was a float, so for tempos a float cannot hold exactly (e.g. 133.3) this
@@ -1982,10 +2000,11 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 					currentProgram = std::min<int32>(kNumPrograms - 1, (int32)(value * kNumPrograms));
 					const float* newParams = programParams[currentProgram];
 					if (newParams) {
+						const ParamValue keepVol = floatParams[MASTER_VOL];  // global, not part of presets
 						for (int32 i = 0; i < GPARAMS; i++) {
 							floatParams[i] = newParams[i];
 						}
-
+						floatParams[MASTER_VOL] = keepVol;
 					}
 
 				}

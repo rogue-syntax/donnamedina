@@ -2576,8 +2576,18 @@ no viewindex at 153!*/
 		drawColumnSectionLabel(lx, kScope.y0 + 2, "SCOPE");
 		drawInset(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21, kColDimFrame);
 
-		// 7. Master: pan knobs
+		// 7. Master: volume and pan knobs (a divider between volume and the pan group)
 		drawColumnSectionLabel(lx, kMaster.y0 + 2, "MASTER");
+		drawKnobWell(kVolKnob, 11);
+		{
+			const float dx = floorf((kVolKnob.x + kVolKnob.w + kPanKnob.x) * 0.5f) + 0.5f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, dx, kMaster.y0 + 18);
+			nvgLineTo(vg, dx, kMaster.y1 - 4);
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 70));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+		}
 		drawKnobWell(kPanKnob, 11);
 		drawKnobWell(kPanAmtKnob, 11);
 		drawKnobWell(kPanSrcKnob, 7);
@@ -2586,6 +2596,7 @@ no viewindex at 153!*/
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		nvgFillColor(vg, kColLabel);
 		const float ly = kMaster.y1 - 10;
+		nvgText(vg, kVolKnob.x + kVolKnob.w * 0.5f, ly, "VOLUME", NULL);
 		nvgText(vg, kPanKnob.x + kPanKnob.w * 0.5f, ly, "PAN L/R", NULL);
 		nvgText(vg, kPanAmtKnob.x + kPanAmtKnob.w * 0.5f, ly, "ENV AMT", NULL);
 		nvgText(vg, kPanSrcKnob.x + kPanSrcKnob.w * 0.5f, ly, "ENV SRC", NULL);

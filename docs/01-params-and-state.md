@@ -6,6 +6,7 @@ Source of truth: `source/mdaDX10Processor.cpp`, `mdaBaseProcessor.cpp`, `mdaDX10
 
 - `0 .. PARTPARAMS-1 (0..54)`: per-generator params (osc, width, tune, env sources, filter, pan, ...). Registered in `DX10Controller::initialize` by looping `GENCOUNT` x `PARTPARAMS` using `paramProto[][]` (`[0]` = constant, `[1]` = step count; 0 = continuous knob, >0 = `StringListParameter`). FILTER_ uses a `LogScaleParameter`.
 - `110 .. ~170`: global env / LFO / reset / step-control params (`envProto[]`, `ENV_PARAMS`=52).
+- `146 = MASTER_VOL` (2026-11-14): master output volume, see "Master volume" below. 144/145 are left free (vstgui.uidesc still has old control-tag names on them).
 - Everything must be `< GPARAMS (1000)`; state and dispatch arrays are sized 1000.
 - 4CC specials: bypass, preset (`'prst'`), mod wheel, pitch bend.
 - Hard-coded `173` appears in several places (`beginEdit/performEdit/endEdit`, `DX10Controller::setParamNormalized`) as "last real param + 1". This is a magic number that must be kept in sync with `constants.h`.
@@ -47,6 +48,7 @@ So step-type params have **two sources of truth**: the normalized param (`floatP
 
 - `BaseProcessor::getState`: writes `kMagicNumber`, current program, `numParams` (=1000), 1000 doubles of `floatParams`, bypass.
 - `DX10Processor::setState`: calls `BaseProcessor::setState` then re-runs recalc2 for all part params, env/LFO recalculators, re-sends the step-switch/toggle messages, re-inits ramped params, `recalculate()`.
+- Master volume (2026-11-14): after bypass, `getState` appends a tagged block `MASTER_VOL_STATE_TAG` ("MVOL") + one double. `setState` / `setComponentState` take the volume only from that block and use the default (0 dB) when it is missing; the value in the 1000-double array is ignored, because states saved before the parameter existed hold 0 in slot 146 (that would load as silence). Older builds stop reading after bypass, so they ignore the block.
 - `BaseController::setComponentState`: reads the same stream. If `nvgViewReady`: applies each value now; else stores in `pendingStateUpdates[i]` and sets `hasPendingState`. `onNVGViewReady()` applies the map later.
 
 ## The "view ready" gate (the most important cross-cutting pattern)
@@ -61,3 +63,12 @@ Consumers: `doFromBase`, `controlWasChanged`, `DX10Controller::setParamNormalize
 1. Is the intent that controller param values stay correct when the editor is closed (host automation, MIDI-learn, presets)? Right now they don't.
 2. Why are step/vertical switch values sent via IMessage instead of being read from the param value in the processor? (Historic: strings->ints?)
 3. (resolved) `programParams[0]` is a real preset, not an init program.
+
+## Master volume (MASTER_VOL, 2026-11-14)
+
+- Parameter 146, registered as `MasterVolParameter` (`mdaDX10Controller.cpp`): host name "MASTER VOLUME", unit dB, text from `paramDisplay::masterVolText` ("0.0", "-6.0", "-inf"); typed dB values are accepted (capped at +6).
+- Taper: gain = 2 v^2 (`masterVolGain` in `constants.h`): 0 = silence, 0.7071 = 0 dB (default, so existing sounds are unchanged), 0.5 = -6 dB, 1 = +6 dB.
+- Engine: `DX10Processor::doProcessing` multiplies both outputs by a one-pole smoothed gain (about 10 ms, coefficient set in `setActive`), target read from `floatParams[MASTER_VOL]` once per chunk.
+- Global, not part of the presets: `setCurrentProgram`, the processor's `kPresetParam` paths and the controller's preset loops (`setParamNormalized(kPresetParam)`, `checkPendingPreset`) keep the current value. Every `programParams` row also holds the default, so a full-row copy never mutes.
+- State: see Flow 4. GUI: knob `#masterVol` in the master row (docs/04-gui.md); readout via `onEnvBipolar` (label "VOLUME").
+- Tests: `tests/note_off` section "Master volume" (level -6.02 dB at v 0.5, silence at 0, old state -> 0 dB, round trip, preset change, controller text).

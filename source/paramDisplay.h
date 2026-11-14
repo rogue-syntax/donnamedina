@@ -36,6 +36,9 @@ int sourceParamFor(int pid);
 // For LFO_n_RATE: the id of that LFO's BPM sync toggle, else -1.
 int syncParamFor(int pid);
 
+// MASTER_VOL as dB ("0.0 dB", "-6.0 dB", "-inf dB"); also the host's text for the parameter.
+std::string masterVolText(double normalized);
+
 // Engine conversions (exposed for tests).
 double filterCutoffHz(double normalized);       // DXGenerator filterLogScale2: 80..18000 Hz, 0.5 -> 1800
 double envTimeSeconds(int pid, double normalized); // time to cover 95% (3 time constants); <0 = hold

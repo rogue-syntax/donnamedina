@@ -524,6 +524,15 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 	if (streamer.readInt32u (bypass))
 		bypassState = bypass > 0;
 
+	// master volume: a tagged block after bypass (written by getState since 2026-11-14). States
+	// without it load at 0 dB; the array slot is ignored because older states hold 0 there.
+	floatParams[MASTER_VOL] = DEFAULT_MASTER_VOL;
+	uint32 tag = 0;
+	double masterVol = 0.0;
+	if (streamer.readInt32u (tag) && tag == MASTER_VOL_STATE_TAG && streamer.readDouble (masterVol)
+		&& std::isfinite (masterVol))
+		floatParams[MASTER_VOL] = (std::min) (1.0, (std::max) (0.0, masterVol));
+
 	//recalculate ();
 
 	return kResultTrue;
@@ -560,6 +569,10 @@ tresult PLUGIN_API BaseProcessor::getState (IBStream* state)
 
 	// save bypass
 	streamer.writeInt32u (bypassState ? 1 : 0);
+
+	// master volume (see setState); older builds stop reading after bypass and ignore this
+	streamer.writeInt32u (MASTER_VOL_STATE_TAG);
+	streamer.writeDouble (floatParams[MASTER_VOL]);
 
 	return kResultTrue;
 }

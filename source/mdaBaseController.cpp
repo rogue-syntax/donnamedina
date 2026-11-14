@@ -5,6 +5,8 @@
 #include "editorLayout.h"
 #include "pluginterfaces/base/ibstream.h"
 #include "base/source/fstreamer.h"
+#include <algorithm>
+#include <cmath>
 #include "vstgui/uidescription/delegationcontroller.h"
 
 #include "filter.h"
@@ -537,11 +539,19 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 		streamer.readInt32u (temp);
 	}
 
+	// MASTER_VOL is read from its tagged block after bypass (BaseProcessor::setState); older
+	// states hold 0 in its array slot, so a missing block means the default (0 dB).
+	auto applyMasterVol = [this] (ParamValue v) { setParamNormalized (MASTER_VOL, v); };
+
 	// read each parameter
 	for (uint32 i = 0; i < temp; i++){
 		ParamValue value;
-		if (streamer.readDouble (value) == false)
+		if (streamer.readDouble (value) == false) {
+			applyMasterVol (DEFAULT_MASTER_VOL);
 			return kResultFalse;
+		}
+		if (i == MASTER_VOL)
+			continue;
 
 		if (nvgViewReady) {
 			// Apply the parameter directly if the view is ready
@@ -574,7 +584,18 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 	// bypass
 	uint32 bypassState;
 	if (streamer.readInt32u(bypassState) == false) {
+		applyMasterVol (DEFAULT_MASTER_VOL);
 		return kResultFalse;
+	}
+
+	{
+		uint32 tag = 0;
+		double masterVol = 0.0;
+		if (streamer.readInt32u (tag) && tag == MASTER_VOL_STATE_TAG && streamer.readDouble (masterVol)
+			&& std::isfinite (masterVol))
+			applyMasterVol ((std::min) (1.0, (std::max) (0.0, masterVol)));
+		else
+			applyMasterVol (DEFAULT_MASTER_VOL);
 	}
 		
 	Parameter* bypassParam = parameters.getParameter (kBypassParam);

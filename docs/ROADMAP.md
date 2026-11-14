@@ -11,7 +11,7 @@ Order within a section is a rough priority (impact for effort).
   - [x] Step 2: readout with units, on turn and on hover (`paramDisplay`, docs/04-gui.md "Readout").
   - [ ] Step 3: scope.  - [ ] Step 4: voice strip.  - [ ] Step 5: preset bar.
   - [ ] Optional: transparent title/logo PNGs (2x) to replace the crops from the art.
-  - [ ] Optional: master VOL knob (new parameter).
+  - [x] Master VOL knob: new parameter `MASTER_VOL` (146), global (not in presets), 0 dB default; see docs/01-params-and-state.md.
 - [ ] Optional: re-export the background art at 1248x542 with the panels moved, then set the art offset to 0.
 - [ ] Optional: use or trim the ≈24 px now free at the bottom.
 

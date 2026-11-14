@@ -18,6 +18,7 @@
 #include "mdaDX10Controller.h"
 #include "editorLayout.h"
 #include "paramDisplay.h"
+#include <cmath>
 #include <cstdio>
 
 
@@ -33,6 +34,42 @@ namespace rs {
 		MAX_FILTER_FC,	/* filter fc HIGH */
 		FILTER_RAW_MAP,/* the value at position 0.5 will be: */
 		FILTER_COOKED_MAP);/* 1800 Hz */
+
+	// MASTER_VOL: the host shows/enters dB (paramDisplay::masterVolText; gain = 2 v^2).
+	class MasterVolParameter : public Parameter
+	{
+	public:
+		explicit MasterVolParameter (ParamID tag)
+		: Parameter (USTRING ("MASTER VOLUME"), tag, USTRING ("dB"), DEFAULT_MASTER_VOL, 0,
+		             ParameterInfo::kCanAutomate)
+		{
+		}
+
+		void toString (ParamValue valueNormalized, String128 string) const SMTG_OVERRIDE
+		{
+			std::string s = paramDisplay::masterVolText (valueNormalized);
+			const std::string::size_type unit = s.find (" dB");  // the unit is shown separately
+			if (unit != std::string::npos)
+				s.erase (unit);
+			UString (string, 128).fromAscii (s.c_str ());
+		}
+
+		bool fromString (const TChar* string, ParamValue& valueNormalized) const SMTG_OVERRIDE
+		{
+			UString wrapper ((TChar*)string, strlen16 (string));
+			double db = 0.0;
+			if (!wrapper.scanFloat (db))
+			{
+				valueNormalized = 0.0;  // "-inf" or anything else that is not a number: silence
+				return true;
+			}
+			if (db > 6.0) db = 6.0;
+			valueNormalized = (db < -100.0) ? 0.0 : std::sqrt (std::pow (10.0, db / 20.0) * 0.5);
+			return true;
+		}
+
+		OBJ_METHODS (MasterVolParameter, Parameter)
+	};
 
 //-----------------------------------------------------------------------------
 static const char* presetNames[] = 
@@ -164,6 +201,7 @@ void DX10Controller::checkPendingPreset() {
 	if (presetPending && isViewReady()) {
 		DX10Processor::ensureFactoryPresets();  // B-11
 		for (int32 i = 0; i < GPARAMS; i++) {
+			if (i == MASTER_VOL) continue;  // global, not part of presets
 			BaseController::setParamNormalized(i, DX10Processor::programParams[pendingPresetIndex][i]);
 		}
 		componentHandler->restartComponent(kParamValuesChanged);
@@ -225,6 +263,7 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[FILTER_ENV] = &DX10Controller::onEnv;
 	onCtrlChange[PAN_LR_ENV] = &DX10Controller::onEnv;
 	onCtrlChange[PAN_LR] = &DX10Controller::onEnv;
+	onCtrlChange[MASTER_VOL] = &DX10Controller::onEnvBipolar;  // readout (envName -> "VOLUME")
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -761,6 +800,8 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		addPIDParameter("SYNC_MODFINE", "%", 0, 0.0, ParameterInfo::kCanAutomate, SYNC_MODFINE);
 		addPIDParameter("SYNC_GAIN", "%", 0, 0.0, ParameterInfo::kCanAutomate, SYNC_GAIN);
 		addPIDParameter("SYNC_MODFREAQBEAT", "%", 0, 0.0, ParameterInfo::kCanAutomate, SYNC_MODFREAQBEAT);
+
+		parameters.addParameter (new MasterVolParameter (MASTER_VOL));
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {
@@ -848,6 +889,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		const bool viewReady = isViewReady();
 		DX10Processor::ensureFactoryPresets();  // B-11: the table may not exist yet without a processor
 		for (int32 i = 0; i < GPARAMS; i++) {
+			if (i == MASTER_VOL) continue;  // global, not part of presets (the processor keeps it too)
 			const ParamValue v = DX10Processor::programParams[program][i];
 			BaseController::setParamNormalized(i, v);
 			if (!viewReady && i < STEP_BUTTONS_FIRST && EditController::getParameterObject(i)) {
