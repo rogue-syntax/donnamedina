@@ -1272,6 +1272,8 @@ void DX10Processor::doProcessing(ProcessData& data) {
 		// played stayed in the list and was rendered every sample).
 		activevoices = 0;
 		generators[0].detectSilence(&activevoices);
+		if (scopeOn)
+			updateVoiceStates ();  // voice strip (editor open)
 	/* }
 	else {
 		// Empty block, output silence

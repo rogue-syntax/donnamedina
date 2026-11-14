@@ -2578,6 +2578,65 @@ no viewindex at 153!*/
 		nvgRestore(vg);
 	}
 
+	void NVGView::drawVoiceStrip(float x, float y, float w, float h) {
+		// 128 columns, pitch 0 at the left. Backdrop: black-key columns darker, a mark at every C.
+		// Lit columns: magenta while the key is held, cyan while the voice releases; brightness and
+		// height follow the amp-envelope level (voiceStateByte from the processor).
+		const float ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
+		const float cw = iw / 128.0f;
+		static const bool kBlack[12] = {false, true, false, true, false, false, true, false, true, false, true, false};
+		nvgBeginPath(vg);
+		for (int p = 0; p < 128; p++)
+			if (kBlack[p % 12])
+				nvgRect(vg, ix + p * cw, iy, cw, ih);
+		nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		for (int p = 0; p < 128; p++)
+			if (!kBlack[p % 12])
+				nvgRect(vg, ix + p * cw, iy, cw, ih);
+		nvgFillColor(vg, nvgRGBA(14, 22, 34, 255));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		for (int p = 0; p < 128; p += 12) {
+			const float cx = floorf(ix + p * cw) + 0.5f;
+			nvgMoveTo(vg, cx, iy);
+			nvgLineTo(vg, cx, iy + ih);
+		}
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 70));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+
+		if (!baseController)
+			return;
+		const unsigned char* st = baseController->voiceStates;
+		for (int pass = 0; pass < 2; pass++)  // glows first, bars on top
+		for (int p = 0; p < 128; p++) {
+			if (st[p] == 0)
+				continue;
+			const bool held = (st[p] & 0x80) != 0;
+			const float level = float(st[p] & 0x7F) / 127.0f;
+			const float a = 0.35f + 0.65f * sqrtf(level);  // keep quiet voices visible
+			const float bh = ih * (0.25f + 0.75f * sqrtf(level));
+			const float cx = ix + (p + 0.5f) * cw;
+			if (pass == 0) {
+			NVGpaint glow = held
+				? nvgRadialGradient(vg, cx, iy + ih - bh * 0.5f, 0.0f, cw * 3.0f, nvgRGBA(255, 60, 200, (unsigned char)(120 * a)), nvgRGBA(255, 60, 200, 0))
+				: nvgRadialGradient(vg, cx, iy + ih - bh * 0.5f, 0.0f, cw * 3.0f, nvgRGBA(4, 186, 232, (unsigned char)(110 * a)), nvgRGBA(4, 186, 232, 0));
+			nvgBeginPath(vg);
+			nvgRect(vg, cx - cw * 3.0f, iy, cw * 6.0f, ih);
+			nvgFillPaint(vg, glow);
+			nvgFill(vg);
+			continue;
+			}
+			nvgBeginPath(vg);
+			nvgRect(vg, ix + p * cw, iy + ih - bh, cw < 2.0f ? 2.0f : cw, bh);
+			nvgFillColor(vg, held ? nvgRGBA(255, 120, 225, (unsigned char)(255 * a))
+			                      : nvgRGBA(110, 225, 255, (unsigned char)(255 * a)));
+			nvgFill(vg);
+		}
+	}
+
 	void NVGView::drawRightColumn() {
 		using namespace ::editorLayout;
 		using namespace ::editorLayout::column;
@@ -2660,8 +2719,9 @@ no viewindex at 153!*/
 		nvgText(vg, kPanAmtKnob.x + kPanAmtKnob.w * 0.5f, ly, "ENV AMT", NULL);
 		nvgText(vg, kPanSrcKnob.x + kPanSrcKnob.w * 0.5f, ly, "ENV SRC", NULL);
 
-		// 8. Voices (filled in a later step)
+		// 8. Voices: one column per MIDI pitch (drawVoiceStrip)
 		drawInset(lx, kVoices.y0 + 2, rx - lx, kVoices.h() - 4, kColDimFrame);
+		drawVoiceStrip(lx, kVoices.y0 + 2, rx - lx, kVoices.h() - 4);
 
 		// 9. Logo (from the art) in a black framed slot; the #moreInfo button (kMoreInfo) covers the
 		//    slot and opens the about window.

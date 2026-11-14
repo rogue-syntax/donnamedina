@@ -151,6 +151,8 @@ protected:
 	float scopeFrame[kScopeLength] = {};
 	unsigned int scopeFrames = 0;
 	void setScopeActive(bool on);
+	// Voice strip: the latest per-pitch states from the processor (PMSG_VOICES_CHAR, voiceStateByte).
+	unsigned char voiceStates[128] = {};
 	bool hasPendingState = false;
 	std::map<ParamID, ParamValue> pendingStateUpdates;
 

@@ -21,6 +21,7 @@
 #include "pluginterfaces/base/ibstream.h"
 
 #include <cmath>
+#include <cstring>
 #include <cstdlib>
 #include <xmmintrin.h>  // _mm_getcsr / _mm_setcsr (FTZ/DAZ)
 #include "base/source/fstreamer.h"
@@ -77,6 +78,49 @@ void BaseProcessor::onTimer (Timer* /*timer*/)
 {
 	flushMessageQueue ();
 	sendScopeFrame ();
+	sendVoiceStates ();
+}
+
+void BaseProcessor::updateVoiceStates ()
+{
+	// One voice per pitch (RVoicesMap[pitch]); `notes` lists the ones being rendered.
+	const DXGenerator& g = generators[0];
+	uint8 now[128] = {};
+	if (g.RVoicesMap) {
+		for (int i = 0; i < g.notes.size (); i++) {
+			const int32 pitch = g.notes[i];
+			if (pitch < 0 || pitch >= 128)
+				continue;
+			const RVoice& v = g.RVoicesMap[pitch];
+			now[pitch] = voiceStateByte (v.noteActive, v.voiceEnvLfo[1].cenv);
+		}
+	}
+	for (int p = 0; p < 128; p++)
+		voiceStates[p].store (now[p], std::memory_order_relaxed);
+}
+
+void BaseProcessor::sendVoiceStates ()
+{
+	if (!scopeEnabled.load (std::memory_order_relaxed))
+		return;
+	uint8 now[128];
+	bool changed = !voiceStatesSentValid;
+	for (int p = 0; p < 128; p++) {
+		now[p] = voiceStates[p].load (std::memory_order_relaxed);
+		changed = changed || now[p] != voiceStatesSent[p];
+	}
+	if (!changed)
+		return;
+	IMessage* msg = allocateMessage ();
+	if (!msg)
+		return;
+	msg->setMessageID (msgIdStr (PMSG_VOICES_CHAR));
+	msg->getAttributes ()->setBinary ("data", now, sizeof (now));
+	msg->getAttributes ()->setInt ("id", this->myInstanceId);
+	sendMessage (msg);
+	msg->release ();
+	std::memcpy (voiceStatesSent, now, sizeof (now));
+	voiceStatesSentValid = true;
 }
 
 void BaseProcessor::sendScopeFrame ()
@@ -425,6 +469,9 @@ tresult PLUGIN_API BaseProcessor::notify(IMessage* message) {
 		message->getAttributes ()->getInt ("on", on);
 		scopeEnabled.store (on != 0);
 		scopeLastSentSilent = false;  // the editor starts empty: send the next frame even if flat
+		voiceStatesSentValid = false;  // and the voice strip in full
+		if (on == 0)
+			for (int p = 0; p < 128; p++) voiceStates[p].store (0, std::memory_order_relaxed);
 		return kResultTrue;
 	}
 	return ComponentBase::notify(message);

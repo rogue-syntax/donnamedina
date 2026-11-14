@@ -274,6 +274,17 @@ const char PMSG_STEP_CTRL_CHAR = 'c';
 // sent by the processor's main-thread timer; controller -> processor, int "on" = editor open/closed.
 const char PMSG_SCOPE_CHAR = 'd';
 const char CMSG_SCOPE_ENABLE_CHAR = 'e';
+// Voice strip (2026-11-14): processor -> controller, binary "data" = 128 bytes, one per pitch:
+// bit 7 = key held, bits 0..6 = amp-envelope level (0 = silent, 1..127). Sent by the same timer when
+// the bytes change, also only while an editor is open. voiceStateByte() is the encoding.
+const char PMSG_VOICES_CHAR = 'f';
+inline unsigned char voiceStateByte (bool held, float level) {
+	if (!(level > 0.0001f)) return 0;  // silent (the engine drops voices below -80 dB)
+	if (level > 1.0f) level = 1.0f;
+	int l = static_cast<int> (level * 127.0f + 0.999f);  // any audible voice is at least 1
+	if (l > 127) l = 127;
+	return static_cast<unsigned char> ((held ? 0x80 : 0) | l);
+}
 
 
 const char CONNECT_ID = 'CID';

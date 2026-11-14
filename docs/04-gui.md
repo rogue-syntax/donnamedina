@@ -33,6 +33,12 @@ Read, not run. Only the editor lifecycle has been traced so far.
 - Display: `BaseController::notify` copies the frame into `scopeFrame[]` (`scopeFrames` counts them); `NVGView::drawScope` (from `drawRightColumn`) draws a grid (8 time divisions, centre and +-0.5 lines) and the waveform at fixed scale (+-1 = full height, clipped), with a wide low-alpha stroke under a thin bright one.
 - Tests: `tests/note_off` "Scope capture" (trigger, silence, 96 kHz, frame identical to the processor's output, timer-only messages, controller receive). `EDITOR_SHOT_SCOPE=1` with `EDITOR_SHOT` hands the controller a test frame before the capture (the editor test has no processor).
 
+## Voice strip (2026-11-14)
+- `BaseProcessor::updateVoiceStates` (audio thread, after each chunk in `DX10Processor::doProcessing`, only while an editor is open) writes one byte per pitch into `std::atomic<uint8> voiceStates[128]`: `voiceStateByte(held, level)` in constants.h, bit 7 = key held (`RVoice::noteActive`), bits 0..6 = amp-envelope level (`voiceEnvLfo[1].cenv`, 0 = silent). Only the voices in the render list (`DXGenerator::notes`) are read.
+- `BaseProcessor::sendVoiceStates` (timer) sends the 128 bytes as `PMSG_VOICES_CHAR` when they changed; the controller copies them into `BaseController::voiceStates`.
+- `NVGView::drawVoiceStrip`: 128 columns (pitch 0 left, 2.25 px each), black-key columns darker, a line at every C; a sounding pitch is a bar (height and brightness from the level, square-root curve so quiet voices stay visible) with a soft glow, magenta while held, cyan while releasing.
+- Tests: `tests/note_off` "Voice strip" (held chord, released note, timer-only messages, encoding, controller receive); `EDITOR_SHOT_SCOPE=1` also hands the controller a chord.
+
 ## Creation chain
 `DX10Controller::createView` -> `RSView` (VST3Editor subclass, uidesc `vstgui.uidesc`) -> uidesc asks for sub-controller `nvgViewController` -> `DX10Controller::createSubController` (`mdaDX10Controller.cpp:79`) does `new NVGViewController(editor, this)`, whose ctor does `new NVGView(CRect(0,0,kEditorWidth,kEditorHeight), controller)`. `NVGViewController::createView` returns that `nvgView` when the uidesc view has `custom-view-name="nvgView"`. So **one new NVGView per editor open**.
 

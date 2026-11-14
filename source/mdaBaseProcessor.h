@@ -58,6 +58,14 @@ public:
 	std::atomic<bool> scopeEnabled {false};
 	bool scopeLastSentSilent = false;
 	void sendScopeFrame ();   // main thread
+
+	// Voice strip: updateVoiceStates (audio thread, after each rendered chunk while scopeEnabled) writes
+	// one voiceStateByte per pitch; sendVoiceStates (timer) sends them when they changed.
+	std::atomic<uint8> voiceStates[128] = {};
+	uint8 voiceStatesSent[128] = {};
+	bool voiceStatesSentValid = false;
+	void updateVoiceStates ();
+	void sendVoiceStates ();  // main thread
 	static bool onAudioThread ();  // true while inside process() on this thread
 
 	enum {

@@ -1429,6 +1429,55 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- voice strip (2026-11-14): per-pitch held/level bytes from the processor ----
+	{
+		std::printf("\nVoice strip\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		// C-E-G held from 0 s, E released at 0.3 s; look at 0.25 s (all held) and 0.4 s
+		uint8 at25[128] = {}, at40[128] = {};
+		Options o;
+		o.onCreated = [](rs::DX10Processor& p) { p.scopeEnabled.store(true); };
+		o.perBlock = [&](rs::DX10Processor& p, double t) {
+			uint8* dst = (t >= 0.25 && at25[48] == 0) ? at25 : ((t >= 0.4 && at40[48] == 0) ? at40 : nullptr);
+			if (dst) for (int k = 0; k < 128; k++) dst[k] = p.voiceStates[k].load();
+		};
+		const int64 rel = static_cast<int64>(0.3 * kSampleRate);
+		render(Settings{"voices", 0.995, 0.85}, {{0, true, 48}, {0, true, 52}, {0, true, 55}, {rel, false, 52}}, 0.5, o);
+		auto others = [](const uint8* a) { int n = 0; for (int k = 0; k < 128; k++) if (k != 48 && k != 52 && k != 55 && a[k]) n++; return n; };
+		std::snprintf(buf, sizeof(buf), "0.25 s: %02x %02x %02x, %d other(s) lit", at25[48], at25[52], at25[55], others(at25));
+		check("held chord: three held voices, nothing else",
+		      (at25[48] & 0x80) && (at25[52] & 0x80) && (at25[55] & 0x80) && (at25[48] & 0x7F) > 0 && others(at25) == 0, buf);
+		std::snprintf(buf, sizeof(buf), "0.40 s: %02x %02x %02x (E released)", at40[48], at40[52], at40[55]);
+		check("released note shows as releasing (not held)", (at40[48] & 0x80) && (at40[55] & 0x80) && !(at40[52] & 0x80), buf);
+		const int sentByTimer = g_msgsOut[static_cast<unsigned char>(PMSG_VOICES_CHAR)];
+		const int sentInProcess = g_msgsIn[static_cast<unsigned char>(PMSG_VOICES_CHAR)];
+		std::snprintf(buf, sizeof(buf), "%d sent by timer, %d inside process", sentByTimer, sentInProcess);
+		check("voice messages from the timer only", sentByTimer > 0 && sentInProcess == 0, buf);
+		std::snprintf(buf, sizeof(buf), "%02x %02x %02x %02x", voiceStateByte(true, 1.0f), voiceStateByte(false, 0.00005f),
+		              voiceStateByte(false, 0.001f), voiceStateByte(true, 2.0f));
+		check("voiceStateByte encoding", voiceStateByte(true, 1.0f) == 0xFF && voiceStateByte(false, 0.00005f) == 0 &&
+		          voiceStateByte(false, 0.001f) == 1 && voiceStateByte(true, 2.0f) == 0xFF, buf);
+		static HostApplication shost4;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&shost4);
+		uint8 st[128] = {};
+		st[60] = 0x80 | 100;
+		st[64] = 40;
+		HostMessage* m = new HostMessage;
+		m->setMessageID("f");
+		m->getAttributes()->setBinary("data", st, sizeof(st));
+		ctrl->notify(m);
+		m->release();
+		std::snprintf(buf, sizeof(buf), "%02x %02x", ctrl->voiceStates[60], ctrl->voiceStates[64]);
+		check("controller receives voice states", ctrl->voiceStates[60] == (0x80 | 100) && ctrl->voiceStates[64] == 40, buf);
+		ctrl->terminate();
+		ctrl->release();
+	}
+
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----
 	{
 		std::printf("\nB-21 TRI waveshape, CQBLimitedOscillator alone, 44.1 kHz\n");

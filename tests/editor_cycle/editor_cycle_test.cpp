@@ -186,6 +186,15 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		ctrl->notify(m);
 		m->release();
 		std::printf("scope frames received by the controller: %u\n", ctrl->scopeFrames);
+		// and a voice-strip state: A minor chord held (one soft), two notes releasing
+		unsigned char st[128] = {};
+		st[57] = 0x80 | 127; st[60] = 0x80 | 110; st[64] = 0x80 | 40;
+		st[45] = 70; st[69] = 15;
+		HostMessage* mv = new HostMessage;
+		mv->setMessageID("f");
+		mv->getAttributes()->setBinary("data", st, sizeof(st));
+		ctrl->notify(mv);
+		mv->release();
 		pumpFor(300);
 	}
 	// EDITOR_SHOT_HOVER=<pid>: put the real cursor on that control (exercises the frame's mouse

@@ -31,7 +31,7 @@ Threading (since B-10, 2026-11-12): the processor's `sendDoubleAttr/sendPidVal/s
 - `PMSG_STEP_SWITCH` (controller -> processor): `generators[0].ctrlValues[pid] / controls[pid] = int`. This is how step/vertical switches reach the DSP, **as a parallel path to normal parameters**.
 - `PMSG_LFO_RATE` (controller -> processor): calls `recalculators[pid]`.
 - `PMSG_LFO4/5/6_RATE`, `CMSG_LINK_TUNE`, `CMSG_GET_SAMPLE_RATE`: misc.
-- Scope (2026-11-14): `CMSG_SCOPE_ENABLE_CHAR` 'e' (controller -> processor, int `on`; sent by `NVGView::attached/removed` via `BaseController::setScopeActive`) and `PMSG_SCOPE_CHAR` 'd' (processor -> controller, binary `data` = 1024 floats, sent from `BaseProcessor::onTimer`, never from `process()`). See docs/04-gui.md "Scope".
+- Scope (2026-11-14): `CMSG_SCOPE_ENABLE_CHAR` 'e' (controller -> processor, int `on`; sent by `NVGView::attached/removed` via `BaseController::setScopeActive`) and `PMSG_SCOPE_CHAR` 'd' (processor -> controller, binary `data` = 1024 floats, sent from `BaseProcessor::onTimer`, never from `process()`). See docs/04-gui.md "Scope". Voice strip: `PMSG_VOICES_CHAR` 'f' (processor -> controller, binary `data` = 128 `voiceStateByte`s, sent by the same timer when they change, also only while an editor is open).
 
 So step-type params have **two sources of truth**: the normalized param (`floatParams`) and the int sent by message (`ctrlValues`). They only agree if the message round-trip happens.
 
