@@ -1,5 +1,6 @@
 #pragma once
 //#include <SFML/System/Thread.hpp>
+#include <chrono>
 //or needs threading
 #include "REvent.h"
 #include "NVGView.h"
@@ -2550,6 +2551,9 @@ no viewindex at 153!*/
 		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 60));
 		nvgStroke(vg);
 
+		// sounding voices behind the waveform (was its own band in column step 4)
+		drawScopeVoices(ix, iy, iw, ih);
+
 		if (!baseController || baseController->scopeFrames == 0)
 			return;
 
@@ -2578,63 +2582,88 @@ no viewindex at 153!*/
 		nvgRestore(vg);
 	}
 
-	void NVGView::drawVoiceStrip(float x, float y, float w, float h) {
-		// 128 columns, pitch 0 at the left. Backdrop: black-key columns darker, a mark at every C.
-		// Lit columns: magenta while the key is held, cyan while the voice releases; brightness and
-		// height follow the amp-envelope level (voiceStateByte from the processor).
-		const float ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
-		const float cw = iw / 128.0f;
-		static const bool kBlack[12] = {false, true, false, true, false, false, true, false, true, false, true, false};
-		nvgBeginPath(vg);
-		for (int p = 0; p < 128; p++)
-			if (kBlack[p % 12])
-				nvgRect(vg, ix + p * cw, iy, cw, ih);
-		nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
-		nvgFill(vg);
-		nvgBeginPath(vg);
-		for (int p = 0; p < 128; p++)
-			if (!kBlack[p % 12])
-				nvgRect(vg, ix + p * cw, iy, cw, ih);
-		nvgFillColor(vg, nvgRGBA(14, 22, 34, 255));
-		nvgFill(vg);
-		nvgBeginPath(vg);
-		for (int p = 0; p < 128; p += 12) {
-			const float cx = floorf(ix + p * cw) + 0.5f;
-			nvgMoveTo(vg, cx, iy);
-			nvgLineTo(vg, cx, iy + ih);
-		}
-		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 70));
-		nvgStrokeWidth(vg, 1.0f);
-		nvgStroke(vg);
-
+	void NVGView::drawScopeVoices(float ix, float iy, float iw, float ih) {
+		// Sounding voices as bars behind the waveform. The x range follows the lowest..highest sounding
+		// pitch (at least one octave, at most all 128; paramDisplay::voiceRange) and glides there, so
+		// the bars are wide for a single note or a close chord and narrow for a wide spread.
 		if (!baseController)
 			return;
 		const unsigned char* st = baseController->voiceStates;
-		for (int pass = 0; pass < 2; pass++)  // glows first, bars on top
+		int tLo = 0, tHi = 0;
+		paramDisplay::voiceRange(st, int(voiceViewLo + 0.5f), int(voiceViewHi + 0.5f), tLo, tHi);
+		// Glide by time, not frames: widen fast (a new outer note shows within ~60 ms), narrow slowly.
+		const auto now = std::chrono::steady_clock::now();
+		float dt = voiceViewTimeValid ? std::chrono::duration<float>(now - voiceViewTime).count() : 1.0f;
+		voiceViewTime = now;
+		voiceViewTimeValid = true;
+		if (dt > 1.0f) dt = 1.0f;
+		const float kWiden = 1.0f - expf(-dt / 0.06f), kNarrow = 1.0f - expf(-dt / 0.25f);
+		voiceViewLo += (float(tLo) - voiceViewLo) * (tLo < voiceViewLo ? kWiden : kNarrow);
+		voiceViewHi += (float(tHi) - voiceViewHi) * (tHi > voiceViewHi ? kWiden : kNarrow);
+		if (std::fabs(voiceViewLo - tLo) < 0.01f) voiceViewLo = float(tLo);
+		if (std::fabs(voiceViewHi - tHi) < 0.01f) voiceViewHi = float(tHi);
+		const float lo = voiceViewLo, slots = voiceViewHi - voiceViewLo + 1.0f;
+		const float slotW = iw / slots;
+
+		nvgSave(vg);
+		nvgScissor(vg, ix, iy, iw, ih);
+
+		// key backdrop: black-key slots slightly darker (only when wide enough to read)
+		static const bool kBlack[12] = {false, true, false, true, false, false, true, false, true, false, true, false};
+		const int p0 = (std::max)(0, int(floorf(lo)) - 1), p1 = (std::min)(127, int(ceilf(voiceViewHi)) + 1);
+		if (slotW >= 3.0f) {
+			nvgBeginPath(vg);
+			for (int p = p0; p <= p1; p++)
+				if (kBlack[p % 12])
+					nvgRect(vg, ix + (p - lo) * slotW, iy, slotW, ih);
+			nvgFillColor(vg, nvgRGBA(0, 0, 0, 90));
+			nvgFill(vg);
+		}
+		// octave lines at every C, labelled when an octave is wide enough (MIDI 60 = C4)
+		nvgFontSize(vg, 8.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM);
+		for (int p = p0; p <= p1; p++) {
+			if (p % 12 != 0)
+				continue;
+			const float cx = floorf(ix + (p - lo) * slotW) + 0.5f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, cx, iy);
+			nvgLineTo(vg, cx, iy + ih);
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 45));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+			if (slotW * 12.0f >= 30.0f) {
+				char name[8];
+				snprintf(name, sizeof(name), "C%d", p / 12 - 1);
+				nvgFillColor(vg, nvgRGBA(4, 186, 232, 110));
+				nvgText(vg, cx + 2.0f, iy + ih - 1.0f, name, NULL);
+			}
+		}
+
+		// bars: magenta while the key is held, cyan while releasing; height/brightness from the level
 		for (int p = 0; p < 128; p++) {
 			if (st[p] == 0)
 				continue;
 			const bool held = (st[p] & 0x80) != 0;
 			const float level = float(st[p] & 0x7F) / 127.0f;
-			const float a = 0.35f + 0.65f * sqrtf(level);  // keep quiet voices visible
-			const float bh = ih * (0.25f + 0.75f * sqrtf(level));
-			const float cx = ix + (p + 0.5f) * cw;
-			if (pass == 0) {
-			NVGpaint glow = held
-				? nvgRadialGradient(vg, cx, iy + ih - bh * 0.5f, 0.0f, cw * 3.0f, nvgRGBA(255, 60, 200, (unsigned char)(120 * a)), nvgRGBA(255, 60, 200, 0))
-				: nvgRadialGradient(vg, cx, iy + ih - bh * 0.5f, 0.0f, cw * 3.0f, nvgRGBA(4, 186, 232, (unsigned char)(110 * a)), nvgRGBA(4, 186, 232, 0));
+			const float a = 0.35f + 0.65f * sqrtf(level);
+			const float bh = ih * (0.15f + 0.85f * sqrtf(level));
+			const float bw = (std::max)(1.5f, slotW * 0.72f);
+			const float bx = ix + (p - lo + 0.5f) * slotW - bw * 0.5f;
+			const NVGcolor top = held ? nvgRGBA(255, 70, 205, (unsigned char)(150 * a)) : nvgRGBA(4, 186, 232, (unsigned char)(140 * a));
+			const NVGcolor bottom = held ? nvgRGBA(255, 70, 205, (unsigned char)(25 * a)) : nvgRGBA(4, 186, 232, (unsigned char)(20 * a));
 			nvgBeginPath(vg);
-			nvgRect(vg, cx - cw * 3.0f, iy, cw * 6.0f, ih);
-			nvgFillPaint(vg, glow);
+			nvgRect(vg, bx, iy + ih - bh, bw, bh);
+			nvgFillPaint(vg, nvgLinearGradient(vg, 0, iy + ih - bh, 0, iy + ih, top, bottom));
 			nvgFill(vg);
-			continue;
-			}
+			// bright cap at the level
 			nvgBeginPath(vg);
-			nvgRect(vg, ix + p * cw, iy + ih - bh, cw < 2.0f ? 2.0f : cw, bh);
-			nvgFillColor(vg, held ? nvgRGBA(255, 120, 225, (unsigned char)(255 * a))
-			                      : nvgRGBA(110, 225, 255, (unsigned char)(255 * a)));
+			nvgRect(vg, bx, iy + ih - bh, bw, (std::min)(2.0f, bh));
+			nvgFillColor(vg, held ? nvgRGBA(255, 150, 235, (unsigned char)(230 * a)) : nvgRGBA(130, 230, 255, (unsigned char)(220 * a)));
 			nvgFill(vg);
 		}
+		nvgRestore(vg);
 	}
 
 	void NVGView::drawRightColumn() {
@@ -2663,7 +2692,7 @@ no viewindex at 153!*/
 		nvgStroke(vg);
 
 		// separators between the bands
-		const Band bands[] = {kTitle, kPreset, kReadout, kScope, kMaster, kVoices, kLogo};
+		const Band bands[] = {kTitle, kPreset, kReadout, kScope, kMaster, kLogo};
 		const int nBands = int(sizeof(bands) / sizeof(bands[0]));
 		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 110));
 		nvgStrokeWidth(vg, 1.0f);
@@ -2689,7 +2718,7 @@ no viewindex at 153!*/
 		drawInset(lx, kReadout.y0 + 17, rx - lx, 20, kColMagenta);
 		drawInset(lx, kReadout.y0 + 41, rx - lx, 20, kColMagenta);
 
-		// 6. Scope: the latest output frame from the processor (drawScope)
+		// 6. Scope: the latest output frame from the processor, over the sounding voices (drawScope)
 		drawColumnSectionLabel(lx, kScope.y0 + 2, "SCOPE");
 		drawInset(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21, kColDimFrame);
 		drawScope(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21);
@@ -2718,10 +2747,6 @@ no viewindex at 153!*/
 		nvgText(vg, kPanKnob.x + kPanKnob.w * 0.5f, ly, "PAN L/R", NULL);
 		nvgText(vg, kPanAmtKnob.x + kPanAmtKnob.w * 0.5f, ly, "ENV AMT", NULL);
 		nvgText(vg, kPanSrcKnob.x + kPanSrcKnob.w * 0.5f, ly, "ENV SRC", NULL);
-
-		// 8. Voices: one column per MIDI pitch (drawVoiceStrip)
-		drawInset(lx, kVoices.y0 + 2, rx - lx, kVoices.h() - 4, kColDimFrame);
-		drawVoiceStrip(lx, kVoices.y0 + 2, rx - lx, kVoices.h() - 4);
 
 		// 9. Logo (from the art) in a black framed slot; the #moreInfo button (kMoreInfo) covers the
 		//    slot and opens the about window.

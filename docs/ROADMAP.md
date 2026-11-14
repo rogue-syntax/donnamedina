@@ -10,7 +10,7 @@ Order within a section is a rough priority (impact for effort).
   - [x] Step 1: layout and frames, pan knobs moved to the master row, logo is the about button.
   - [x] Step 2: readout with units, on turn and on hover (`paramDisplay`, docs/04-gui.md "Readout").
   - [x] Step 3: scope (triggered output waveform, docs/04-gui.md "Scope").
-  - [x] Step 4: voice strip (docs/04-gui.md "Voice strip").
+  - [x] Step 4: voice strip, then moved into the scope with a zooming pitch range (docs/04-gui.md "Voices in the scope").
   - [ ] Step 5: preset bar.
   - [ ] Optional: transparent title/logo PNGs (2x) to replace the crops from the art.
   - [x] Master VOL knob: new parameter `MASTER_VOL` (146), global (not in presets), 0 dB default; see docs/01-params-and-state.md.
@@ -27,7 +27,7 @@ Order within a section is a rough priority (impact for effort).
 - [ ] **Modulation visibility**: colour per source (Env 1/2/3, LFO F/G/H) tinting the knobs/squares it drives,
       and/or a ring around knobs showing the live modulated value.
 - [ ] **Preset bar**: name, prev/next, save, randomize (no preset browser is visible today).
-- [x] **Voice strip**: a 128-key strip lighting each per-note voice as it plays and fades (column step 4).
+- [x] **Voice view**: each per-note voice as a bar behind the scope, zoomed to the sounding range (column step 4).
 - [x] **Scope** in the right column (column step 3). A spectrum view could be added later as a toggle.
 - [ ] Labels or hover tooltips for the unlabeled top knob rows and the small squares.
 

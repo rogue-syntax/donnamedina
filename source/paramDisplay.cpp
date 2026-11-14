@@ -118,6 +118,33 @@ std::string masterVolText (double v)
 	return fmt ("%+.1f dB", db);
 }
 
+void voiceRange (const unsigned char* states, int lastLo, int lastHi, int& lo, int& hi)
+{
+	int mn = 128, mx = -1;
+	for (int p = 0; p < 128; p++) {
+		if (states[p]) {
+			if (p < mn) mn = p;
+			mx = p;
+		}
+	}
+	if (mx < 0) {
+		mn = lastLo;
+		mx = lastHi;
+	}
+	if (mn < 0) mn = 0;
+	if (mx > 127) mx = 127;
+	if (mx < mn) mx = mn;
+	const int kMinSpan = 12;
+	if (mx - mn + 1 < kMinSpan) {
+		mn -= (kMinSpan - (mx - mn + 1)) / 2;
+		if (mn < 0) mn = 0;
+		if (mn + kMinSpan - 1 > 127) mn = 128 - kMinSpan;
+		mx = mn + kMinSpan - 1;
+	}
+	lo = mn;
+	hi = mx;
+}
+
 const char* sourceName (int src)
 {
 	return (src >= 0 && src < 7) ? kSources[src] : "";

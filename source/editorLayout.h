@@ -41,9 +41,8 @@ struct Band { float y0, y1; constexpr float h () const { return y1 - y0; } };
 constexpr Band kTitle {3.0f, 71.0f};
 constexpr Band kPreset {77.0f, 105.0f};
 constexpr Band kReadout {111.0f, 175.0f};
-constexpr Band kScope {181.0f, 277.0f};
-constexpr Band kMaster {283.0f, 351.0f};
-constexpr Band kVoices {357.0f, 379.0f};
+constexpr Band kScope {181.0f, 305.0f};   // waveform over the sounding voices (voices band merged in)
+constexpr Band kMaster {311.0f, 379.0f};
 constexpr Band kLogo {385.0f, 518.0f};
 
 // Source rectangles in the art (art coordinates) for the redrawn title and logo.
@@ -53,10 +52,10 @@ constexpr Rect kLogoArt {972.0f, 389.0f, 133.0f, 124.0f};
 
 // Master row knobs, four equal slots (must match the origins/sizes of #masterVol, #panLR, #panLREnv,
 // #panLREnvSrc in vstgui.uidesc).
-constexpr Rect kVolKnob {954.0f, 300.0f, 40.0f, 40.0f};
-constexpr Rect kPanKnob {1027.0f, 300.0f, 40.0f, 40.0f};
-constexpr Rect kPanAmtKnob {1106.0f, 305.0f, 30.0f, 30.0f};
-constexpr Rect kPanSrcKnob {1179.0f, 305.0f, 30.0f, 30.0f};
+constexpr Rect kVolKnob {954.0f, 328.0f, 40.0f, 40.0f};
+constexpr Rect kPanKnob {1027.0f, 328.0f, 40.0f, 40.0f};
+constexpr Rect kPanAmtKnob {1106.0f, 333.0f, 30.0f, 30.0f};
+constexpr Rect kPanSrcKnob {1179.0f, 333.0f, 30.0f, 30.0f};
 // #moreInfo (opens the about window) sits on the logo.
 constexpr Rect kMoreInfo {kCenterX - 70.0f, 387.0f, 140.0f, 129.0f};
 } // namespace column

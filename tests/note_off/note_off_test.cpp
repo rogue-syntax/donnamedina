@@ -10,6 +10,7 @@
 #include "../../source/mdaDX10Processor.h"
 #include "../../source/mdaBaseController.h"  // kPresetParam
 #include "../../source/mdaDX10Controller.h"  // B-01/B-02 controller test
+#include "../../source/paramDisplay.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
@@ -1476,6 +1477,26 @@ int main(int argc, char** argv) {
 		check("controller receives voice states", ctrl->voiceStates[60] == (0x80 | 100) && ctrl->voiceStates[64] == 40, buf);
 		ctrl->terminate();
 		ctrl->release();
+
+		// pitch range drawn in the scope: lowest..highest sounding, at least an octave, inside 0..127
+		struct RangeCase { std::vector<int> notes; int lastLo, lastHi, wantLo, wantHi; const char* name; };
+		const RangeCase cases[] = {
+			{{60}, 0, 11, 55, 66, "one note: one octave around it"},
+			{{57, 60, 64}, 0, 11, 55, 66, "close chord: one octave"},
+			{{45, 57, 69}, 0, 11, 45, 69, "spread: lowest..highest"},
+			{{0}, 50, 70, 0, 11, "bottom note: kept inside"},
+			{{127}, 50, 70, 116, 127, "top note: kept inside"},
+			{{0, 127}, 50, 70, 0, 127, "both ends: all 128"},
+			{{}, 40, 63, 40, 63, "nothing sounding: keep last"},
+		};
+		for (const auto& c : cases) {
+			unsigned char s[128] = {};
+			for (int n : c.notes) s[n] = 0x80 | 64;
+			int lo = -1, hi = -1;
+			paramDisplay::voiceRange(s, c.lastLo, c.lastHi, lo, hi);
+			std::snprintf(buf, sizeof(buf), "%d..%d (want %d..%d)", lo, hi, c.wantLo, c.wantHi);
+			check(c.name, lo == c.wantLo && hi == c.wantHi, buf);
+		}
 	}
 
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----

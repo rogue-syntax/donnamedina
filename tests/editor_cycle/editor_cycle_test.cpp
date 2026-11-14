@@ -187,15 +187,20 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		m->release();
 		std::printf("scope frames received by the controller: %u\n", ctrl->scopeFrames);
 		// and a voice-strip state: A minor chord held (one soft), two notes releasing
+		// (EDITOR_SHOT_SCOPE=2: one held note instead, the narrowest range)
 		unsigned char st[128] = {};
-		st[57] = 0x80 | 127; st[60] = 0x80 | 110; st[64] = 0x80 | 40;
-		st[45] = 70; st[69] = 15;
+		if (std::atoi(std::getenv("EDITOR_SHOT_SCOPE")) == 2) {
+			st[60] = 0x80 | 120;
+		} else {
+			st[57] = 0x80 | 127; st[60] = 0x80 | 110; st[64] = 0x80 | 40;
+			st[45] = 70; st[69] = 15;
+		}
 		HostMessage* mv = new HostMessage;
 		mv->setMessageID("f");
 		mv->getAttributes()->setBinary("data", st, sizeof(st));
 		ctrl->notify(mv);
 		mv->release();
-		pumpFor(300);
+		pumpFor(1000);  // the scope's pitch range glides to the new notes
 	}
 	// EDITOR_SHOT_HOVER=<pid>: put the real cursor on that control (exercises the frame's mouse
 	// observer -> NVGView::onMouseEntered -> showParamReadout), then let the readout animate in.

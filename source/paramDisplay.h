@@ -39,6 +39,11 @@ int syncParamFor(int pid);
 // MASTER_VOL as dB ("0.0 dB", "-6.0 dB", "-inf dB"); also the host's text for the parameter.
 std::string masterVolText(double normalized);
 
+// Voice view in the scope: the pitch range to draw for the voice states (voiceStateByte per pitch,
+// 0 = silent). lo..hi spans the lowest..highest sounding pitch, widened to at least 12 semitones
+// (centred, kept inside 0..127). With nothing sounding the previous range (lastLo..lastHi) is kept.
+void voiceRange(const unsigned char* states, int lastLo, int lastHi, int& lo, int& hi);
+
 // Engine conversions (exposed for tests).
 double filterCutoffHz(double normalized);       // DXGenerator filterLogScale2: 80..18000 Hz, 0.5 -> 1800
 double envTimeSeconds(int pid, double normalized); // time to cover 95% (3 time constants); <0 = hold

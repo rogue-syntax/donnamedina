@@ -5,6 +5,7 @@
 
 
 //#include "SFClass.h"
+#include <chrono>
 //#include "mdaDX10Controller.h"
 #include "mdaBaseController.h"
 #include "editorLayout.h"
@@ -1026,7 +1027,10 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		// so it is under the controls.
 		void drawRightColumn();
 		void drawScope(float x, float y, float w, float h);
-		void drawVoiceStrip(float x, float y, float w, float h);
+		void drawScopeVoices(float ix, float iy, float iw, float ih);
+		float voiceViewLo = 55.0f, voiceViewHi = 66.0f;  // pitch range drawn in the scope (glides)
+		std::chrono::steady_clock::time_point voiceViewTime;
+		bool voiceViewTimeValid = false;
 		void drawColumnSectionLabel(float x, float y, const char* text);
 		void drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy);
 		void drawKnobWell(const ::editorLayout::column::Rect& knob, int ticks);
