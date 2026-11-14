@@ -17,6 +17,8 @@
 
 #include "mdaDX10Controller.h"
 #include "editorLayout.h"
+#include "paramDisplay.h"
+#include <cstdio>
 
 
 
@@ -370,38 +372,82 @@ int DX10Controller::widthReset(int pid, double msg) {
 }
 
 
+// The readout handlers below show the value with units (paramDisplay); they used to show the raw
+// normalized (or bipolar) number.
 int DX10Controller::onEnvBipolar(int pid, double msg) {
-	msg = (msg - 0.5) * 2;
-	std::string Y = std::to_string(msg);
-
-		nvgViewController->nvgView->onEnvBipolar(pid, Y);
-	
+	if (nvgViewController && nvgViewController->nvgView)
+		nvgViewController->nvgView->onEnvBipolar(pid, readoutValue(pid, msg));
 	return 0;
 }
 
 int DX10Controller::onEnv(int pid, double msg) {
-	msg = (msg - 0.5)*2;
-	std::string Y = std::to_string(msg);
-	
-		nvgViewController->nvgView->onEnv(pid, Y);
-	
+	if (nvgViewController && nvgViewController->nvgView)
+		nvgViewController->nvgView->onEnv(pid, readoutValue(pid, msg));
 	return 0;
 }
 
 int DX10Controller::onPanEnv(int pid, double msg) {
-	std::string Y = std::to_string(msg);
-
-		nvgViewController->nvgView->onPanEnv(pid, Y);
-	
+	if (nvgViewController && nvgViewController->nvgView)
+		nvgViewController->nvgView->onPanEnv(pid, readoutValue(pid, msg));
 	return 0;
 }
 
 int DX10Controller::onEnvLev(int pid, double msg) {
-	std::string Y = std::to_string(msg);
-	
-		nvgViewController->nvgView->onEnvLev(pid, Y);
-	
+	if (nvgViewController && nvgViewController->nvgView)
+		nvgViewController->nvgView->onEnvLev(pid, readoutValue(pid, msg));
 	return 0;
+}
+
+int DX10Controller::stepValue(int pid, double normalized) {
+	// Same conversion as changeVertSwitch: the engine gets the parameter's string as an integer.
+	String128 str;
+	if (EditController::getParamStringByValue(pid, normalized, str) != kResultTrue)
+		return 0;
+	std::wstring w = str;
+	return safeStoi(&w);
+}
+
+std::string DX10Controller::readoutValue(int pid, double normalized) {
+	paramDisplay::Context ctx;
+	if (Parameter* p = getParameterObject(pid)) {
+		if (p->getInfo().stepCount > 0)
+			ctx.step = stepValue(pid, normalized);
+	}
+	const int srcPid = paramDisplay::sourceParamFor(pid);
+	if (srcPid >= 0)
+		ctx.srcStep = stepValue(srcPid, getParamNormalized(srcPid));
+	const int syncPid = paramDisplay::syncParamFor(pid);
+	if (syncPid >= 0)
+		ctx.lfoSynced = getParamNormalized(syncPid) >= 1.0;  // processor: syncBpm = (int)value
+	std::string s = paramDisplay::value(pid, normalized, ctx);
+	if (s.empty()) {
+		char buf[32];
+		snprintf(buf, sizeof(buf), "%.3f", normalized);
+		s = buf;
+	}
+	return s;
+}
+
+bool DX10Controller::showParamReadout(int pid) {
+	if (pid < 0 || pid >= GPARAMS || !isViewReady() || !nvgViewController || !nvgViewController->nvgView)
+		return false;
+	const auto handler = onCtrlChange[pid];
+	const double value = getParamNormalized(pid);
+	// Only the handlers that just update the readout; reset/step buttons, the step target and
+	// toggle animations have side effects and are not run on hover.
+	if (handler == &DX10Controller::onEnv || handler == &DX10Controller::onEnvBipolar ||
+	    handler == &DX10Controller::onPanEnv || handler == &DX10Controller::onEnvLev ||
+	    handler == &DX10Controller::onTuneSwitch || handler == &DX10Controller::onEnvSrc ||
+	    handler == &DX10Controller::onChangeOSCType || handler == &DX10Controller::onChangeLFOOSCType ||
+	    handler == &DX10Controller::onChangeModType) {
+		(this->*handler)(pid, value);
+		return true;
+	}
+	if (handler == &DX10Controller::onToggleButton) {
+		nvgViewController->nvgView->onOnOffBtn(pid, static_cast<int>(value));
+		return true;
+	}
+	return false;
 }
 
 int DX10Controller::onEnvSrc(int pid, double msg) {
@@ -415,19 +461,10 @@ int DX10Controller::onEnvSrc(int pid, double msg) {
 }
 
 int DX10Controller::onTuneSwitch(int pid, double msg) {
-	float divisor;
-	if (pid == OCT_) {
-		divisor = 20.99f;
-	}
-	else {
-		divisor = 8.4f;
-	}
-	selectedEnvSrc = static_cast<int>((msg * 100.0) * 1 / divisor);
-	std::string tuneInterval = std::to_string(selectedEnvSrc);
-	
-	nvgViewController->nvgView->onTuneSwitch(pid, tuneInterval);
-		//changeVertSwitch(pid, msg);
-	
+	// Was msg * 100 / divisor, which did not match the step the engine gets (e.g. OCT_ showed 0..4
+	// for six positions); readoutValue uses the parameter's own string.
+	if (nvgViewController && nvgViewController->nvgView)
+		nvgViewController->nvgView->onTuneSwitch(pid, readoutValue(pid, msg));
 	return 0;
 }
 

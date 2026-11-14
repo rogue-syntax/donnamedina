@@ -127,6 +127,11 @@ public:
 
 	int onLevel(int pid, double valueDbl);
 
+	// Readout (paramDisplay): value with units for pid at normalized, and the hover entry point.
+	std::string readoutValue(int pid, double normalized);
+	int stepValue(int pid, double normalized);  // the integer the engine gets for a stepped param
+	bool showParamReadout(int pid) override;
+
 	int toggleGenView(int pid, double valueDbl);
 
 	int changeVertSwitch(int pid, double valueDbl);

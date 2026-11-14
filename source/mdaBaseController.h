@@ -129,6 +129,9 @@ protected:
 	virtual int onStepCtrlButton(int pid, double value) { return 0; };
 
 	virtual void setViewsFromBase() {};
+	// Shows the parameter's name and current value in the editor readout (mouse hover). Returns
+	// false for ids that have no display-only readout (buttons with side effects, unknown ids).
+	virtual bool showParamReadout(int /*pid*/) { return false; };
 
 	int (BaseController::*onNotif[20])(IMessage* message);
 	//int cmsgOnStepSwitch(IMessage* message);

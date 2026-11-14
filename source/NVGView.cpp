@@ -875,7 +875,10 @@ no viewindex at 153!*/
 	bool NVGView::attached(CView* parent) {
 	if (COpenGLView::attached(parent)) {
 
-		
+		if (CFrame* frame = getFrame()) {
+			frame->registerMouseObserver(this);
+			mouseObserverRegistered = true;
+		}
 
 		for (int i = 0; i < 1000; i++) {
 			controlMap[i] = nullptr;
@@ -1044,7 +1047,8 @@ no viewindex at 153!*/
 		if (baseController) {
 			baseController->setViewsFromBase();
 		}
-		
+		clearReadoutOnFirstFrame = true;
+
 
 		/*if (baseController->regKeyLegit == false) {
 			onBadReg(0, 0.0);
@@ -1080,6 +1084,15 @@ no viewindex at 153!*/
 	//REOME THIS FOR EDITOR
 	bool NVGView::removed(CView* parent) {
 		shouldDraw = false;
+
+		if (mouseObserverRegistered) {
+			if (CFrame* frame = getFrame())
+				frame->unregisterMouseObserver(this);
+			mouseObserverRegistered = false;
+		}
+		hoverPid = -1;
+		targDisplayTxt.hold = false;
+		targValueTxt.hold = false;
 
 		if (baseController)  // B-30
 			baseController->nvgViewReady = false;
@@ -1353,6 +1366,15 @@ no viewindex at 153!*/
 		if (this->baseController) {
 			if ( this->baseController->nvgViewReady == true ){
 				this->baseController->onNVGViewReady();
+			}
+		}
+		// The editor-open catch-up (setViewsFromBase in attached, pending state above) runs every
+		// param through the readout handlers; start with empty slots instead of the last one of those.
+		if (clearReadoutOnFirstFrame) {
+			clearReadoutOnFirstFrame = false;
+			if (hoverPid < 0) {
+				targDisplayTxt.clear();
+				targValueTxt.clear();
 			}
 		}
 		//if (shouldDraw == true) {
@@ -2328,13 +2350,43 @@ no viewindex at 153!*/
 		targDisplayTxt.processText();
 		targValueTxt.processText();
 
+		// Name and value in the two CONTROL slots of the right column (drawRightColumn).
+		using namespace ::editorLayout::column;
+		const float tx = kX0 + 17.0f;
+		const float tw = (kX1 - 9.0f) - tx - 8.0f;
 		nvgFontSize(vg, 11.0f);
 		nvgFontFace(vg, "lucon");
-		nvgTextAlign(vg, NVG_ALIGN_LEFT);
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+		nvgSave(vg);
+		nvgScissor(vg, tx, kReadout.y0 + 17.0f, tw, 44.0f);
 		nvgFillColor(vg, nvgRGBA(255, 204, 153, 255 * targDisplayTxt.textDisplayDecay));
-		//nvgText(vg, ::editorLayout::artX(980), ::editorLayout::artY(248), selectedCtrlTarg, NULL);
-		nvgText(vg, ::editorLayout::artX(980), ::editorLayout::artY(248), targDisplayTxt.selectedCtrlTargBuilder.c_str(), NULL);
-		nvgText(vg, ::editorLayout::artX(980), ::editorLayout::artY(283), targValueTxt.selectedCtrlTargBuilder.c_str(), NULL);
+		nvgText(vg, tx, kReadout.y0 + 27.0f, targDisplayTxt.selectedCtrlTargBuilder.c_str(), NULL);
+		nvgFillColor(vg, nvgRGBA(255, 204, 153, 255 * targValueTxt.textDisplayDecay));
+		nvgText(vg, tx, kReadout.y0 + 51.0f, targValueTxt.selectedCtrlTargBuilder.c_str(), NULL);
+		nvgRestore(vg);
+	}
+
+	void NVGView::onMouseEntered(CView* view, CFrame* frame) {
+		CControl* c = dynamic_cast<CControl*>(view);
+		if (!c || !baseController)
+			return;
+		const int pid = c->getTag();
+		if (pid < 0 || pid >= 1000)
+			return;
+		if (baseController->showParamReadout(pid)) {
+			hoverPid = pid;
+			targDisplayTxt.hold = true;
+			targValueTxt.hold = true;
+		}
+	}
+
+	void NVGView::onMouseExited(CView* view, CFrame* frame) {
+		CControl* c = dynamic_cast<CControl*>(view);
+		if (c && c->getTag() == hoverPid) {
+			hoverPid = -1;
+			targDisplayTxt.hold = false;
+			targValueTxt.hold = false;
+		}
 	}
 
 	void NVGView::drawImage(RData& reIn) {
@@ -2876,40 +2928,31 @@ no viewindex at 153!*/
 
 	void RandyTxt::reset(const char* txt, std::string valK, float interv, float incr) {
 		if (!txt) txt = "";  // try/catch review: null names (unset table slots) must not crash
-		if (strcmp(valK.c_str(), valueKey.c_str()) == 0 || shouldInc == true) {
-			if (shouldDecay == true) {
-				valueKey = valK;
-				shouldInc = true;
-				textDisplayTimerNextIntrv = interv;
-				textDisplayTimerNextIncr = incr;
-				selectedCtrlTarg = txt;
-				valLen = static_cast<int>(selectedCtrlTarg.size());
-				textDisplayDecay = 1.0f;
-				textDisplayTimer = 0.0f;
-				textDisplayIdx = 0;
-				textDisplayRevIdx = 0;
-				procRevTimer = 0.0f;
-				shouldDecayTimer = 0.0f;
-			}
-			else {
-				selectedCtrlTarg = txt;
-			}
-		}
-
-		else {
-			valueKey = valK;
-			shouldInc = true;
-			textDisplayTimerNextIntrv = interv;
-			textDisplayTimerNextIncr = incr;
+		// Same control and its text still up (revealing or shown): update the text in place and keep
+		// it up while the value changes. The old code also took this path for a *different* control
+		// during a reveal, and never reset the opacity there; it starts at 0, so the first readout after
+		// opening the editor (and anything shown during that reveal) stayed invisible.
+		if (valK == valueKey && !shouldDecay) {
 			selectedCtrlTarg = txt;
 			valLen = static_cast<int>(selectedCtrlTarg.size());
 			textDisplayDecay = 1.0f;
-			textDisplayTimer = 0.0f;
-			textDisplayIdx = 0;
-			textDisplayRevIdx = 0;
-			procRevTimer = 0.0f;
 			shouldDecayTimer = 0.0f;
+			return;
 		}
+		// New control, or the text is fading / gone: scramble it in again.
+		valueKey = valK;
+		shouldInc = true;
+		shouldDecay = false;
+		textDisplayTimerNextIntrv = interv;
+		textDisplayTimerNextIncr = incr;
+		selectedCtrlTarg = txt;
+		valLen = static_cast<int>(selectedCtrlTarg.size());
+		textDisplayDecay = 1.0f;
+		textDisplayTimer = 0.0f;
+		textDisplayIdx = 0;
+		textDisplayRevIdx = 0;
+		procRevTimer = 0.0f;
+		shouldDecayTimer = 0.0f;
 	}
 
 
@@ -2938,7 +2981,8 @@ no viewindex at 153!*/
 		}
 		else {
 			selectedCtrlTargBuilder = selectedCtrlTarg;
-			shouldDecayTimer += 0.01;
+			if (!hold)
+				shouldDecayTimer += 0.01;
 			if (shouldDecayTimer < 0.75f) {
 				textDisplayRevIdx = 0;
 			}

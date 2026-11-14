@@ -8,6 +8,7 @@
 //#include "mdaDX10Controller.h"
 #include "mdaBaseController.h"
 #include "editorLayout.h"
+#include "paramDisplay.h"
 #include "constants.h"
 #include <time.h> 
 #include "vstgui/lib/controls/ccontrol.h"
@@ -341,6 +342,18 @@ public:
 	int valLen = 0;
 	bool shouldInc = true;
 	bool shouldDecay = false;
+	bool hold = false;  // while true (mouse over the control) the text does not start fading
+
+	// Nothing shown (as after a full fade); the next reset scrambles in.
+	void clear() {
+		selectedCtrlTarg.clear();
+		selectedCtrlTargBuilder.clear();
+		valueKey.clear();
+		valLen = 0;
+		shouldInc = false;
+		shouldDecay = true;
+		textDisplayDecay = 0.0f;
+	}
 
 	char getRandyChar();
 	void reset(const char* txt, std::string valK, float interv, float incr);
@@ -360,8 +373,17 @@ public:
 
 
 //class NVGView : public COpenGLView, public Animation::IAnimationTarget, public REventable, public RDataConsumer, public IControlListener, public Constants {
-class NVGView : public COpenGLView, public Animation::IAnimationTarget, public REventable, public RDataConsumer, public IControlListener {
+class NVGView : public COpenGLView, public Animation::IAnimationTarget, public REventable, public RDataConsumer, public IControlListener, public IMouseObserver {
 	public:
+		// Readout on hover: the frame reports the control under the mouse; the controller shows its
+		// name and value (BaseController::showParamReadout) and the text is held until the mouse leaves.
+		void onMouseEntered(CView* view, CFrame* frame) override;
+		void onMouseExited(CView* view, CFrame* frame) override;
+		using COpenGLView::onMouseEntered;  // keep CView's (CPoint&, CButtonState&) overloads visible
+		using COpenGLView::onMouseExited;
+		int hoverPid = -1;
+		bool mouseObserverRegistered = false;
+		bool clearReadoutOnFirstFrame = false;
 		void drawMoreInfoWindow();
 		//MoreInfoButton* moreInfoBtn;
 		void onMoreInfoBtnEnter();
@@ -597,8 +619,17 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		// try/catch review (B-33): bounds- and null-safe lookups used by the GUI handlers instead of
 		// raw indexing (out-of-range / null access is not a C++ exception, so the old try/catch
 		// blocks around these never caught anything).
-		const char* paramName(int pid) const { return (pid >= 0 && pid < PARTPARAMS) ? NVGParamDef[pid].c_str() : ""; }
-		const char* envName(int pid) const { return (pid >= 0 && pid < 1000 && envNameMap[pid]) ? envNameMap[pid] : ""; }
+		// Readout names: the readable label (paramDisplay) when there is one, else the identifier.
+		const char* paramName(int pid) const {
+			const char* l = paramDisplay::label(pid);
+			if (*l) return l;
+			return (pid >= 0 && pid < PARTPARAMS) ? NVGParamDef[pid].c_str() : "";
+		}
+		const char* envName(int pid) const {
+			const char* l = paramDisplay::label(pid);
+			if (*l) return l;
+			return (pid >= 0 && pid < 1000 && envNameMap[pid]) ? envNameMap[pid] : "";
+		}
 		const char* envSrcName(int i) const { return (i >= 0 && i < 7 && envSrcNames[i]) ? envSrcNames[i] : ""; }
 
 		bool partParamsReady = false;

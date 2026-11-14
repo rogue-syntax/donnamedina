@@ -171,6 +171,52 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 	}, 0);
 	POINT org{0, 0};
 	ClientToScreen(hwnd, &org);
+	// EDITOR_SHOT_HOVER=<pid>: put the real cursor on that control (exercises the frame's mouse
+	// observer -> NVGView::onMouseEntered -> showParamReadout), then let the readout animate in.
+	if (const char* hv = std::getenv("EDITOR_SHOT_HOVER")) {
+		const int pid = std::atoi(hv);
+		rs::NVGView* nv = ctrl->nvgViewController ? ctrl->nvgViewController->nvgView : nullptr;
+		if (nv && pid >= 0 && pid < 1000 && nv->controlMap[pid]) {
+			const CRect cr = nv->controlMap[pid]->getViewSize();
+			const int cx = org.x + static_cast<int>(cr.getCenter().x), cy = org.y + static_cast<int>(cr.getCenter().y);
+			// Send the move to the VSTGUI frame window (the window under that point; the GL child is
+			// disabled, so a real move goes there too). The real cursor is not touched.
+			POINT pt{cx, cy};
+			HWND under = WindowFromPoint(pt);
+			char cls[128] = {};
+			GetClassNameA(under, cls, sizeof(cls));
+			std::printf("window at %d,%d: %s\n", cx, cy, cls);
+			POINT cp = pt;
+			ScreenToClient(under, &cp);
+			SendMessage(under, WM_MOUSEMOVE, 0, MAKELPARAM(cp.x, cp.y));
+			// The frame asks Windows for WM_MOUSELEAVE, which arrives at once because the real cursor
+			// is elsewhere; drop it, as if the mouse stayed on the knob.
+			const ULONGLONG end = GetTickCount64() + 1500;
+			int leavesDropped = 0;
+			do {
+				MSG m;
+				while (PeekMessage(&m, nullptr, 0, 0, PM_REMOVE)) {
+					if (m.message == WM_MOUSELEAVE) {
+						leavesDropped++;
+						continue;
+					}
+					TranslateMessage(&m);
+					DispatchMessage(&m);
+				}
+				Sleep(5);
+			} while (GetTickCount64() < end);
+			std::printf("WM_MOUSELEAVE dropped: %d\n", leavesDropped);
+			std::printf("hover pid %d at %d,%d: hoverPid %d, name \"%s\" (shown \"%s\", alpha %.2f), value \"%s\" (shown \"%s\", alpha %.2f)\n", pid,
+			            static_cast<int>(cr.getCenter().x), static_cast<int>(cr.getCenter().y), nv->hoverPid,
+			            nv->targDisplayTxt.selectedCtrlTarg.c_str(), nv->targDisplayTxt.selectedCtrlTargBuilder.c_str(),
+			            nv->targDisplayTxt.textDisplayDecay,
+			            nv->targValueTxt.selectedCtrlTarg.c_str(), nv->targValueTxt.selectedCtrlTargBuilder.c_str(),
+			            nv->targValueTxt.textDisplayDecay);
+		}
+		else {
+			std::printf("hover pid %d: no control\n", pid);
+		}
+	}
 	HDC wdc = GetDC(nullptr);
 	HDC mdc = CreateCompatibleDC(wdc);
 	HBITMAP bmp = CreateCompatibleBitmap(wdc, w, h);
@@ -242,6 +288,33 @@ int main(int argc, char** argv) {
 		if (!ok) b11fail = 1;
 		std::printf("B-11 preset 2 with no processor constructed: OSC_ %.3f (want 0.900), MOD_OSC_ %.3f (want 0.600)  %s\n",
 		            osc, mosc, ok ? "PASS" : "FAIL");
+	}
+
+	// READOUT_TABLE=1: the readout text (DX10Controller::readoutValue) for a set of params.
+	if (std::getenv("READOUT_TABLE")) {
+		const int pids[] = {WIDTH_, TUNE_, FINE_, OCT_, INT_, MOD_OCT_, MOD_INT_, MOD_BEAT_, INT_ENV, OCT_ENV,
+		                    TUNE_ENV, GAIN_, FILTER_, FILTER_Q, MOD_GAIN_, MOD_OSC_GAIN, PAN_LR,
+		                    ENV_1_ATTACK, ENV_1_DECAY, ENV_1_RELEASE, LFO_1_RATE, LFO_1_AMP, LFO_1_DELAY, LFO_1_PHASE};
+		const double vals[] = {0.0, 0.25, 0.5, 0.75, 1.0};
+		for (int pid : pids) {
+			std::printf("%-18s", paramDisplay::label(pid));
+			for (double v : vals)
+				std::printf(" | %-22s", ctrl->readoutValue(pid, v).c_str());
+			std::printf("\n");
+		}
+		// LFO 1 synced, and an env amount with a source set
+		ctrl->setParamNormalized(LFO_1_BPM, 1.0);
+		std::printf("%-18s", "LFO 1 RATE (sync)");
+		for (double v : vals)
+			std::printf(" | %-22s", ctrl->readoutValue(LFO_1_RATE, v).c_str());
+		std::printf("\n");
+		ctrl->setParamNormalized(LFO_1_BPM, 0.0);
+		ctrl->setParamNormalized(FILTER_ENV_SRC, 4.0 / 6.0);
+		std::printf("%-18s", "CUTOFF MOD (src)");
+		for (double v : vals)
+			std::printf(" | %-22s", ctrl->readoutValue(FILTER_ENV, v).c_str());
+		std::printf("\n");
+		return 0;
 	}
 
 	if (const char* shot = std::getenv("EDITOR_SHOT"))
