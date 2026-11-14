@@ -879,6 +879,8 @@ no viewindex at 153!*/
 			frame->registerMouseObserver(this);
 			mouseObserverRegistered = true;
 		}
+		if (baseController)
+			baseController->setScopeActive(true);  // processor starts capturing/sending frames
 
 		for (int i = 0; i < 1000; i++) {
 			controlMap[i] = nullptr;
@@ -1093,6 +1095,9 @@ no viewindex at 153!*/
 		hoverPid = -1;
 		targDisplayTxt.hold = false;
 		targValueTxt.hold = false;
+
+		if (baseController)
+			baseController->setScopeActive(false);
 
 		if (baseController)  // B-30
 			baseController->nvgViewReady = false;
@@ -2520,6 +2525,59 @@ no viewindex at 153!*/
 		}
 	}
 
+	void NVGView::drawScope(float x, float y, float w, float h) {
+		// Inner area of the inset (keep off the frame line and the chamfered corner).
+		const float ix = x + 3, iy = y + 3, iw = w - 6, ih = h - 6;
+		const float cy = iy + ih * 0.5f;
+
+		// grid: centre line, +-0.5 lines, 8 time divisions
+		nvgBeginPath(vg);
+		for (int i = 1; i < 8; i++) {
+			const float gx = floorf(ix + iw * i / 8.0f) + 0.5f;
+			nvgMoveTo(vg, gx, iy);
+			nvgLineTo(vg, gx, iy + ih);
+		}
+		nvgMoveTo(vg, ix, floorf(cy - ih * 0.25f) + 0.5f);
+		nvgLineTo(vg, ix + iw, floorf(cy - ih * 0.25f) + 0.5f);
+		nvgMoveTo(vg, ix, floorf(cy + ih * 0.25f) + 0.5f);
+		nvgLineTo(vg, ix + iw, floorf(cy + ih * 0.25f) + 0.5f);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 28));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, ix, floorf(cy) + 0.5f);
+		nvgLineTo(vg, ix + iw, floorf(cy) + 0.5f);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 60));
+		nvgStroke(vg);
+
+		if (!baseController || baseController->scopeFrames == 0)
+			return;
+
+		// waveform: +-1 fills the height (clipped above); one point per frame sample
+		const float* f = baseController->scopeFrame;
+		const int n = BaseController::kScopeLength;
+		const float yScale = ih * 0.5f - 1.0f;
+		nvgSave(vg);
+		nvgScissor(vg, ix, iy, iw, ih);
+		nvgBeginPath(vg);
+		for (int i = 0; i < n; i++) {
+			float v = f[i];
+			if (!(v == v)) v = 0.0f;  // NaN
+			v = v > 1.05f ? 1.05f : (v < -1.05f ? -1.05f : v);
+			const float px = ix + iw * float(i) / float(n - 1);
+			const float py = cy - v * yScale;
+			if (i == 0) nvgMoveTo(vg, px, py); else nvgLineTo(vg, px, py);
+		}
+		nvgLineJoin(vg, NVG_ROUND);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 55));  // glow
+		nvgStrokeWidth(vg, 4.0f);
+		nvgStroke(vg);
+		nvgStrokeColor(vg, nvgRGBA(120, 230, 255, 235));
+		nvgStrokeWidth(vg, 1.3f);
+		nvgStroke(vg);
+		nvgRestore(vg);
+	}
+
 	void NVGView::drawRightColumn() {
 		using namespace ::editorLayout;
 		using namespace ::editorLayout::column;
@@ -2572,9 +2630,10 @@ no viewindex at 153!*/
 		drawInset(lx, kReadout.y0 + 17, rx - lx, 20, kColMagenta);
 		drawInset(lx, kReadout.y0 + 41, rx - lx, 20, kColMagenta);
 
-		// 6. Scope (filled in a later step)
+		// 6. Scope: the latest output frame from the processor (drawScope)
 		drawColumnSectionLabel(lx, kScope.y0 + 2, "SCOPE");
 		drawInset(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21, kColDimFrame);
+		drawScope(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21);
 
 		// 7. Master: volume and pan knobs (a divider between volume and the pan group)
 		drawColumnSectionLabel(lx, kMaster.y0 + 2, "MASTER");

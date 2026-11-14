@@ -1231,6 +1231,7 @@ void DX10Processor::doProcessing(ProcessData& data) {
 
 	// master volume, smoothed per sample (masterGainCoef: about 10 ms) so knob moves do not click
 	const float masterTarg = static_cast<float> (masterVolGain (floatParams[MASTER_VOL]));
+	const bool scopeOn = scopeEnabled.load (std::memory_order_relaxed);  // editor open
 
 	// Check for active voices or just process the chunk
 	//if (activevoices > 0) {
@@ -1239,8 +1240,11 @@ void DX10Processor::doProcessing(ProcessData& data) {
 			// Generate audio for all active generators
 			generators[0].mainProcessing();
 			masterGain += (masterTarg - masterGain) * masterGainCoef;
-			*out1++ = generators[0].o1 * masterGain;
-			*out2++ = generators[0].o2 * masterGain;
+			const float l = generators[0].o1 * masterGain, r = generators[0].o2 * masterGain;
+			*out1++ = l;
+			*out2++ = r;
+			if (scopeOn)
+				scope.push (0.5f * (l + r));
 		}
 		if (std::fabs (masterGain - masterTarg) < 1e-6f)
 			masterGain = masterTarg;  // settle exactly (no denormal tail)

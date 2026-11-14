@@ -6,6 +6,8 @@
 #include "pluginterfaces/base/ibstream.h"
 #include "base/source/fstreamer.h"
 #include <algorithm>
+#include <cstring>
+#include "scopeCapture.h"
 #include <cmath>
 #include "vstgui/uidescription/delegationcontroller.h"
 
@@ -379,6 +381,18 @@ tresult PLUGIN_API BaseController::notify (IMessage* message){
 	double value;
 	int64 messageID = -1;
 
+	if (message->getMessageID() && message->getMessageID()[0] == PMSG_SCOPE_CHAR
+		&& message->getMessageID()[1] == 0) {
+		const void* data = nullptr;
+		uint32 size = 0;
+		if (message->getAttributes()->getBinary("data", data, size) == kResultTrue && data
+			&& size == sizeof(scopeFrame)) {
+			std::memcpy(scopeFrame, data, size);
+			scopeFrames++;
+		}
+		return kResultTrue;
+	}
+
 	if (strcmp(message->getMessageID(), "InstanceID") == 0) {
 		message->getAttributes()->getInt("id", this->myInstanceId);
 		return kResultTrue;
@@ -605,6 +619,20 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 		
 
 	return kResultTrue;
+}
+
+static_assert(BaseController::kScopeLength == ScopeCapture::kLength, "scope frame size");
+
+void BaseController::setScopeActive(bool on) {
+	IMessage* msg = allocateMessage();
+	if (!msg)
+		return;
+	msg->setMessageID(msgIdStr(CMSG_SCOPE_ENABLE_CHAR));
+	msg->getAttributes()->setInt("on", on ? 1 : 0);
+	sendMessage(msg);
+	msg->release();
+	if (!on)
+		scopeFrames = 0;  // next open starts empty
 }
 
 void BaseController::onNVGViewReady() {

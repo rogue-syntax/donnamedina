@@ -270,6 +270,11 @@ const char PMSG_CTRLR_READY_CHAR = 'b';
 // Message IDs are single chars; the receiver switches on the first char only.
 const char PMSG_STEP_CTRL_CHAR = 'c';
 
+// Scope (2026-11-14): processor -> controller, one frame (binary "data", ScopeCapture::kLength floats),
+// sent by the processor's main-thread timer; controller -> processor, int "on" = editor open/closed.
+const char PMSG_SCOPE_CHAR = 'd';
+const char CMSG_SCOPE_ENABLE_CHAR = 'e';
+
 
 const char CONNECT_ID = 'CID';
 

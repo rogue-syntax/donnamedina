@@ -73,7 +73,35 @@ tresult PLUGIN_API BaseProcessor::terminate ()
 //-----------------------------------------------------------------------------
 bool BaseProcessor::onAudioThread () { return tl_inProcess; }
 
-void BaseProcessor::onTimer (Timer* /*timer*/) { flushMessageQueue (); }
+void BaseProcessor::onTimer (Timer* /*timer*/)
+{
+	flushMessageQueue ();
+	sendScopeFrame ();
+}
+
+void BaseProcessor::sendScopeFrame ()
+{
+	if (!scopeEnabled.load (std::memory_order_relaxed))
+		return;
+	const float* frame = scope.latest ();
+	if (!frame)
+		return;
+	float peak = 0.0f;
+	for (int i = 0; i < ScopeCapture::kLength; i++)
+		peak = (std::max) (peak, std::fabs (frame[i]));
+	const bool silent = peak < 1.0e-5f;
+	if (silent && scopeLastSentSilent)
+		return;  // the display already shows a flat line
+	scopeLastSentSilent = silent;
+	IMessage* msg = allocateMessage ();
+	if (!msg)
+		return;
+	msg->setMessageID (msgIdStr (PMSG_SCOPE_CHAR));
+	msg->getAttributes ()->setBinary ("data", frame, sizeof (float) * ScopeCapture::kLength);
+	msg->getAttributes ()->setInt ("id", this->myInstanceId);
+	sendMessage (msg);
+	msg->release ();
+}
 
 void BaseProcessor::flushMessageQueue ()
 {
@@ -392,6 +420,13 @@ tresult PLUGIN_API BaseProcessor::notify(IMessage* message) {
 		return kResultTrue;
 	}
 	*/
+	if (message && message->getMessageID () && message->getMessageID ()[0] == CMSG_SCOPE_ENABLE_CHAR) {
+		int64 on = 0;
+		message->getAttributes ()->getInt ("on", on);
+		scopeEnabled.store (on != 0);
+		scopeLastSentSilent = false;  // the editor starts empty: send the next frame even if flat
+		return kResultTrue;
+	}
 	return ComponentBase::notify(message);
 }
 
@@ -428,6 +463,8 @@ tresult PLUGIN_API BaseProcessor::setActive (TBool state)
 		generators[genRecalcIdx].recalculate(generators[genRecalcIdx].sampleRate);//huh
 		generators[genRecalcIdx].createVoice();
 	}
+	if (state)
+		scope.setSampleRate (getSampleRate ());
 
 	return AudioEffect::setActive (state);
 }

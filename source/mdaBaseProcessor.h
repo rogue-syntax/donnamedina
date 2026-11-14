@@ -12,6 +12,8 @@
 #include "pluginterfaces/vst/ivstevents.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "constants.h"
+#include "scopeCapture.h"
+#include <atomic>
 #include <math.h>
 #include <bcrypt.h>
 
@@ -49,6 +51,13 @@ public:
 	void onTimer (Timer* timer) SMTG_OVERRIDE;
 	void flushMessageQueue ();   // sends all queued messages (main thread)
 	void sendNowOrQueue (const QueuedMsg& m, bool fromQueue = false);
+
+	// Scope: the render loop pushes the output into `scope` while scopeEnabled (the controller turns
+	// it on while the editor is open); onTimer sends each new frame (sendScopeFrame).
+	ScopeCapture scope;
+	std::atomic<bool> scopeEnabled {false};
+	bool scopeLastSentSilent = false;
+	void sendScopeFrame ();   // main thread
 	static bool onAudioThread ();  // true while inside process() on this thread
 
 	enum {

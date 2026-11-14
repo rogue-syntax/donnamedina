@@ -143,6 +143,14 @@ protected:
 	virtual bool isViewReady() { return false; };
 
 	bool nvgViewReady = false;
+
+	// Scope (2026-11-14): the latest frame from the processor (PMSG_SCOPE_CHAR), drawn by NVGView.
+	// scopeFrames counts received frames (0 = nothing yet). setScopeActive tells the processor to
+	// capture and send (editor open) or stop.
+	static const int kScopeLength = 1024;  // = ScopeCapture::kLength (checked in the .cpp)
+	float scopeFrame[kScopeLength] = {};
+	unsigned int scopeFrames = 0;
+	void setScopeActive(bool on);
 	bool hasPendingState = false;
 	std::map<ParamID, ParamValue> pendingStateUpdates;
 

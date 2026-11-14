@@ -1025,6 +1025,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		// new framed column (title, preset, readout, scope, master, voices, logo). Called from drawBkg,
 		// so it is under the controls.
 		void drawRightColumn();
+		void drawScope(float x, float y, float w, float h);
 		void drawColumnSectionLabel(float x, float y, const char* text);
 		void drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy);
 		void drawKnobWell(const ::editorLayout::column::Rect& knob, int ticks);

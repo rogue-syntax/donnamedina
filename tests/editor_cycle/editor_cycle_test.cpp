@@ -171,6 +171,23 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 	}, 0);
 	POINT org{0, 0};
 	ClientToScreen(hwnd, &org);
+	// EDITOR_SHOT_SCOPE=1: no processor here, so hand the controller one scope frame the way the
+	// processor does (PMSG_SCOPE_CHAR message with a binary "data" attribute): a 220 Hz tone with
+	// some 3rd harmonic, starting at a rising zero crossing like a triggered capture.
+	if (std::getenv("EDITOR_SHOT_SCOPE")) {
+		std::vector<float> f(rs::BaseController::kScopeLength);
+		for (size_t i = 0; i < f.size(); i++) {
+			const double ph = 2.0 * 3.14159265358979 * 220.0 * double(i) / 44100.0;
+			f[i] = static_cast<float>(0.55 * std::sin(ph) + 0.2 * std::sin(3.0 * ph));
+		}
+		HostMessage* m = new HostMessage;
+		m->setMessageID("d");
+		m->getAttributes()->setBinary("data", f.data(), static_cast<uint32>(f.size() * sizeof(float)));
+		ctrl->notify(m);
+		m->release();
+		std::printf("scope frames received by the controller: %u\n", ctrl->scopeFrames);
+		pumpFor(300);
+	}
 	// EDITOR_SHOT_HOVER=<pid>: put the real cursor on that control (exercises the frame's mouse
 	// observer -> NVGView::onMouseEntered -> showParamReadout), then let the readout animate in.
 	if (const char* hv = std::getenv("EDITOR_SHOT_HOVER")) {

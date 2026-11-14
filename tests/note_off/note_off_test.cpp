@@ -1325,6 +1325,110 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- scope (2026-11-14): ScopeCapture alone, then the processor's capture and messages ----
+	{
+		std::printf("\nScope capture\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		const int L = ScopeCapture::kLength;
+		auto risingCrossings = [L](const float* f) {
+			int n = 0;
+			for (int i = 1; i < L; i++) if (f[i - 1] < 0.0f && f[i] >= 0.0f) n++;
+			return n;
+		};
+		// 1. triggered on a rising zero crossing; 2. nothing new on a second read
+		{
+			static ScopeCapture sc;
+			sc.setSampleRate(44100.0);
+			const float* f = nullptr;
+			for (int i = 0; i < 20000 && !f; i++) {
+				sc.push(static_cast<float>(0.5 * std::sin(2.0 * 3.14159265358979 * 220.0 * i / 44100.0 + 1.0)));
+				if (i % 300 == 0) f = sc.latest();
+			}
+			if (!f) f = sc.latest();
+			const bool ok = f && f[0] >= 0.0f && f[0] < 0.05f && f[1] > f[0];
+			const int cr = f ? risingCrossings(f) : -1;
+			std::snprintf(buf, sizeof(buf), "f[0] %.4f f[1] %.4f, %d rising crossings (want 5)", f ? f[0] : -9.f, f ? f[1] : -9.f, cr);
+			check("frame starts at a rising zero crossing", ok && cr == 5, buf);
+			check("latest() is null until a new frame", sc.latest() == nullptr, "");
+		}
+		// 3. silence still gives (flat) frames
+		{
+			static ScopeCapture sc;
+			sc.setSampleRate(44100.0);
+			for (int i = 0; i < ScopeCapture::kMaxWait + L + 10; i++) sc.push(0.0f);
+			const float* f = sc.latest();
+			float pk = 0.0f;
+			if (f) for (int i = 0; i < L; i++) pk = std::max(pk, std::fabs(f[i]));
+			std::snprintf(buf, sizeof(buf), "frame %s, peak %.6f", f ? "yes" : "no", pk);
+			check("silence: untriggered flat frame", f && pk == 0.0f, buf);
+		}
+		// 4. 96 kHz: every 2nd sample (48 kHz), so a frame covers 21.3 ms (4.7 cycles of 220 Hz), not 10.7 ms
+		{
+			static ScopeCapture sc;
+			sc.setSampleRate(96000.0);
+			const float* f = nullptr;
+			for (int i = 0; i < 40000; i++) {
+				sc.push(static_cast<float>(0.5 * std::sin(2.0 * 3.14159265358979 * 220.0 * i / 96000.0 + 1.0)));
+				if (const float* g = sc.latest()) f = g;
+			}
+			const int cr = f ? risingCrossings(f) : -1;
+			std::snprintf(buf, sizeof(buf), "%d rising crossings (want 4)", cr);
+			check("96 kHz frame covers ~21 ms (decimated)", cr == 4, buf);
+		}
+		// 5. the processor: frames match its output, sent by the timer only (never inside process)
+		{
+			std::vector<float> capL, capR;
+			Options o;
+			o.onCreated = [](rs::DX10Processor& p) { p.scopeEnabled.store(true); };
+			const float* f = nullptr;
+			std::vector<float> frame;
+			// take one frame after 0.3 s (perBlock runs before the message pump, so before the timer
+			// can take it); the timer sends the others
+			o.perBlock = [&](rs::DX10Processor& p, double t) {
+				if (frame.empty() && t > 0.3 && (f = p.scope.latest())) frame.assign(f, f + L);
+			};
+			o.captureL = &capL;
+			o.captureR = &capR;
+			render(Settings{"scope", 0.995, 0.5}, {{0, true, 57}}, 0.6, o);
+			// find the frame in the captured output (mono sum)
+			bool found = false;
+			if (!frame.empty()) {
+				for (size_t s = 0; s + L <= capL.size() && !found; s++) {
+					bool same = true;
+					for (int i = 0; i < L && same; i++)
+						same = std::fabs(0.5f * (capL[s + i] + capR[s + i]) - frame[i]) < 1e-6f;
+					found = same;
+				}
+			}
+			const int sentByTimer = g_msgsOut[static_cast<unsigned char>(PMSG_SCOPE_CHAR)];
+			const int sentInProcess = g_msgsIn[static_cast<unsigned char>(PMSG_SCOPE_CHAR)];
+			std::snprintf(buf, sizeof(buf), "frame %s in output, %d sent by timer, %d inside process", found ? "found" : "NOT found",
+			              sentByTimer, sentInProcess);
+			check("processor: frame = output, messages from the timer", found && sentInProcess == 0, buf);
+		}
+		// 6. the controller stores a frame message
+		{
+			static HostApplication shost3;
+			auto* ctrl = new rs::DX10Controller();
+			ctrl->initialize(&shost3);
+			std::vector<float> f(L);
+			for (int i = 0; i < L; i++) f[i] = 0.001f * i;
+			HostMessage* m = new HostMessage;
+			m->setMessageID("d");
+			m->getAttributes()->setBinary("data", f.data(), static_cast<uint32>(L * sizeof(float)));
+			ctrl->notify(m);
+			m->release();
+			std::snprintf(buf, sizeof(buf), "frames %u, last %.3f (want 1, %.3f)", ctrl->scopeFrames, ctrl->scopeFrame[L - 1], f[L - 1]);
+			check("controller receives the frame", ctrl->scopeFrames == 1 && ctrl->scopeFrame[L - 1] == f[L - 1], buf);
+			ctrl->terminate();
+			ctrl->release();
+		}
+	}
+
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----
 	{
 		std::printf("\nB-21 TRI waveshape, CQBLimitedOscillator alone, 44.1 kHz\n");
