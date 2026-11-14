@@ -41,6 +41,11 @@ Read, not run. Only the editor lifecycle has been traced so far.
 - Drawing: black-key slots darker when a slot is at least 3 px; a line at every C, labelled (MIDI 60 = C4) when an octave is at least 30 px wide; each sounding pitch is a bar 72 % of its slot (at least 1.5 px), height and brightness from the level (square-root curve so quiet voices stay visible), vertical gradient and a bright cap, magenta while held, cyan while releasing.
 - Tests: `tests/note_off` "Voice strip" (held chord, released note, timer-only messages, encoding, controller receive, `voiceRange` cases); `EDITOR_SHOT_SCOPE=1` also hands the controller a spread chord, `=2` a single note.
 
+## Scope info: voice count and output peak (2026-11-14)
+- Top left of the scope: `VOICES n/32  HELD h` (`paramDisplay::countVoices` over `BaseController::voiceStates`; 32 = `POLY_LIMIT` in constants.h, which `DXGenerator::POLYCOUNT` now starts from). Top right: `PEAK x.x dB` in dBFS (`paramDisplay::peakText`), amber from -1 dB, and a red `CLIP` tag for 2 s after any message at or above 0 dBFS (a NaN in the output counts as a clip). Both sit on dark plates over the waveform (`NVGView::drawScopeInfo`, drawn last by `drawScope`; the waveform itself moved to `drawScopeWave`).
+- Peak path: `DX10Processor::doProcessing` takes max(|l|, |r|) per sample while an editor is open and folds the chunk's value into `BaseProcessor::outPeak` (`notePeak`, atomic max). `sendPeak` (timer) exchanges it with 0 and sends `PMSG_PEAK_CHAR`; the controller keeps `outPeak` and counts `peakFrames`. The view holds the largest value for 1.5 s, then follows.
+- Tests: `tests/note_off` "Scope info" (sent peak equals the rendered output's peak, timer-only messages, one 0 per silence, controller receive, `countVoices`, `peakText`); `EDITOR_SHOT_SCOPE=1` adds a -4.6 dB peak, `=2` a +1.2 dB over (CLIP).
+
 ## Creation chain
 `DX10Controller::createView` -> `RSView` (VST3Editor subclass, uidesc `vstgui.uidesc`) -> uidesc asks for sub-controller `nvgViewController` -> `DX10Controller::createSubController` (`mdaDX10Controller.cpp:79`) does `new NVGViewController(editor, this)`, whose ctor does `new NVGView(CRect(0,0,kEditorWidth,kEditorHeight), controller)`. `NVGViewController::createView` returns that `nvgView` when the uidesc view has `custom-view-name="nvgView"`. So **one new NVGView per editor open**.
 

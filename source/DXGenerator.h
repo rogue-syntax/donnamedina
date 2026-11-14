@@ -592,7 +592,7 @@ public:
 	//TRY MAKING VOICES MAP OUTPUT BUFFER TO SUM AVERAGE output?
 	float RVoicesOutput[PARTVOICES];
 	int32 POLYMODE = 0;
-	int32 POLYCOUNT = 32;//try 8 for oct
+	int32 POLYCOUNT = POLY_LIMIT;  // constants.h (try 8 for oct)
 	int32 lastNoteIdx = 0;
 	bool pushNote;
 	int32 notes3[10];

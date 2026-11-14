@@ -278,6 +278,13 @@ const char CMSG_SCOPE_ENABLE_CHAR = 'e';
 // bit 7 = key held, bits 0..6 = amp-envelope level (0 = silent, 1..127). Sent by the same timer when
 // the bytes change, also only while an editor is open. voiceStateByte() is the encoding.
 const char PMSG_VOICES_CHAR = 'f';
+// Output peak (2026-11-14): processor -> controller, float "peak" = the largest |sample| of either
+// output channel since the previous message (linear, 1.0 = 0 dBFS). Sent by the same timer while an
+// editor is open; one 0 is sent when the output goes silent, then nothing until it sounds again.
+const char PMSG_PEAK_CHAR = 'g';
+// Most voices sounding at once (DXGenerator::POLYCOUNT starts here; the oldest voice is stolen
+// beyond it). Shown in the scope's voice count.
+const int POLY_LIMIT = 32;
 inline unsigned char voiceStateByte (bool held, float level) {
 	if (!(level > 0.0001f)) return 0;  // silent (the engine drops voices below -80 dB)
 	if (level > 1.0f) level = 1.0f;

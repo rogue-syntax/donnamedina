@@ -153,6 +153,9 @@ protected:
 	void setScopeActive(bool on);
 	// Voice strip: the latest per-pitch states from the processor (PMSG_VOICES_CHAR, voiceStateByte).
 	unsigned char voiceStates[128] = {};
+	// Output peak since the previous message (PMSG_PEAK_CHAR, linear); peakFrames counts messages.
+	float outPeak = 0.0f;
+	unsigned int peakFrames = 0;
 	bool hasPendingState = false;
 	std::map<ParamID, ParamValue> pendingStateUpdates;
 

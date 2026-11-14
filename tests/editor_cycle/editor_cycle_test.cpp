@@ -200,6 +200,12 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		mv->getAttributes()->setBinary("data", st, sizeof(st));
 		ctrl->notify(mv);
 		mv->release();
+		// and an output peak: -4.6 dBFS for the chord, an over (+1.2 dB, CLIP) for the single note
+		HostMessage* mp = new HostMessage;
+		mp->setMessageID("g");
+		mp->getAttributes()->setFloat("peak", std::atoi(std::getenv("EDITOR_SHOT_SCOPE")) == 2 ? 1.15 : 0.59);
+		ctrl->notify(mp);
+		mp->release();
 		pumpFor(1000);  // the scope's pitch range glides to the new notes
 	}
 	// EDITOR_SHOT_HOVER=<pid>: put the real cursor on that control (exercises the frame's mouse

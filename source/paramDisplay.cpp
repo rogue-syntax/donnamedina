@@ -145,6 +145,28 @@ void voiceRange (const unsigned char* states, int lastLo, int lastHi, int& lo, i
 	hi = mx;
 }
 
+void countVoices (const unsigned char* states, int& total, int& held)
+{
+	total = held = 0;
+	for (int p = 0; p < 128; p++) {
+		if (!states[p])
+			continue;
+		total++;
+		if (states[p] & 0x80)
+			held++;
+	}
+}
+
+std::string peakText (float peak)
+{
+	if (!(peak >= 1.0e-5f))  // below -100 dB (or NaN)
+		return "-inf dB";
+	const double db = 20.0 * std::log10 (double (peak));
+	if (std::fabs (db) < 0.05)
+		return "0.0 dB";
+	return fmt ("%+.1f dB", db);
+}
+
 const char* sourceName (int src)
 {
 	return (src >= 0 && src < 7) ? kSources[src] : "";

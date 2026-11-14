@@ -79,6 +79,34 @@ void BaseProcessor::onTimer (Timer* /*timer*/)
 	flushMessageQueue ();
 	sendScopeFrame ();
 	sendVoiceStates ();
+	sendPeak ();
+}
+
+void BaseProcessor::notePeak (float blockPeak)
+{
+	float cur = outPeak.load (std::memory_order_relaxed);
+	while (blockPeak > cur && !outPeak.compare_exchange_weak (cur, blockPeak, std::memory_order_relaxed)) {
+	}
+}
+
+void BaseProcessor::sendPeak ()
+{
+	if (!scopeEnabled.load (std::memory_order_relaxed))
+		return;
+	float peak = outPeak.exchange (0.0f, std::memory_order_relaxed);
+	if (!(peak == peak)) peak = 1.0e9f;  // NaN in the output: show it as clipping
+	const bool zero = peak < 1.0e-6f;
+	if (zero && peakLastSentZero)
+		return;
+	peakLastSentZero = zero;
+	IMessage* msg = allocateMessage ();
+	if (!msg)
+		return;
+	msg->setMessageID (msgIdStr (PMSG_PEAK_CHAR));
+	msg->getAttributes ()->setFloat ("peak", zero ? 0.0 : double (peak));
+	msg->getAttributes ()->setInt ("id", this->myInstanceId);
+	sendMessage (msg);
+	msg->release ();
 }
 
 void BaseProcessor::updateVoiceStates ()
@@ -470,6 +498,8 @@ tresult PLUGIN_API BaseProcessor::notify(IMessage* message) {
 		scopeEnabled.store (on != 0);
 		scopeLastSentSilent = false;  // the editor starts empty: send the next frame even if flat
 		voiceStatesSentValid = false;  // and the voice strip in full
+		peakLastSentZero = false;
+		outPeak.store (0.0f, std::memory_order_relaxed);
 		if (on == 0)
 			for (int p = 0; p < 128; p++) voiceStates[p].store (0, std::memory_order_relaxed);
 		return kResultTrue;

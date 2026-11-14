@@ -44,6 +44,11 @@ std::string masterVolText(double normalized);
 // (centred, kept inside 0..127). With nothing sounding the previous range (lastLo..lastHi) is kept.
 void voiceRange(const unsigned char* states, int lastLo, int lastHi, int& lo, int& hi);
 
+// Scope overlay: counts of sounding voices (total) and of those with the key held.
+void countVoices(const unsigned char* states, int& total, int& held);
+// Output peak (linear) as dBFS: "-12.3 dB", "+1.5 dB", "-inf dB" (below -100 dB).
+std::string peakText(float peak);
+
 // Engine conversions (exposed for tests).
 double filterCutoffHz(double normalized);       // DXGenerator filterLogScale2: 80..18000 Hz, 0.5 -> 1800
 double envTimeSeconds(int pid, double normalized); // time to cover 95% (3 time constants); <0 = hold

@@ -1232,6 +1232,7 @@ void DX10Processor::doProcessing(ProcessData& data) {
 	// master volume, smoothed per sample (masterGainCoef: about 10 ms) so knob moves do not click
 	const float masterTarg = static_cast<float> (masterVolGain (floatParams[MASTER_VOL]));
 	const bool scopeOn = scopeEnabled.load (std::memory_order_relaxed);  // editor open
+	float blockPeak = 0.0f;  // output peak for the editor's meter (only while scopeOn)
 
 	// Check for active voices or just process the chunk
 	//if (activevoices > 0) {
@@ -1243,9 +1244,13 @@ void DX10Processor::doProcessing(ProcessData& data) {
 			const float l = generators[0].o1 * masterGain, r = generators[0].o2 * masterGain;
 			*out1++ = l;
 			*out2++ = r;
-			if (scopeOn)
+			if (scopeOn) {
 				scope.push (0.5f * (l + r));
+				blockPeak = (std::max) (blockPeak, (std::max) (std::fabs (l), std::fabs (r)));
+			}
 		}
+		if (scopeOn)
+			notePeak (blockPeak);
 		if (std::fabs (masterGain - masterTarg) < 1e-6f)
 			masterGain = masterTarg;  // settle exactly (no denormal tail)
 

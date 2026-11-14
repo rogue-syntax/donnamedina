@@ -160,6 +160,8 @@ int g_audioThreadMsgs = 0;
 int g_deliveredMsgs = 0;  // B-10: messages delivered outside process() (by the main-thread timer)
 int g_msgsIn[256] = {}, g_msgsOut[256] = {};  // per message ID (first char)
 int g_badIdMsgs = 0;  // messages whose ID is not a 1-char C string (B-27)
+double g_peakMsgMax = 0.0;  // largest "peak" in PMSG_PEAK_CHAR messages
+int g_peakMsgZeroRun = 0, g_peakMsgZeroRunMax = 0;  // consecutive PMSG_PEAK_CHAR messages with peak 0
 void resetMsgCounts() {
 	g_audioThreadMsgs = g_deliveredMsgs = 0;
 	std::memset(g_msgsIn, 0, sizeof(g_msgsIn));
@@ -184,6 +186,13 @@ public:
 		if (!id || std::strlen(id) != 1) g_badIdMsgs++;  // B-27: IDs must be 1-char C strings
 		if (g_inProcess) { g_audioThreadMsgs++; g_msgsIn[c]++; }
 		else { g_deliveredMsgs++; g_msgsOut[c]++; }
+		if (c == static_cast<unsigned char>(PMSG_PEAK_CHAR)) {
+			double pk = -1.0;
+			msg->getAttributes()->getFloat("peak", pk);
+			if (pk > g_peakMsgMax) g_peakMsgMax = pk;
+			g_peakMsgZeroRun = pk == 0.0 ? g_peakMsgZeroRun + 1 : 0;
+			if (g_peakMsgZeroRun > g_peakMsgZeroRunMax) g_peakMsgZeroRunMax = g_peakMsgZeroRun;
+		}
 		return kResultTrue;
 	}
 	tresult PLUGIN_API queryInterface(const TUID, void** obj) override { *obj = nullptr; return kNoInterface; }
@@ -1497,6 +1506,61 @@ int main(int argc, char** argv) {
 			std::snprintf(buf, sizeof(buf), "%d..%d (want %d..%d)", lo, hi, c.wantLo, c.wantHi);
 			check(c.name, lo == c.wantLo && hi == c.wantHi, buf);
 		}
+	}
+
+	// ---- Scope info: voice count and output peak (2026-11-14) ----
+	{
+		std::printf("\nScope info (voice count, output peak)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		resetMsgCounts();
+		g_peakMsgMax = 0.0;
+		g_peakMsgZeroRun = g_peakMsgZeroRunMax = 0;
+		std::vector<float> L, R;
+		Options o;
+		o.captureL = &L;
+		o.captureR = &R;
+		o.onCreated = [](rs::DX10Processor& p) { p.scopeEnabled.store(true); };
+		o.inspect = [](rs::DX10Processor& p) { p.onTimer(nullptr); };  // send what the last blocks left
+		render(Settings{"peak", 0.995, 0.85}, {{0, true, 48}, {0, true, 55}, {static_cast<int64>(0.2 * kSampleRate), false, 48},
+		                                       {static_cast<int64>(0.2 * kSampleRate), false, 55}}, 0.6, o);
+		float truePeak = 0.0f;
+		for (size_t i = 0; i < L.size(); i++) truePeak = (std::max)(truePeak, (std::max)(std::fabs(L[i]), std::fabs(R[i])));
+		std::snprintf(buf, sizeof(buf), "sent max %.6f, output %.6f", g_peakMsgMax, truePeak);
+		check("peak messages carry the output's peak", truePeak > 0.01f && std::fabs(g_peakMsgMax - truePeak) < 1e-6, buf);
+		const int byTimer = g_msgsOut[static_cast<unsigned char>(PMSG_PEAK_CHAR)];
+		const int inProc = g_msgsIn[static_cast<unsigned char>(PMSG_PEAK_CHAR)];
+		std::snprintf(buf, sizeof(buf), "%d sent by timer, %d inside process", byTimer, inProc);
+		check("peak messages from the timer only", byTimer > 0 && inProc == 0, buf);
+		std::snprintf(buf, sizeof(buf), "longest run of 0 messages: %d", g_peakMsgZeroRunMax);
+		check("silence: one 0, then nothing", g_peakMsgZeroRunMax == 1, buf);
+
+		static HostApplication shost5;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&shost5);
+		HostMessage* m = new HostMessage;
+		m->setMessageID("g");
+		m->getAttributes()->setFloat("peak", 0.5);
+		ctrl->notify(m);
+		m->release();
+		std::snprintf(buf, sizeof(buf), "%.3f, %u message(s)", ctrl->outPeak, ctrl->peakFrames);
+		check("controller receives the peak", ctrl->outPeak == 0.5f && ctrl->peakFrames == 1, buf);
+		ctrl->terminate();
+		ctrl->release();
+
+		unsigned char st[128] = {};
+		st[40] = 0x80 | 90; st[52] = 0x80 | 3; st[60] = 50; st[61] = 1;
+		int total = -1, held = -1;
+		paramDisplay::countVoices(st, total, held);
+		std::snprintf(buf, sizeof(buf), "%d voices, %d held", total, held);
+		check("countVoices", total == 4 && held == 2, buf);
+		const std::string t0 = paramDisplay::peakText(0.0f), t1 = paramDisplay::peakText(0.5f),
+		                  t2 = paramDisplay::peakText(1.0f), t3 = paramDisplay::peakText(1.2f);
+		std::snprintf(buf, sizeof(buf), "%s | %s | %s | %s", t0.c_str(), t1.c_str(), t2.c_str(), t3.c_str());
+		check("peakText", t0 == "-inf dB" && t1 == "-6.0 dB" && t2 == "0.0 dB" && t3 == "+1.6 dB", buf);
 	}
 
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----

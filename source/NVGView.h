@@ -1028,6 +1028,13 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		void drawRightColumn();
 		void drawScope(float x, float y, float w, float h);
 		void drawScopeVoices(float ix, float iy, float iw, float ih);
+		void drawScopeInfo(float ix, float iy, float iw, float ih);
+		void drawScopeWave(float ix, float iy, float iw, float ih);
+		// peak meter in the scope: held maximum (shown), when it was set, the last message seen, clip latch
+		float peakHold = 0.0f;
+		std::chrono::steady_clock::time_point peakHoldTime, clipTime;
+		unsigned int peakFramesSeen = 0;
+		bool clipLatched = false;
 		float voiceViewLo = 55.0f, voiceViewHi = 66.0f;  // pitch range drawn in the scope (glides)
 		std::chrono::steady_clock::time_point voiceViewTime;
 		bool voiceViewTimeValid = false;

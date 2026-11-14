@@ -403,6 +403,16 @@ tresult PLUGIN_API BaseController::notify (IMessage* message){
 		return kResultTrue;
 	}
 
+	if (message->getMessageID() && message->getMessageID()[0] == PMSG_PEAK_CHAR
+		&& message->getMessageID()[1] == 0) {
+		double peak = 0.0;
+		if (message->getAttributes()->getFloat("peak", peak) == kResultTrue) {
+			outPeak = float(peak);
+			peakFrames++;
+		}
+		return kResultTrue;
+	}
+
 	if (strcmp(message->getMessageID(), "InstanceID") == 0) {
 		message->getAttributes()->getInt("id", this->myInstanceId);
 		return kResultTrue;
@@ -644,6 +654,8 @@ void BaseController::setScopeActive(bool on) {
 	if (!on) {
 		scopeFrames = 0;  // next open starts empty
 		std::memset(voiceStates, 0, sizeof(voiceStates));
+		outPeak = 0.0f;
+		peakFrames = 0;
 	}
 }
 

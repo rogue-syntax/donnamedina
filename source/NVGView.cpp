@@ -2554,8 +2554,15 @@ no viewindex at 153!*/
 		// sounding voices behind the waveform (was its own band in column step 4)
 		drawScopeVoices(ix, iy, iw, ih);
 
-		if (!baseController || baseController->scopeFrames == 0)
-			return;
+		if (baseController && baseController->scopeFrames != 0)
+			drawScopeWave(ix, iy, iw, ih);
+
+		// voice count (top left) and output peak (top right) over everything
+		drawScopeInfo(ix, iy, iw, ih);
+	}
+
+	void NVGView::drawScopeWave(float ix, float iy, float iw, float ih) {
+		const float cy = iy + ih * 0.5f;
 
 		// waveform: +-1 fills the height (clipped above); one point per frame sample
 		const float* f = baseController->scopeFrame;
@@ -2579,6 +2586,81 @@ no viewindex at 153!*/
 		nvgStrokeColor(vg, nvgRGBA(120, 230, 255, 235));
 		nvgStrokeWidth(vg, 1.3f);
 		nvgStroke(vg);
+		nvgRestore(vg);
+	}
+
+	void NVGView::drawScopeInfo(float ix, float iy, float iw, float ih) {
+		if (!baseController)
+			return;
+		using clock = std::chrono::steady_clock;
+		const auto now = clock::now();
+
+		// peak: hold the largest value for 1.5 s, then follow the incoming level
+		if (baseController->peakFrames != peakFramesSeen) {
+			peakFramesSeen = baseController->peakFrames;
+			const float p = baseController->outPeak;
+			if (p >= peakHold || std::chrono::duration<float>(now - peakHoldTime).count() > 1.5f) {
+				peakHold = p;
+				peakHoldTime = now;
+			}
+			if (p >= 1.0f) {  // 0 dBFS or more: latch CLIP for 2 s after the last over
+				clipLatched = true;
+				clipTime = now;
+			}
+		}
+		if (peakFramesSeen == 0)
+			peakHold = 0.0f;
+		if (clipLatched && std::chrono::duration<float>(now - clipTime).count() > 2.0f)
+			clipLatched = false;
+
+		int total = 0, held = 0;
+		paramDisplay::countVoices(baseController->voiceStates, total, held);
+
+		char left[48];
+		if (total == 0)
+			snprintf(left, sizeof(left), "VOICES 0/%d", POLY_LIMIT);
+		else
+			snprintf(left, sizeof(left), "VOICES %d/%d  HELD %d", total, POLY_LIMIT, held);
+		const std::string pk = "PEAK " + paramDisplay::peakText(peakHold);
+		const char* right = clipLatched ? "CLIP" : nullptr;
+
+		nvgSave(vg);
+		nvgFontSize(vg, 10.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+		const float pad = 3.0f, th = 13.0f;
+		float b[4];
+
+		// left: voice count on a dark plate so the waveform does not cover it
+		const float lw = nvgTextBounds(vg, 0, 0, left, NULL, b);
+		nvgBeginPath(vg);
+		nvgRect(vg, ix, iy, lw + pad * 2, th);
+		nvgFillColor(vg, nvgRGBA(0, 0, 0, 150));
+		nvgFill(vg);
+		nvgFillColor(vg, total ? nvgRGBA(255, 204, 153, 230) : nvgRGBA(255, 204, 153, 110));
+		nvgText(vg, ix + pad, iy + 2.0f, left, NULL);
+
+		// right: peak in dBFS (amber near 0 dB), and a red CLIP tag while latched
+		const float pw = nvgTextBounds(vg, 0, 0, pk.c_str(), NULL, b);
+		const float cw = right ? nvgTextBounds(vg, 0, 0, right, NULL, b) + pad * 2 + 2.0f : 0.0f;
+		const float rx = ix + iw - pw - pad * 2 - cw;
+		nvgBeginPath(vg);
+		nvgRect(vg, rx, iy, pw + pad * 2 + cw, th);
+		nvgFillColor(vg, nvgRGBA(0, 0, 0, 150));
+		nvgFill(vg);
+		const bool hot = peakHold >= 0.891f;  // -1 dBFS
+		nvgFillColor(vg, peakHold < 1.0e-5f ? nvgRGBA(255, 204, 153, 110)
+		                 : (hot ? nvgRGBA(255, 170, 60, 255) : nvgRGBA(255, 204, 153, 230)));
+		nvgText(vg, rx + pad, iy + 2.0f, pk.c_str(), NULL);
+		if (right) {
+			const float cx = rx + pw + pad * 2 + 2.0f;
+			nvgBeginPath(vg);
+			nvgRect(vg, cx, iy, cw - 2.0f, th);
+			nvgFillColor(vg, nvgRGBA(220, 20, 40, 230));
+			nvgFill(vg);
+			nvgFillColor(vg, nvgRGBA(255, 255, 255, 255));
+			nvgText(vg, cx + pad, iy + 2.0f, right, NULL);
+		}
 		nvgRestore(vg);
 	}
 

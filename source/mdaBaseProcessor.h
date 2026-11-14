@@ -66,6 +66,13 @@ public:
 	bool voiceStatesSentValid = false;
 	void updateVoiceStates ();
 	void sendVoiceStates ();  // main thread
+
+	// Output peak: the render loop folds each chunk's peak in (notePeak, audio thread, while
+	// scopeEnabled); sendPeak (timer) takes it and sends PMSG_PEAK_CHAR.
+	std::atomic<float> outPeak {0.0f};
+	bool peakLastSentZero = false;
+	void notePeak (float blockPeak);
+	void sendPeak ();  // main thread
 	static bool onAudioThread ();  // true while inside process() on this thread
 
 	enum {
