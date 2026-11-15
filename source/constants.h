@@ -482,6 +482,13 @@ inline double snapMs (double v) {
 inline double snapToNormalized (double ms) { return std::log (ms / 2.0) / std::log (40.0); }
 const double SNAP_DEFAULT_MS = 21.0;
 
+// Drift (2026-11-15): each note (re)start picks small random offsets, scaled by DRIFT_AMOUNT (0 = off):
+// pitch up to +-kDriftCents (both oscillators, so the FM ratio stays), filter cutoff up to
+// +-kDriftFilter (knob units) and pan up to +-kDriftPan. Triangular distribution (most notes close to
+// centre). Part of the preset.
+const int DRIFT_AMOUNT = 108;
+const float kDriftCents = 15.0f, kDriftFilter = 0.06f, kDriftPan = 0.3f;
+
 // Expression (2026-11-15): one bipolar knob that offsets the sound's brightness. EXPR_AMOUNT (centre =
 // none) moves the destination(s) EXPR_TARGET picks; with EXPR_VEL on, each note's velocity scales it
 // (the knob is then the velocity depth; left = harder notes darker). Offsets are in knob units at
@@ -524,6 +531,7 @@ inline const NewParamDefault* newParamDefaults (int& count) {
 		{EXPR_AMOUNT, 0.5, 2},
 		{EXPR_VEL, 0.0, 2},
 		{EXPR_TARGET, 0.0, 2},
+		{DRIFT_AMOUNT, 0.0, 2},
 	};
 	count = static_cast<int> (sizeof (k) / sizeof (k[0]));
 	return k;

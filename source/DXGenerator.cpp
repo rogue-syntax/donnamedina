@@ -555,6 +555,15 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 
 	voiceObj.sampleCount = 0;
 	voiceObj.startClock = sampleClock;  // playheads
+	if (driftAmount > 0.0f) {  // drift: new random offsets for each note (re)start
+		voiceObj.driftPitch = std::pow(2.0f, driftAmount * kDriftCents * driftRand() / 1200.0f);
+		voiceObj.driftFilter = driftAmount * kDriftFilter * driftRand();
+		voiceObj.driftPan = driftAmount * kDriftPan * driftRand();
+	}
+	else {
+		voiceObj.driftPitch = 1.0f;
+		voiceObj.driftFilter = voiceObj.driftPan = 0.0f;
+	}
 	voiceObj.serial = ++noteSerial;
 
 	//DO LFO INITS
@@ -947,7 +956,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	// the modulator does (it uses 1..109).
 	voiceObj.newNote = ParamClamp2(voiceObj.newNote, 0, 127);
 	voiceObj.tuneC = (((controls[TUNE_]) + (controls[TUNE_ENV] * (*voiceObj.envBank[tuneCEnv])))) + (((controls[FINE_] ) + (controls[FINE_ENV] * (*voiceObj.envBank[fineCEnv]))) / 100 );
-	voiceObj.WTOsc.m_dOscFo = (midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneC);
+	voiceObj.WTOsc.m_dOscFo = ((midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneC)) * voiceObj.driftPitch;
 	voiceObj.WTOsc.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc.m_dOscFo);
 	//DElETE ? REMOVE
 	/*
@@ -974,7 +983,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.newNote = ParamClamp2(voiceObj.newNote, 1, 109);
 	voiceObj.tuneM = (((controls[MOD_TUNE_]) + (controls[modTuneEnv] * (*voiceObj.envBank[modTuneCEnv])))) + (((controls[MOD_FINE_]) + (controls[MOD_FINE_ENV] * (*voiceObj.envBank[modFineCEnv]))) / 100);
 
-	voiceObj.WTOsc2.m_dOscFo = (midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneM);
+	voiceObj.WTOsc2.m_dOscFo = ((midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneM)) * voiceObj.driftPitch;
 	voiceObj.WTOsc2.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc2.m_dOscFo);
 
 	
@@ -1003,7 +1012,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	// rate, so the coefficient g(x) = tan(pi * toPlain(x) / fs) comes from a precomputed table with
 	// linear interpolation: still per sample, no added latency (see buildFilterGTable).
 	voiceObj.filterEnv = controls[FILTER_ENV] * (*voiceObj.envBank[filterSrc]);
-	const double fx = ParamClamp2((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv + voiceObj.exprFilter, 0.01, 1.0);
+	const double fx = ParamClamp2((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv + voiceObj.exprFilter + voiceObj.driftFilter, 0.01, 1.0);
 	if (filtGTableT != voiceObj.m_Filter1.sampleInterval())
 		buildFilterGTable(voiceObj.m_Filter1);
 	const double pos = (fx - kFiltXMin) * filtGTableScale;
@@ -1014,7 +1023,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.m_Filter1.doFilter2(voiceObj.o);
 
 
-	voiceObj.pan = ParamClamp2(((rampedParams[PAN_LR_RAMPINDEX].level) + (rampedParams[PAN_LR_ENV_RAMPINDEX].level * (*voiceObj.envBank[panEnvSrc]))), -1, 1 );
+	voiceObj.pan = ParamClamp2(((rampedParams[PAN_LR_RAMPINDEX].level) + voiceObj.driftPan + (rampedParams[PAN_LR_ENV_RAMPINDEX].level * (*voiceObj.envBank[panEnvSrc]))), -1, 1 );
 	//voiceObj.pan = voiceObj.pan  * voiceObj.voiceEnvLfo[1].cenv;
 	// B-55: pan smoothing. The old slew limiter set prePan = pan before computing the difference,
 	// so it never ran and pan jumps went straight to the output. Pan is applied after the filter,

@@ -208,6 +208,7 @@ const char* label (int pid)
 		case POLY_COUNT: return "POLYPHONY";
 		case SNAP_TIME: return "SNAP";
 		case EXPR_AMOUNT: return "EXPRESSION";
+		case DRIFT_AMOUNT: return "DRIFT";
 		case EXPR_TARGET: return "EXPR TARGET";
 		case EXPR_VEL: return "EXPR VELOCITY";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
@@ -373,6 +374,11 @@ std::string value (int pid, double v, const Context& ctx)
 	}
 	if (pid == SNAP_TIME)
 		return fmt ("%.1f MS", snapMs (v));
+	if (pid == DRIFT_AMOUNT) {
+		if (v < 0.005)
+			return "OFF";
+		return fmt ("%.0f %%", v * 100.0) + fmt (" (+-%.0f CENTS)", v * kDriftCents);
+	}
 	if (pid == EXPR_TARGET)
 		return exprTargetName (exprTargetFromNormalized (v));
 	if (pid == EXPR_AMOUNT) {

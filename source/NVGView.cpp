@@ -2737,7 +2737,7 @@ no viewindex at 153!*/
 		using namespace ::editorLayout::play;
 		drawInset(kPanel.x, kPanel.y, kPanel.w, kPanel.h, kColDimFrame);
 		drawColumnSectionLabel(kPanel.x + 5.0f, kPanel.y + 3.0f, "PLAY");
-		const char* kLabels[4] = {"SNAP", "", "EXPR", ""};
+		const char* kLabels[4] = {"SNAP", "DRIFT", "EXPR", ""};
 		if (baseController)
 			kLabels[3] = exprTargetName(exprTargetFromNormalized(baseController->getParamNormalized(EXPR_TARGET)));
 		nvgFontSize(vg, 9.0f);

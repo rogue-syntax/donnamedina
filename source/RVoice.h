@@ -96,6 +96,8 @@ public:
 	unsigned int serial = 0;
 	// Expression offsets for this voice, knob units (DXGenerator::singleVoiceProcessing)
 	float exprFilter = 0.0f, exprFm = 0.0f, exprWidth = 0.0f;
+	// Drift offsets picked at note (re)start (DXGenerator::processNoteOn): pitch factor, filter, pan
+	float driftPitch = 1.0f, driftFilter = 0.0f, driftPan = 0.0f;
 	
 	//float* envBank[7][2];
 	float* envBank[7];

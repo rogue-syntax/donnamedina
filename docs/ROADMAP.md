@@ -43,7 +43,7 @@ Order within a section is a rough priority (impact for effort).
 - [ ] **Per-note expression** (VST3 Note Expression / MPE): bend, volume, pan, brightness per note; fits the
       one-voice-per-pitch design.
 - [ ] **HQ mode**: 2x oversampling to reduce FM aliasing on high notes (affordable after the 3x speedup).
-- [ ] **Per-note analog drift**: small random pitch/filter/pan offset per note.
+- [x] **Drift**: per-note random pitch (+-15 cents), filter and pan offsets, DRIFT knob on the PLAY panel.
 - [x] **Expression**: one bipolar knob offsetting BRIGHT / FILTER / FM DEPTH / WIDTH, optionally scaled by velocity (VEL).
 - [x] **Polyphony control**: 1..64 voices (POLY_COUNT, global), on the scope's VOICES plate; steal order released -> quietest.
 - [ ] **FX strip**: tempo-synced (ping-pong) delay and/or chorus.

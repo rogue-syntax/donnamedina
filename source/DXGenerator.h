@@ -608,6 +608,16 @@ public:
 	bool exprVel = false;
 	int exprTarget = 0;
 	float exprDepthFilter = 0.35f, exprDepthFm = 0.35f, exprDepthWidth = 0.0f;
+	// Drift (DRIFT_AMOUNT): amount 0..1 and a small RNG for the per-note offsets (processNoteOn)
+	float driftAmount = 0.0f;
+	unsigned int driftRng = 0x9E3779B9u;
+	float driftRand() {  // triangular in -1..1 (xorshift32, no allocation, audio thread safe)
+		auto next = [this]() {
+			driftRng ^= driftRng << 13; driftRng ^= driftRng >> 17; driftRng ^= driftRng << 5;
+			return static_cast<float>(driftRng) * (1.0f / 4294967296.0f);
+		};
+		return next() - next();
+	}
 	void setExprTarget(int t) { exprTarget = t; exprDepths(t, exprDepthFilter, exprDepthFm, exprDepthWidth); }
 	int32 lastNoteIdx = 0;
 	bool pushNote;

@@ -213,6 +213,7 @@ public:
 	int recalcExprAmount(double value);
 	int recalcExprVel(double value);
 	int recalcExprTarget(double value);
+	int recalcDrift(double value);
 	int recalcLfo2Phase(double value);
 	int recalcLfo3Phase(double value);
 	int recalcStepCtrlTarg(double value);

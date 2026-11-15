@@ -61,6 +61,8 @@ So step-type params have **two sources of truth**: the normalized param (`floatP
 
 - Expression (2026-11-15): `EXPR_AMOUNT` (149, bipolar, centre = none), `EXPR_TARGET` (159: BRIGHT = filter + FM depth, FILTER, FM DEPTH, WIDTH), `EXPR_VEL` (158). Per voice and sample `e = amount` or, with VEL on, `amount * velocity/127`; offsets `e * depth` in knob units (`exprDepths`: BRIGHT 0.35 filter + 0.35 FM depth, FILTER 0.5, FM DEPTH 0.5, WIDTH 0.4 on both oscillators) are added to the filter cutoff before its clamp, to MOD GAIN inside the FM clamp (phase/freq/detune mod), and to the widths before their clamps. Part of the preset (version 2 parameters). Centre is bit-identical to no expression (`tests/note_off` "Expression").
 
+- Drift (2026-11-15): `DRIFT_AMOUNT` (108), 0..1, default off. `DXGenerator::processNoteOn` (every note start and retrigger restart) picks per-voice offsets from a triangular -1..1 random (xorshift32 in the generator, no allocation): pitch factor 2^(amount * 15 cents * r / 1200) applied to both oscillator frequencies (the FM ratio stays), filter cutoff amount * 0.06 * r (knob units), pan amount * 0.3 * r. The generator's seed is fixed, so a render repeats exactly (every instance draws the same sequence). Part of the preset (version 2). Off is bit-identical (`tests/note_off` "Drift").
+
 ## The "view ready" gate (the most important cross-cutting pattern)
 
 `BaseController::nvgViewReady`:

@@ -338,6 +338,7 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[EXPR_AMOUNT] = &DX10Controller::onEnvBipolar; // readout "EXPRESSION / +40 % BRIGHT"
 	onCtrlChange[EXPR_TARGET] = &DX10Controller::onEnvBipolar; // readout "EXPR TARGET / FILTER"
 	onCtrlChange[EXPR_VEL] = &DX10Controller::onToggleButton;  // button glow, readout ON/OFF
+	onCtrlChange[DRIFT_AMOUNT] = &DX10Controller::onEnvBipolar; // readout "DRIFT / 40 % (6 CENTS)"
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -904,6 +905,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 			parameters.addParameter (t);
 		}
 		parameters.addParameter (USTRING ("EXPR VELOCITY"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, EXPR_VEL);
+		parameters.addParameter (USTRING ("DRIFT"), USTRING ("%"), 0, 0.0, ParameterInfo::kCanAutomate, DRIFT_AMOUNT);
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {

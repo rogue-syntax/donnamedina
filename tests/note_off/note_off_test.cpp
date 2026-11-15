@@ -1980,6 +1980,77 @@ int main(int argc, char** argv) {
 		check("readout", t1 == "+40 % BRIGHT x VEL" && t2 == "OFF" && t3 == "WIDTH", buf);
 	}
 
+	// ---- Drift (2026-11-15): per-note random pitch/filter/pan offsets ----
+	{
+		std::printf("\nDrift\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		std::vector<NoteEvent> chord;
+		for (int k = 0; k < 8; k++) chord.push_back({at(0.05), true, int16(48 + k * 3)});
+		std::vector<float> off1, zero;
+		{
+			Options o;
+			o.captureL = &off1;
+			render({"drift", 1.0, 0.5}, chord, 0.3, o);
+			Options o2;
+			o2.params = {{0.0, {DRIFT_AMOUNT, 0.0}}};
+			o2.captureL = &zero;
+			render({"drift", 1.0, 0.5}, chord, 0.3, o2);
+		}
+		check("off = no change (bit exact)", off1 == zero, off1 == zero ? "identical" : "differs");
+
+		struct D { float p, f, n; };
+		auto offsets = [&](std::vector<D>& out, std::vector<float>* cap) {
+			Options o;
+			o.params = {{0.0, {DRIFT_AMOUNT, 1.0}}};
+			o.captureL = cap;
+			o.inspect = [&](rs::DX10Processor& p) {
+				out.clear();
+				for (int k = 0; k < 8; k++) {
+					const RVoice& v = p.generators[0].RVoicesMap[48 + k * 3];
+					out.push_back({v.driftPitch, v.driftFilter, v.driftPan});
+				}
+			};
+			render({"drift", 1.0, 0.5}, chord, 0.3, o);
+		};
+		std::vector<D> a, b;
+		std::vector<float> capA, capB;
+		offsets(a, &capA);
+		offsets(b, &capB);
+		bool inRange = true, allDiffer = true;
+		float maxC = 0.0f;
+		for (size_t i = 0; i < a.size(); i++) {
+			const float cents = 1200.0f * std::log2(a[i].p);
+			maxC = std::max(maxC, std::fabs(cents));
+			inRange = inRange && std::fabs(cents) <= kDriftCents + 1e-3f && std::fabs(a[i].f) <= kDriftFilter + 1e-6f &&
+			          std::fabs(a[i].n) <= kDriftPan + 1e-6f;
+			for (size_t j = 0; j < i; j++)
+				if (a[i].p == a[j].p) allDiffer = false;
+		}
+		std::snprintf(buf, sizeof(buf), "max %.1f cents, first %+.1f c %+.3f f %+.2f pan", maxC, 1200.0f * std::log2(a[0].p), a[0].f, a[0].n);
+		check("full drift: offsets in range, each note its own", inRange && allDiffer && maxC > 1.0f, buf);
+		check("same input renders the same (deterministic)", capA == capB, capA == capB ? "identical" : "differs");
+		// a retrigger picks new offsets
+		float p1 = 0.0f, p2 = 0.0f;
+		{
+			Options o;
+			o.params = {{0.0, {DRIFT_AMOUNT, 1.0}}};
+			o.perBlock = [&](rs::DX10Processor& p, double t) {
+				const float v = p.generators[0].RVoicesMap[kPitch].driftPitch;
+				if (t > 0.1 && t < 0.12) p1 = v;
+				if (t > 0.3) p2 = v;
+			};
+			render({"drift", 1.0, 0.5}, {{at(0.05), true, kPitch}, {at(0.2), true, kPitch}}, 0.35, o);
+		}
+		std::snprintf(buf, sizeof(buf), "%+.2f c then %+.2f c", 1200.0f * std::log2(p1), 1200.0f * std::log2(p2));
+		check("retrigger: new offsets", p1 != p2 && p1 != 0.0f && p2 != 0.0f, buf);
+		const std::string r = paramDisplay::value(DRIFT_AMOUNT, 0.4, paramDisplay::Context());
+		check("readout", r == "40 % (+-6 CENTS)", r.c_str());
+	}
+
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
 	{
 		std::printf("\nB-62 GUI edits reach the host\n");
