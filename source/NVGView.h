@@ -730,6 +730,11 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		void drawEnvPlayheads();
 		void drawPlayDot(float x, float y, bool newest, bool held, float level);
 		float playheadDt();  // seconds since the last playhead message (0..0.1)
+		// Modulation overlay: source colours, rings/arcs on the knobs (see NVGView.cpp).
+		NVGcolor modColour(int src, float a);
+		void knobArc(float cx, float cy, float r, double v0, double v1, NVGcolor c, float width);
+		void drawModulation();
+		void drawSourceStrip(int src, float x, float y, float w);
 		void drawEnv4();
 		float lfo1Amp;
 		int64 lfo1Type;

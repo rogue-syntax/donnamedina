@@ -24,12 +24,13 @@ Order within a section is a rough priority (impact for effort).
       delay), not animated, by your call (docs/04-gui.md "LFO displays"), with playhead dots.
 - [x] **Playheads**: a dot per recent voice (newest 4) travelling along each envelope shape and LFO display
       (docs/04-gui.md "Playheads").
-- [ ] **Modulation visibility**: colour per source (Env 1/2/3, LFO F/G/H) tinting the knobs/squares it drives,
-      and/or a ring around knobs showing the live modulated value.
+- [x] **Modulation visibility**: a colour per source, rings on the source/amount knobs, range and live
+      value arcs on the destination knobs (docs/04-gui.md "Modulation colours and rings").
 - [x] **Preset bar**: name with a preset menu, prev/next, save (.vstpreset), randomize (column step 5).
 - [x] **Voice view**: each per-note voice as a bar behind the scope, zoomed to the sounding range (column step 4).
 - [x] **Scope** in the right column (column step 3). A spectrum view could be added later as a toggle.
-- [ ] Labels or hover tooltips for the unlabeled top knob rows and the small squares.
+- [~] Labels or hover tooltips for the unlabeled top knob rows and the small squares: the squares (reset) and both
+      knob rows name themselves in the CONTROL readout on hover; the colours show which source a column uses.
 
 ## 2. GUI: polish
 - [ ] Knob value arcs (glowing track from min to value) in addition to the pointer.

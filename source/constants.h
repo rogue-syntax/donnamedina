@@ -298,6 +298,8 @@ struct PlayheadSlot {
 	float age;     // seconds since the voice's envelopes and LFOs (re)started
 	float relAge;  // seconds since its release started, -1 while the key is held
 	float level;   // amp-envelope level (env 1 cenv)
+	float src[6];  // the voice's modulation sources 1..6 (env 1..3, LFO 1..3 output; an LFO nothing
+	               // is routed to is not computed, so its value is stale)
 };
 // Most voices sounding at once (DXGenerator::POLYCOUNT starts here; the oldest voice is stolen
 // beyond it). Shown in the scope's voice count.

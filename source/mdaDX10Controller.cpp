@@ -494,6 +494,11 @@ bool DX10Controller::showParamReadout(int pid) {
 		nvgViewController->nvgView->onOnOffBtn(pid, static_cast<int>(value));
 		return true;
 	}
+	// The reset squares: say what a click does (hovering does not run widthReset).
+	if (pid >= WIDTH_RESET && pid <= MOD_FINE_RESET && paramDisplay::label(pid)[0]) {
+		nvgViewController->nvgView->onEnv(pid, "CLICK: CENTRE");
+		return true;
+	}
 	return false;
 }
 

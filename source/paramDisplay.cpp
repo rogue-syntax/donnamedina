@@ -205,6 +205,13 @@ const char* label (int pid)
 		case SYNC_GEN_MOD_TUNE: return "LINK MOD TUNE";
 		case STEP_CTRL_TARG: return "STEP TARGET";
 		case MASTER_VOL: return "VOLUME";
+		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
+		case WIDTH_RESET: return "OSC WIDTH RESET";
+		case TUNE_RESET: return "OSC TUNE RESET";
+		case FINE_RESET: return "OSC FINE RESET";
+		case MOD_WIDTH_RESET: return "MOD WIDTH RESET";
+		case MOD_TUNE_RESET: return "MOD TUNE RESET";
+		case MOD_FINE_RESET: return "MOD FINE RESET";
 		default: break;
 	}
 	if (pid >= ENV_1_ATTACK && pid < ENV_1_ATTACK + 15)

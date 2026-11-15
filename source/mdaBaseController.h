@@ -168,7 +168,7 @@ protected:
 	unsigned char voiceStates[128] = {};
 	// Playheads: the latest slots (PMSG_PLAYHEADS_CHAR) and when they arrived; NVGView moves the
 	// dots on from there between messages.
-	PlayheadSlot playheads[kPlayheadSlots] = {{-1, 0, -1, 0}, {-1, 0, -1, 0}, {-1, 0, -1, 0}, {-1, 0, -1, 0}};
+	PlayheadSlot playheads[kPlayheadSlots] = {{-1, 0, -1, 0, {}}, {-1, 0, -1, 0, {}}, {-1, 0, -1, 0, {}}, {-1, 0, -1, 0, {}}};
 	std::chrono::steady_clock::time_point playheadTime;
 	unsigned int playheadFrames = 0;
 	// Output peak since the previous message (PMSG_PEAK_CHAR, linear); peakFrames counts messages.

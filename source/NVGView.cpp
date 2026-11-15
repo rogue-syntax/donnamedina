@@ -1444,6 +1444,7 @@ no viewindex at 153!*/
 				Draw.execDataHandler(RDrawVector[1][i]);
 			}
 
+			drawModulation();
 			drawSelctedStepTarg();
 			drawCtrlValueOutput();
 			drawBeatModOn();
@@ -1649,6 +1650,8 @@ no viewindex at 153!*/
 			}
 		}
 
+		drawSourceStrip(4 + i, x, y, w);
+
 		// labels: period or division (top right), window length (bottom right)
 		char rt[24];
 		if (synced)
@@ -1673,6 +1676,121 @@ no viewindex at 153!*/
 		plate(rt, y + 2.0f, true, nvgRGBA(255, 204, 153, 220));
 		plate(windowText.c_str(), y + h - 1.0f, false, nvgRGBA(4, 186, 232, 170));
 		nvgRestore(vg);
+	}
+
+	// Modulation sources 1..6 (env 1..3, LFO 1..3) each have a colour; 0 = none.
+	NVGcolor NVGView::modColour(int src, float a) {
+		static const unsigned char k[7][3] = {
+			{4, 186, 232},    // none (not used)
+			{0, 230, 170},    // env 1 (amp): teal
+			{255, 70, 200},   // env 2: magenta
+			{255, 175, 40},   // env 3: amber
+			{160, 240, 60},   // LFO 1: lime
+			{160, 120, 255},  // LFO 2: violet
+			{255, 100, 90},   // LFO 3: coral
+		};
+		const int i = src < 0 ? 0 : (src > 6 ? 6 : src);
+		return nvgRGBA(k[i][0], k[i][1], k[i][2], static_cast<unsigned char>(255.0f * (a < 0 ? 0 : (a > 1 ? 1 : a))));
+	}
+
+	// A knob-value arc around a control: values 0..1 map to the knobs' 270 degree travel
+	// (uidesc angle-start 135, angle-range 270; y points down, so increasing angles turn clockwise).
+	void NVGView::knobArc(float cx, float cy, float r, double v0, double v1, NVGcolor c, float width) {
+		auto cl = [](double v) { return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v); };
+		v0 = cl(v0);
+		v1 = cl(v1);
+		if (v1 < v0) std::swap(v0, v1);
+		if (v1 - v0 < 0.004)
+			return;
+		const float a0 = static_cast<float>((135.0 + 270.0 * v0) * NVG_PI / 180.0);
+		const float a1 = static_cast<float>((135.0 + 270.0 * v1) * NVG_PI / 180.0);
+		nvgBeginPath(vg);
+		nvgArc(vg, cx, cy, r, a0, a1, NVG_CW);
+		nvgStrokeColor(vg, c);
+		nvgStrokeWidth(vg, width);
+		nvgLineCap(vg, NVG_ROUND);
+		nvgStroke(vg);
+		nvgLineCap(vg, NVG_BUTT);
+	}
+
+	// Modulation overlay (2026-11-15), drawn after the controls, outside each knob's circle (the
+	// controls' own blink fill and white flash stay inside it):
+	// - source selector (top row): a ring in its source's colour;
+	// - amount: an arc from the centre (no modulation) to the amount, in the source's colour;
+	// - the destination knob: the range the source can move it to, dim (an envelope 0..1, an LFO
+	//   -amp..+amp), and, while a voice sounds, a bright arc from the knob to where the newest voice
+	//   has it now (base + amount * source, in knob units; pan's range is -1..1, so half), with a dot.
+	// Stepped destinations (OCT, INT, MOD OCT/INT/BEAT) are switches: only their source and amount
+	// knobs are coloured.
+	void NVGView::drawModulation() {
+		if (!baseController)
+			return;
+		auto par = [&](int pid) { return baseController->getParamNormalized(pid); };
+		auto ctl = [&](int pid) -> CControl* { return (pid >= 0 && pid < 1000) ? controlMap[pid] : nullptr; };
+		const PlayheadSlot* ph = baseController->playheads[0].pitch >= 0 ? &baseController->playheads[0] : nullptr;
+		struct Dest { int base; bool knob; };
+		static const Dest kDest[] = {
+			{WIDTH_, true}, {TUNE_, true}, {FINE_, true}, {OCT_, false}, {INT_, false},
+			{MOD_GAIN_, true}, {MOD_WIDTH_, true}, {MOD_TUNE_, true}, {MOD_FINE_, true},
+			{MOD_OCT_, false}, {MOD_INT_, false}, {MOD_BEAT_, false},
+			{GAIN_, true}, {FILTER_, true}, {PAN_LR, true},
+		};
+		for (const Dest& d : kDest) {
+			int src = static_cast<int>(par(d.base + 2) * 6.0 + 0.5);
+			src = src < 0 ? 0 : (src > 6 ? 6 : src);
+			if (src == 0)
+				continue;
+			const double amtV = par(d.base + 1);
+			const double amt = 2.0 * amtV - 1.0;
+
+			if (CControl* c = ctl(d.base + 2)) {
+				const CRect r = c->getViewSize();
+				nvgBeginPath(vg);
+				nvgCircle(vg, r.getCenter().x, r.getCenter().y, r.getWidth() * 0.5f + 3.0f);
+				nvgStrokeColor(vg, modColour(src, 0.85f));
+				nvgStrokeWidth(vg, 2.0f);
+				nvgStroke(vg);
+			}
+			if (CControl* c = ctl(d.base + 1)) {
+				const CRect r = c->getViewSize();
+				knobArc(r.getCenter().x, r.getCenter().y, r.getWidth() * 0.5f + 3.0f, 0.5, amtV, modColour(src, 0.95f), 2.5f);
+			}
+			if (!d.knob || std::fabs(amt) < 0.005)
+				continue;
+			CControl* c = ctl(d.base);
+			if (!c)
+				continue;
+			const CRect r = c->getViewSize();
+			const float cx = static_cast<float>(r.getCenter().x), cy = static_cast<float>(r.getCenter().y);
+			const float rr = r.getWidth() * 0.5f + 4.0f;
+			const double b = par(d.base);
+			const double s = d.base == PAN_LR ? 0.5 : 1.0;
+			if (src <= 3)
+				knobArc(cx, cy, rr, b, b + amt * s, modColour(src, 0.30f), 3.0f);
+			else {
+				const double a = par(LFO_1_AMP + 5 * (src - 4));
+				knobArc(cx, cy, rr, b - std::fabs(amt) * s * a, b + std::fabs(amt) * s * a, modColour(src, 0.30f), 3.0f);
+			}
+			if (ph) {
+				double v = b + amt * s * ph->src[src - 1];
+				v = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
+				knobArc(cx, cy, rr, b, v, modColour(src, 0.95f), 3.0f);
+				const float ang = static_cast<float>((135.0 + 270.0 * v) * NVG_PI / 180.0);
+				nvgBeginPath(vg);
+				nvgCircle(vg, cx + rr * std::cos(ang), cy + rr * std::sin(ang), 2.4f);
+				nvgFillColor(vg, nvgRGBA(255, 255, 255, 240));
+				nvgFill(vg);
+			}
+		}
+	}
+
+	// A strip in each envelope/LFO display's source colour along its top edge, so the colours on the
+	// knobs can be traced to their source.
+	void NVGView::drawSourceStrip(int src, float x, float y, float w) {
+		nvgBeginPath(vg);
+		nvgRect(vg, x, y, w, 2.0f);
+		nvgFillColor(vg, modColour(src, 0.9f));
+		nvgFill(vg);
 	}
 
 	float NVGView::playheadDt() {
@@ -1719,6 +1837,8 @@ no viewindex at 153!*/
 			return;
 		const float dt = playheadDt();
 		const float ox[3] = {env1OriginX, env2OriginX, env3OriginX}, oy[3] = {env1OriginY, env2OriginY, env3OriginY};
+		for (int n = 0; n < 3; n++)
+			drawSourceStrip(1 + n, ox[n] - 5.0f, lfo1OriginY - lfoHeight * 0.5f, lfoWidth);
 		const float ax[3] = {env1AttX, env2AttX, env3AttX}, ay[3] = {env1AttY, env2AttY, env3AttY};
 		const float dx[3] = {env1DecX, env2DecX, env3DecX}, dy[3] = {env1DecY, env2DecY, env3DecY};
 		const float rx[3] = {env1RelX, env2RelX, env3RelX}, ry[3] = {env1RelY, env2RelY, env3RelY};

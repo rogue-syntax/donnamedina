@@ -53,6 +53,8 @@ BaseProcessor::BaseProcessor ()
 		phAge[k].store (0.0f);
 		phRel[k].store (-1.0f);
 		phLevel[k].store (0.0f);
+		for (int j = 0; j < 6; j++)
+			phSrc[k][j].store (0.0f);
 	}
 }
 
@@ -176,6 +178,8 @@ void BaseProcessor::updateVoiceStates ()
 		phAge[k].store (age, std::memory_order_relaxed);
 		phRel[k].store (rel, std::memory_order_relaxed);
 		phLevel[k].store (v.voiceEnvLfo[1].cenv, std::memory_order_relaxed);
+		for (int j = 0; j < 6; j++)
+			phSrc[k][j].store (v.voiceEnvLfo[j + 1].cenv, std::memory_order_relaxed);
 		phPitch[k].store (best[k], std::memory_order_relaxed);
 	}
 }
@@ -197,6 +201,8 @@ void BaseProcessor::sendPlayheads ()
 		s[k].age = phAge[k].load (std::memory_order_relaxed);
 		s[k].relAge = phRel[k].load (std::memory_order_relaxed);
 		s[k].level = phLevel[k].load (std::memory_order_relaxed);
+		for (int j = 0; j < 6; j++)
+			s[k].src[j] = phSrc[k][j].load (std::memory_order_relaxed);
 		if (s[k].pitch >= 0)
 			empty = false;
 	}

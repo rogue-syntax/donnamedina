@@ -71,6 +71,7 @@ public:
 	// (each field atomic; a torn slot only misplaces a dot for one frame); sendPlayheads (timer).
 	std::atomic<int> phPitch[kPlayheadSlots];
 	std::atomic<float> phAge[kPlayheadSlots], phRel[kPlayheadSlots], phLevel[kPlayheadSlots];
+	std::atomic<float> phSrc[kPlayheadSlots][6];
 	bool playheadsLastSentEmpty = false;
 	void clearPlayheads ();
 	void sendPlayheads ();  // main thread

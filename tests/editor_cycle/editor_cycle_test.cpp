@@ -211,6 +211,9 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		// newest held in its attack/decay, one held longer, two releasing
 		PlayheadSlot ph[kPlayheadSlots] = {{57, 0.06f, -1.0f, 0.9f}, {60, 0.45f, -1.0f, 0.7f},
 		                                   {64, 1.2f, 0.25f, 0.35f}, {45, 2.0f, 0.9f, 0.12f}};
+		// the newest voice's sources: env 1..3, LFO 1..3
+		const float srcNow[6] = {0.85f, 0.6f, 0.35f, 0.7f, -0.5f, 0.3f};
+		for (int j = 0; j < 6; j++) ph[0].src[j] = srcNow[j];
 		HostMessage* mh = new HostMessage;
 		mh->setMessageID("k");
 		mh->getAttributes()->setBinary("data", ph, sizeof(ph));
@@ -232,6 +235,21 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 			{LFO_2_TYPE, 0}, {LFO_2_RATE, 0.3}, {LFO_2_AMP, 0.9}, {LFO_2_DELAY, 0.1}, {LFO_2_PHASE, 0.5}, {LFO_2_BPM, 1},
 			{LFO_3_TYPE, 0}, {LFO_3_RATE, 0.0}, {LFO_3_AMP, 0.3}, {LFO_3_DELAY, 0}, {LFO_3_PHASE, 0.75}, {LFO_3_BPM, 0}};
 		for (const PV& p : (two ? alt : one))
+			ctrl->setParamNormalized(p.pid, p.v);
+		pumpFor(300);
+	}
+	// EDITOR_SHOT_MOD=1: one routing per source, so every colour shows (sources as list steps / 6)
+	if (std::getenv("EDITOR_SHOT_MOD")) {
+		struct PV { int pid; double v; };
+		const PV mods[] = {
+			{TUNE_ENV_SRC, 1 / 6.0}, {TUNE_ENV, 0.62},          // env 1
+			{FILTER_, 0.35}, {FILTER_ENV_SRC, 2 / 6.0}, {FILTER_ENV, 0.85},  // env 2
+			{WIDTH_ENV_SRC, 3 / 6.0}, {WIDTH_ENV, 0.25},        // env 3 (negative)
+			{MOD_GAIN_, 0.4}, {MOD_GAIN_ENV_SRC, 4 / 6.0}, {MOD_GAIN_ENV, 0.75}, {LFO_1_AMP, 0.8},  // LFO 1
+			{OCT_ENV_SRC, 5 / 6.0}, {OCT_ENV, 0.8},             // LFO 2 (a switch: no ring)
+			{PAN_LR_ENV_SRC, 1.0}, {PAN_LR_ENV, 0.9}, {LFO_3_AMP, 0.6},  // LFO 3
+		};
+		for (const PV& p : mods)
 			ctrl->setParamNormalized(p.pid, p.v);
 		pumpFor(300);
 	}
