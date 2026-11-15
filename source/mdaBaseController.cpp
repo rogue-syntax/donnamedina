@@ -209,7 +209,9 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 
 
 		if (tag != MASTER_VOL)
-			presetDirty = true;  // preset bar: the sound was edited since it was loaded		return EditController::performEdit(tag, valueNormalized);
+			presetDirty = true;  // preset bar: the sound was edited since it was loaded
+		// B-62: this return had ended up inside the comment above (c940a82), so no GUI edit reached the host
+		return EditController::performEdit(tag, valueNormalized);
 	}
 	// B-07: step buttons are not host parameters; this path used to fall off the end of a
 	// non-void function (undefined behaviour).

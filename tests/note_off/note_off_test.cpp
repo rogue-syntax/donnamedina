@@ -1692,6 +1692,42 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
+	{
+		std::printf("\nB-62 GUI edits reach the host\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		struct Handler : public IComponentHandler {
+			int begins = 0, edits = 0, ends = 0;
+			ParamID lastId = 0;
+			ParamValue lastValue = -1;
+			tresult PLUGIN_API beginEdit(ParamID) override { begins++; return kResultOk; }
+			tresult PLUGIN_API performEdit(ParamID id, ParamValue v) override { edits++; lastId = id; lastValue = v; return kResultOk; }
+			tresult PLUGIN_API endEdit(ParamID) override { ends++; return kResultOk; }
+			tresult PLUGIN_API restartComponent(int32) override { return kResultOk; }
+			tresult PLUGIN_API queryInterface(const TUID, void** obj) override { *obj = nullptr; return kNoInterface; }
+			uint32 PLUGIN_API addRef() override { return 1; }
+			uint32 PLUGIN_API release() override { return 1; }
+		} handler;
+		char buf[200];
+		static HostApplication shost62;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&shost62);
+		ctrl->setComponentHandler(&handler);
+		ctrl->beginEdit(FILTER_);
+		const tresult r = ctrl->performEdit(FILTER_, 0.3);
+		ctrl->endEdit(FILTER_);
+		std::snprintf(buf, sizeof(buf), "result %d, begin/edit/end %d/%d/%d, id %u = %.2f", int(r), handler.begins,
+		              handler.edits, handler.ends, unsigned(handler.lastId), handler.lastValue);
+		check("performEdit is passed to the host", r == kResultOk && handler.begins == 1 && handler.edits == 1 &&
+		          handler.ends == 1 && handler.lastId == FILTER_ && std::fabs(handler.lastValue - 0.3) < 1e-9, buf);
+		ctrl->setComponentHandler(nullptr);
+		ctrl->terminate();
+		ctrl->release();
+	}
+
 	// ---- B-57: the host's cutoff text uses the engine's curve (2026-11-15) ----
 	{
 		std::printf("\nB-57 cutoff scale (host text vs engine)\n");
