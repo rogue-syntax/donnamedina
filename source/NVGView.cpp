@@ -1674,6 +1674,7 @@ no viewindex at 153!*/
 			}
 		}
 
+		drawSourceGlow(4 + i, x, y, w, h);
 		drawSourceStrip(4 + i, x, y, w);
 
 		// labels: period or division (top right), window length (bottom right)
@@ -1814,6 +1815,52 @@ no viewindex at 153!*/
 		}
 	}
 
+	// Source glow (2026-11-15): how active each modulation source is for the newest voice, smoothed by
+	// time (rises with a 25 ms, falls with a 250 ms time constant) so the 15 ms messages do not flicker.
+	// A source counts only while something uses it: env 1 is always the amp envelope; the others when
+	// any destination's source selector points at them.
+	void NVGView::updateSourceGlow() {
+		if (!baseController)
+			return;
+		const auto now = std::chrono::steady_clock::now();
+		float dt = srcGlowTimeValid ? std::chrono::duration<float>(now - srcGlowTime).count() : 0.0f;
+		dt = dt < 0.0f ? 0.0f : (dt > 0.25f ? 0.25f : dt);
+		srcGlowTime = now;
+		srcGlowTimeValid = true;
+		bool used[7] = {false, true, false, false, false, false, false};
+		static const int kSrcParams[] = {WIDTH_ENV_SRC, TUNE_ENV_SRC, FINE_ENV_SRC, OCT_ENV_SRC, INT_ENV_SRC,
+			MOD_GAIN_ENV_SRC, MOD_WIDTH_ENV_SRC, MOD_TUNE_ENV_SRC, MOD_FINE_ENV_SRC, MOD_OCT_ENV_SRC,
+			MOD_INT_ENV_SRC, MOD_BEAT_ENV_SRC, GAIN_ENV_SRC, FILTER_ENV_SRC, PAN_LR_ENV_SRC};
+		for (int pid : kSrcParams) {
+			int s = static_cast<int>(baseController->getParamNormalized(pid) * 6.0 + 0.5);
+			if (s >= 1 && s <= 6)
+				used[s] = true;
+		}
+		const PlayheadSlot& p = baseController->playheads[0];
+		for (int s = 1; s <= 6; s++) {
+			float target = 0.0f;
+			if (used[s] && p.pitch >= 0) {
+				target = std::fabs(p.src[s - 1]);
+				if (target > 1.0f) target = 1.0f;
+			}
+			const float tc = target > srcGlow[s] ? 0.025f : 0.25f;
+			srcGlow[s] += (target - srcGlow[s]) * (1.0f - std::exp(-dt / tc));
+		}
+	}
+
+	// Inner glow along the edges of a display window, drawn with the display (under the panel art, so
+	// the frames and every control's own animation stay as they are).
+	void NVGView::drawSourceGlow(int src, float x, float y, float w, float h) {
+		const float g = (src >= 1 && src <= 6) ? srcGlow[src] : 0.0f;
+		if (g < 0.01f)
+			return;
+		const NVGcolor in = modColour(src, 0.0f), out = modColour(src, 0.55f * g);
+		nvgBeginPath(vg);
+		nvgRect(vg, x, y, w, h);
+		nvgFillPaint(vg, nvgBoxGradient(vg, x + 2.0f, y + 2.0f, w - 4.0f, h - 4.0f, 6.0f, 14.0f, in, out));
+		nvgFill(vg);
+	}
+
 	// A strip in each envelope/LFO display's source colour along its top edge, so the colours on the
 	// knobs can be traced to their source.
 	void NVGView::drawSourceStrip(int src, float x, float y, float w) {
@@ -1867,8 +1914,11 @@ no viewindex at 153!*/
 			return;
 		const float dt = playheadDt();
 		const float ox[3] = {env1OriginX, env2OriginX, env3OriginX}, oy[3] = {env1OriginY, env2OriginY, env3OriginY};
-		for (int n = 0; n < 3; n++)
+		updateSourceGlow();  // once per frame: the env displays are drawn before the LFO displays
+		for (int n = 0; n < 3; n++) {
+			drawSourceGlow(1 + n, ox[n] - 5.0f, lfo1OriginY - lfoHeight * 0.5f, lfoWidth, lfoHeight + 4.0f);
 			drawSourceStrip(1 + n, ox[n] - 5.0f, lfo1OriginY - lfoHeight * 0.5f, lfoWidth);
+		}
 		const float ax[3] = {env1AttX, env2AttX, env3AttX}, ay[3] = {env1AttY, env2AttY, env3AttY};
 		const float dx[3] = {env1DecX, env2DecX, env3DecX}, dy[3] = {env1DecY, env2DecY, env3DecY};
 		const float rx[3] = {env1RelX, env2RelX, env3RelX}, ry[3] = {env1RelY, env2RelY, env3RelY};

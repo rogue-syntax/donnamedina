@@ -34,7 +34,8 @@ Order within a section is a rough priority (impact for effort).
 
 ## 2. GUI: polish
 - [ ] Knob value arcs (glowing track from min to value) in addition to the pointer.
-- [ ] Glow/bloom on outlines when active (sounding section, sequencer step lit).
+- [x] Glow when active: each envelope/LFO display glows in its source colour with the newest voice's level while
+      the source is routed (docs/04-gui.md). Step buttons already flash when pressed by host or GUI; left as is.
 - [ ] Match the A–H step-target letters with coloured badges on the controls they drive.
 
 ## 3. Sound and engine
