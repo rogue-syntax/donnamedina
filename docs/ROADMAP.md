@@ -6,12 +6,12 @@ Order within a section is a rough priority (impact for effort).
 ## 0. Make room
 - [x] Move all controls -35,-15 to remove the dead frame space; draw the 1148x542 art at that offset in code;
       widen the editor to 1248 (grid fills the new space). `source/editorLayout.h`, `resources/vstgui.uidesc`.
-- [~] Right column remake: one framed column, bands for title / preset / readout / scope / master / voices / logo.
+- [x] Right column remake: one framed column, bands for title / preset / readout / scope / master / voices / logo.
   - [x] Step 1: layout and frames, pan knobs moved to the master row, logo is the about button.
   - [x] Step 2: readout with units, on turn and on hover (`paramDisplay`, docs/04-gui.md "Readout").
   - [x] Step 3: scope (triggered output waveform, docs/04-gui.md "Scope").
   - [x] Step 4: voice strip, then moved into the scope with a zooming pitch range (docs/04-gui.md "Voices in the scope").
-  - [ ] Step 5: preset bar.
+  - [x] Step 5: preset bar (docs/04-gui.md "Preset bar").
   - [ ] Optional: transparent title/logo PNGs (2x) to replace the crops from the art.
   - [x] Master VOL knob: new parameter `MASTER_VOL` (146), global (not in presets), 0 dB default; see docs/01-params-and-state.md.
 - [ ] Optional: re-export the background art at 1248x542 with the panels moved, then set the art offset to 0.
@@ -26,7 +26,7 @@ Order within a section is a rough priority (impact for effort).
       rhythmic playing).
 - [ ] **Modulation visibility**: colour per source (Env 1/2/3, LFO F/G/H) tinting the knobs/squares it drives,
       and/or a ring around knobs showing the live modulated value.
-- [ ] **Preset bar**: name, prev/next, save, randomize (no preset browser is visible today).
+- [x] **Preset bar**: name with a preset menu, prev/next, save (.vstpreset), randomize (column step 5).
 - [x] **Voice view**: each per-note voice as a bar behind the scope, zoomed to the sounding range (column step 4).
 - [x] **Scope** in the right column (column step 3). A spectrum view could be added later as a toggle.
 - [ ] Labels or hover tooltips for the unlabeled top knob rows and the small squares.

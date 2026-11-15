@@ -11,6 +11,8 @@
 #include "../../source/mdaBaseController.h"  // kPresetParam
 #include "../../source/mdaDX10Controller.h"  // B-01/B-02 controller test
 #include "../../source/paramDisplay.h"
+#include "../../source/presetTools.h"
+#include "public.sdk/source/vst/vstpresetfile.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
@@ -161,6 +163,8 @@ int g_deliveredMsgs = 0;  // B-10: messages delivered outside process() (by the 
 int g_msgsIn[256] = {}, g_msgsOut[256] = {};  // per message ID (first char)
 int g_badIdMsgs = 0;  // messages whose ID is not a 1-char C string (B-27)
 double g_peakMsgMax = 0.0;  // largest "peak" in PMSG_PEAK_CHAR messages
+std::vector<char> g_stateMsg;  // data of the last PMSG_STATE_CHAR message
+int64 g_stateMsgPurpose = -1;
 int g_peakMsgZeroRun = 0, g_peakMsgZeroRunMax = 0;  // consecutive PMSG_PEAK_CHAR messages with peak 0
 void resetMsgCounts() {
 	g_audioThreadMsgs = g_deliveredMsgs = 0;
@@ -186,6 +190,13 @@ public:
 		if (!id || std::strlen(id) != 1) g_badIdMsgs++;  // B-27: IDs must be 1-char C strings
 		if (g_inProcess) { g_audioThreadMsgs++; g_msgsIn[c]++; }
 		else { g_deliveredMsgs++; g_msgsOut[c]++; }
+		if (c == static_cast<unsigned char>(PMSG_STATE_CHAR)) {
+			const void* d = nullptr;
+			uint32 n = 0;
+			if (msg->getAttributes()->getBinary("data", d, n) == kResultTrue && d)
+				g_stateMsg.assign(static_cast<const char*>(d), static_cast<const char*>(d) + n);
+			msg->getAttributes()->getInt("purpose", g_stateMsgPurpose);
+		}
 		if (c == static_cast<unsigned char>(PMSG_PEAK_CHAR)) {
 			double pk = -1.0;
 			msg->getAttributes()->getFloat("peak", pk);
@@ -1561,6 +1572,221 @@ int main(int argc, char** argv) {
 		                  t2 = paramDisplay::peakText(1.0f), t3 = paramDisplay::peakText(1.2f);
 		std::snprintf(buf, sizeof(buf), "%s | %s | %s | %s", t0.c_str(), t1.c_str(), t2.c_str(), t3.c_str());
 		check("peakText", t0 == "-inf dB" && t1 == "-6.0 dB" && t2 == "0.0 dB" && t3 == "+1.6 dB", buf);
+	}
+
+	// ---- Preset bar: state blob, processor messages, controller loading, randomizer (2026-11-14) ----
+	{
+		std::printf("\nPreset bar\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		rs::DX10Processor::ensureFactoryPresets();
+		auto factoryState = [](int k) {
+			presetTools::State s;
+			s.program = uint32(k);
+			s.values.assign(GPARAMS, 0.0);
+			for (int i = 0; i < GPARAMS; i++) s.values[i] = rs::DX10Processor::programParams[k][i];
+			s.hasMasterVol = true;
+			s.masterVol = DEFAULT_MASTER_VOL;
+			return s;
+		};
+
+		// processor: getState -> parse -> write gives the same bytes; 'i' answers with that state;
+		// 'h' loads a state
+		bool roundTrip = false, replyOk = false, loadOk = false;
+		std::string detail;
+		Options o;
+		o.inspect = [&](rs::DX10Processor& p) {
+			MemoryStream ms;
+			p.getState(&ms);
+			const std::vector<char> orig(ms.getData(), ms.getData() + ms.getSize());
+			presetTools::State s;
+			roundTrip = presetTools::parseState(orig.data(), orig.size(), s) && presetTools::writeState(s) == orig;
+
+			g_stateMsg.clear();
+			HostMessage* q = new HostMessage;
+			q->setMessageID("i");
+			q->getAttributes()->setInt("purpose", 7);
+			p.notify(q);
+			q->release();
+			replyOk = g_stateMsg == orig && g_stateMsgPurpose == 7;
+
+			s.values[FILTER_] = 0.123;
+			s.values[GAIN_] = 0.654;
+			const std::vector<char> blob = presetTools::writeState(s);
+			HostMessage* h = new HostMessage;
+			h->setMessageID("h");
+			h->getAttributes()->setBinary("data", blob.data(), uint32(blob.size()));
+			p.notify(h);
+			h->release();
+			loadOk = std::fabs(p.floatParams[FILTER_] - 0.123) < 1e-12 && std::fabs(p.floatParams[GAIN_] - 0.654) < 1e-12;
+		};
+		render(Settings{"pstate", 0.995, 0.85}, {}, 0.05, o);
+		check("state parse/write round trip", roundTrip, roundTrip ? "identical bytes" : "differs");
+		check("get-state message answers with the state", replyOk, replyOk ? "same bytes, purpose 7" : "missing/differs");
+		check("set-state message loads the state", loadOk, loadOk ? "FILTER_ 0.123, GAIN_ 0.654" : "not applied");
+
+		// controller: factory preset, master volume kept, name
+		static HostApplication shost6;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&shost6);
+		ctrl->setParamNormalized(MASTER_VOL, 0.3);
+		ctrl->loadFactoryPreset(2);
+		const double cf = ctrl->getParamNormalized(FILTER_), pf = rs::DX10Processor::programParams[2][FILTER_];
+		std::snprintf(buf, sizeof(buf), "%s, FILTER_ %.4f (preset %.4f), vol %.2f", ctrl->presetName.c_str(), cf, pf,
+		              ctrl->getParamNormalized(MASTER_VOL));
+		check("factory preset loads, volume kept", ctrl->presetName == "Perturb" && std::fabs(cf - pf) < 1e-6 &&
+		          std::fabs(ctrl->getParamNormalized(MASTER_VOL) - 0.3) < 1e-9 && ctrl->presetFactory == 2, buf);
+
+		// a .vstpreset file (written like Save does) loads by name
+		wchar_t tmp[MAX_PATH] = {};
+		GetTempPathW(MAX_PATH, tmp);
+		const std::wstring dir = std::wstring(tmp) + L"dm_preset_test";
+		const std::wstring path = dir + L"\\Test Bass.vstpreset";
+		presetTools::State fs = factoryState(4);
+		fs.values[FILTER_] = 0.321;
+		std::vector<char> comp = presetTools::writeState(fs);
+		MemoryStream compStream(comp.data(), TSize(comp.size()));
+		MemoryStream out;
+		const bool saved = PresetFile::savePreset(&out, rs::DX10Processor::uid, &compStream) &&
+		                   presetTools::writeFile(path, std::vector<char>(out.getData(), out.getData() + out.getSize()));
+		const bool loaded = saved && ctrl->loadPresetFile(path);
+		std::snprintf(buf, sizeof(buf), "%s, FILTER_ %.3f, vol %.2f", ctrl->presetName.c_str(), ctrl->getParamNormalized(FILTER_),
+		              ctrl->getParamNormalized(MASTER_VOL));
+		check("preset file loads (name, values, volume kept)", loaded && ctrl->presetName == "Test Bass" &&
+		          std::fabs(ctrl->getParamNormalized(FILTER_) - 0.321) < 1e-6 && ctrl->presetFactory == -1 &&
+		          std::fabs(ctrl->getParamNormalized(MASTER_VOL) - 0.3) < 1e-9, buf);
+		DeleteFileW(path.c_str());
+		RemoveDirectoryW(dir.c_str());
+
+		// controller state keeps the preset bar's name
+		ctrl->presetDirty = true;
+		MemoryStream cs;
+		ctrl->getState(&cs);
+		cs.seek(0, IBStream::kIBSeekSet, nullptr);
+		auto* ctrl2 = new rs::DX10Controller();
+		ctrl2->initialize(&shost6);
+		ctrl2->setState(&cs);
+		std::snprintf(buf, sizeof(buf), "%s%s, factory %d", ctrl2->presetName.c_str(), ctrl2->presetDirty ? " *" : "", ctrl2->presetFactory);
+		check("controller state keeps the preset name", ctrl2->presetName == "Test Bass" && ctrl2->presetDirty &&
+		          ctrl2->presetPath == path && ctrl2->presetFactory == -1, buf);
+		ctrl2->terminate();
+		ctrl2->release();
+
+		// randomizer: what changes
+		std::vector<int> steps;
+		ctrl->presetStepCounts(steps);
+		const int kept[] = {TUNE_, FINE_, OCT_, INT_, MASTER_VOL, STEP_CTRL_TARG, ENV_1_DELAY};
+		{
+			const presetTools::State a = factoryState(1);
+			presetTools::State b = a;
+			presetTools::randomize(b, steps.data(), steps.size(), presetTools::Mode::kVariation, 7);
+			int changed = 0, steppedChanged = 0, tooFar = 0, keptChanged = 0;
+			for (int i = 0; i < GPARAMS; i++) {
+				if (b.values[i] == a.values[i]) continue;
+				changed++;
+				if (steps[i] > 0) steppedChanged++;
+				if (std::fabs(b.values[i] - a.values[i]) > 0.1 + 1e-9) tooFar++;
+			}
+			for (int k : kept) if (b.values[k] != a.values[k]) keptChanged++;
+			std::snprintf(buf, sizeof(buf), "%d changed, %d stepped, %d > 0.1, %d kept ids", changed, steppedChanged, tooFar, keptChanged);
+			check("variation: small moves of continuous values", changed >= 8 && steppedChanged == 0 && tooFar == 0 && keptChanged == 0, buf);
+		}
+		{
+			const presetTools::State a = factoryState(0);
+			presetTools::State b = a;
+			presetTools::randomize(b, steps.data(), steps.size(), presetTools::Mode::kFull, 11);
+			int changed = 0, keptChanged = 0, outside = 0;
+			for (int i = 0; i < GPARAMS; i++) {
+				if (b.values[i] != a.values[i]) changed++;
+				if (b.values[i] < 0.0 || b.values[i] > 1.0) outside++;
+			}
+			for (int k : kept) if (b.values[k] != a.values[k]) keptChanged++;
+			std::snprintf(buf, sizeof(buf), "%d changed, %d kept ids moved, %d outside 0..1", changed, keptChanged, outside);
+			check("full random: new values, kept ids stay", changed >= 30 && keptChanged == 0 && outside == 0, buf);
+		}
+		ctrl->terminate();
+		ctrl->release();
+
+		// full random patches must sound: 24 seeds, a held chord, RMS over 0.15..0.6 s
+		int quiet = 0, bad = 0;
+		float minRms = 1e9f, maxPeak = 0.0f;
+		int minSeed = -1;
+		for (int seed = 1; seed <= 24; seed++) {
+			presetTools::State s = factoryState(seed % rs::DX10Processor::kNumPrograms);
+			presetTools::randomize(s, steps.data(), steps.size(), presetTools::Mode::kFull, uint32_t(seed));
+			const std::vector<char> blob = presetTools::writeState(s);
+			std::vector<float> L, R;
+			Options ro;
+			ro.keepPatchEnvelopes = true;
+			ro.captureL = &L;
+			ro.captureR = &R;
+			ro.onCreated = [&](rs::DX10Processor& p) {
+				MemoryStream ms(const_cast<char*>(blob.data()), TSize(blob.size()));
+				static_cast<IComponent&>(p).setState(&ms);  // public through the interface
+			};
+			render(Settings{"rnd", 0.995, 0.85}, {{0, true, 48}, {0, true, 55}, {0, true, 64}}, 0.6, ro);
+			double sum = 0.0;
+			float pk = 0.0f;
+			size_t n = 0;
+			bool nan = false;
+			for (size_t i = size_t(0.15 * kSampleRate); i < L.size(); i++) {
+				if (!std::isfinite(L[i]) || !std::isfinite(R[i])) nan = true;
+				sum += double(L[i]) * L[i] + double(R[i]) * R[i];
+				pk = (std::max)(pk, (std::max)(std::fabs(L[i]), std::fabs(R[i])));
+				n += 2;
+			}
+			const float rms = n ? float(std::sqrt(sum / double(n))) : 0.0f;
+			if (rms < 0.003f) quiet++;
+			if (nan || pk > 4.0f) bad++;
+			if (rms < minRms) { minRms = rms; minSeed = seed; }
+			maxPeak = (std::max)(maxPeak, pk);
+		}
+		std::snprintf(buf, sizeof(buf), "%d quiet, %d bad; min RMS %.4f (seed %d), max peak %.2f", quiet, bad, minRms, minSeed, maxPeak);
+		check("24 full random patches all sound", quiet == 0 && bad == 0, buf);
+
+		if (std::getenv("DM_RND_DIAG")) {  // which parameter silences a quiet random patch
+			auto rmsOf = [&](const presetTools::State& st) {
+				const std::vector<char> blob = presetTools::writeState(st);
+				std::vector<float> L, R;
+				Options ro;
+				ro.keepPatchEnvelopes = true;
+				ro.captureL = &L;
+				ro.captureR = &R;
+				ro.onCreated = [&](rs::DX10Processor& p) {
+					MemoryStream ms(const_cast<char*>(blob.data()), TSize(blob.size()));
+					static_cast<IComponent&>(p).setState(&ms);
+				};
+				render(Settings{"rnd", 0.995, 0.85}, {{0, true, 48}, {0, true, 55}, {0, true, 64}}, 0.6, ro);
+				double sum = 0.0;
+				size_t n = 0;
+				for (size_t i = size_t(0.15 * kSampleRate); i < L.size(); i++) {
+					sum += double(L[i]) * L[i] + double(R[i]) * R[i];
+					n += 2;
+				}
+				return n ? std::sqrt(sum / double(n)) : 0.0;
+			};
+			for (int seed = 1; seed <= 24; seed++) {
+				const presetTools::State a = factoryState(seed % rs::DX10Processor::kNumPrograms);
+				presetTools::State b = a;
+				presetTools::randomize(b, steps.data(), steps.size(), presetTools::Mode::kFull, uint32_t(seed));
+				const double r = rmsOf(b);
+				if (r >= 0.003)
+					continue;
+				std::printf("    seed %d quiet (%.5f), factory %.4f; reverting one id:", seed, r, rmsOf(a));
+				for (int i = 0; i < GPARAMS; i++) {
+					if (a.values[i] == b.values[i]) continue;
+					presetTools::State c = b;
+					c.values[i] = a.values[i];
+					const double rc = rmsOf(c);
+					if (rc >= 0.003)
+						std::printf(" %d(%.3f->%.3f)=%.4f", i, b.values[i], a.values[i], rc);
+				}
+				std::printf("\n");
+			}
+		}
 	}
 
 	// ---- B-21: TRI waveshape across the width range (oscillator alone) ----

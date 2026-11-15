@@ -8,6 +8,8 @@
 #include <algorithm>
 #include <cstring>
 #include "scopeCapture.h"
+#include "presetBarView.h"
+#include "vstgui/uidescription/uiattributes.h"
 #include <cmath>
 #include "vstgui/uidescription/delegationcontroller.h"
 
@@ -206,7 +208,8 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 
 
 
-		return EditController::performEdit(tag, valueNormalized);
+		if (tag != MASTER_VOL)
+			presetDirty = true;  // preset bar: the sound was edited since it was loaded		return EditController::performEdit(tag, valueNormalized);
 	}
 	// B-07: step buttons are not host parameters; this path used to fall off the end of a
 	// non-void function (undefined behaviour).
@@ -400,6 +403,17 @@ tresult PLUGIN_API BaseController::notify (IMessage* message){
 		if (message->getAttributes()->getBinary("data", data, size) == kResultTrue && data
 			&& size == sizeof(voiceStates))
 			std::memcpy(voiceStates, data, size);
+		return kResultTrue;
+	}
+
+	if (message->getMessageID() && message->getMessageID()[0] == PMSG_STATE_CHAR
+		&& message->getMessageID()[1] == 0) {
+		const void* data = nullptr;
+		uint32 size = 0;
+		int64 purpose = 0;
+		message->getAttributes()->getInt("purpose", purpose);
+		if (message->getAttributes()->getBinary("data", data, size) == kResultTrue && data && size > 0)
+			onProcessorState(data, size, purpose);
 		return kResultTrue;
 	}
 
@@ -642,6 +656,58 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 }
 
 static_assert(BaseController::kScopeLength == ScopeCapture::kLength, "scope frame size");
+
+VSTGUI::CView* BaseController::createCustomView(VSTGUI::UTF8StringPtr name, const VSTGUI::UIAttributes& attributes,
+	const VSTGUI::IUIDescription*, VSTGUI::VST3Editor*) {
+	if (name && std::strcmp(name, "presetBar") == 0) {
+		CPoint origin(presetBar::kBar.x, presetBar::kBar.y), size(presetBar::kBar.w, presetBar::kBar.h);
+		attributes.getPointAttribute("origin", origin);
+		attributes.getPointAttribute("size", size);
+		return new PresetBarView(CRect(origin, size), this);
+	}
+	return nullptr;
+}
+
+PresetBarView::PresetBarView(const CRect& size, BaseController* c) : CView(size), ctrl(c) {
+	setTransparency(true);
+	setWantsFocus(false);
+}
+
+PresetBarView::~PresetBarView() {
+	if (ctrl)
+		ctrl->presetHover = -1;
+}
+
+int PresetBarView::zoneFor(const CPoint& where) const {
+	// where is in the parent's coordinates, like getViewSize(); the zones are in window coordinates
+	const CRect r = getViewSize();
+	return presetBar::zoneAt(float(where.x - r.left) + presetBar::kBar.x, float(where.y - r.top) + presetBar::kBar.y);
+}
+
+CMouseEventResult PresetBarView::onMouseMoved(CPoint& where, const CButtonState&) {
+	if (!ctrl)
+		return kMouseEventNotHandled;
+	ctrl->presetHover = ctrl->presetBarEnabled ? zoneFor(where) : -1;
+	return kMouseEventHandled;
+}
+
+CMouseEventResult PresetBarView::onMouseExited(CPoint&, const CButtonState&) {
+	if (ctrl)
+		ctrl->presetHover = -1;
+	return kMouseEventHandled;
+}
+
+CMouseEventResult PresetBarView::onMouseDown(CPoint& where, const CButtonState& buttons) {
+	if (!ctrl || !ctrl->presetBarEnabled || !buttons.isLeftButton())
+		return kMouseEventNotHandled;
+	const int z = zoneFor(where);
+	if (z < 0)
+		return kMouseEventNotHandled;
+	CPoint framePoint(where);
+	localToFrame(framePoint);
+	ctrl->onPresetBarClick(z, getFrame(), framePoint);
+	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+}
 
 void BaseController::setScopeActive(bool on) {
 	IMessage* msg = allocateMessage();

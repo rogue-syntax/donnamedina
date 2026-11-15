@@ -1029,6 +1029,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		void drawScope(float x, float y, float w, float h);
 		void drawScopeVoices(float ix, float iy, float iw, float ih);
 		void drawScopeInfo(float ix, float iy, float iw, float ih);
+		void drawPresetBar();
 		void drawScopeWave(float ix, float iy, float iw, float ih);
 		// peak meter in the scope: held maximum (shown), when it was set, the last message seen, clip latch
 		float peakHold = 0.0f;

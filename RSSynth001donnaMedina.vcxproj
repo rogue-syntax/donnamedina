@@ -224,6 +224,9 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClCompile Include="source\mdaBaseProcessor.cpp" />
     <ClCompile Include="source\mdaDX10Controller.cpp" />
     <ClCompile Include="source\paramDisplay.cpp" />
+    <ClCompile Include="source\presetTools.cpp" />
+    <ClCompile Include="source\mdaDX10Presets.cpp" />
+    <ClCompile Include="..\..\..\..\source\common\memorystream.cpp" />
     <ClCompile Include="source\mdaDX10Processor.cpp" />
     <ClCompile Include="source\mdaParameter.cpp" />
     <ClCompile Include="source\MoogLadderFilter.cpp" />
@@ -344,6 +347,8 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\editorLayout.h" />
     <ClInclude Include="source\paramDisplay.h" />
     <ClInclude Include="source\scopeCapture.h" />
+    <ClInclude Include="source\presetTools.h" />
+    <ClInclude Include="source\presetBarView.h" />
     <ClInclude Include="source\SineWave.h" />
     <ClInclude Include="source\ska.h" />
     <ClInclude Include="source\stb_image.h" />

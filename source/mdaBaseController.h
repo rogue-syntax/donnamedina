@@ -151,6 +151,18 @@ protected:
 	float scopeFrame[kScopeLength] = {};
 	unsigned int scopeFrames = 0;
 	void setScopeActive(bool on);
+
+	// Preset bar (2026-11-14, presetBarView.h): NVGView draws presetName ("*" when presetDirty: edited
+	// since it was loaded) and the hovered zone; PresetBarView sets presetHover and calls
+	// onPresetBarClick. The derived controller does the work (mdaDX10Presets.cpp).
+	std::string presetName = "Softly";
+	bool presetDirty = false;
+	int presetHover = -1;
+	bool presetBarEnabled = true;  // NVGView: false while the about window covers the bar
+	virtual void onPresetBarClick(int /*zone*/, VSTGUI::CFrame* /*frame*/, const VSTGUI::CPoint& /*where*/) {}
+	virtual void onProcessorState(const void* /*data*/, uint32 /*size*/, int64 /*purpose*/) {}
+	VSTGUI::CView* createCustomView(VSTGUI::UTF8StringPtr name, const VSTGUI::UIAttributes& attributes,
+		const VSTGUI::IUIDescription* description, VSTGUI::VST3Editor* editor) override;
 	// Voice strip: the latest per-pitch states from the processor (PMSG_VOICES_CHAR, voiceStateByte).
 	unsigned char voiceStates[128] = {};
 	// Output peak since the previous message (PMSG_PEAK_CHAR, linear); peakFrames counts messages.

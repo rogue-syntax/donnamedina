@@ -357,6 +357,15 @@ int main(int argc, char** argv) {
 	if (const char* shot = std::getenv("EDITOR_SHOT"))
 		return takeEditorShot(ctrl, shot);
 
+	// B-59: opening the editor replays the reset buttons' values, which re-centred WIDTH/TUNE/FINE
+	// (and the MOD ones) with performEdit. Off-centre values must survive the open, and the preset
+	// bar must not show the sound as edited.
+	int b59fail = 0;
+	ctrl->setParamNormalized(TUNE_, 0.8);
+	ctrl->setParamNormalized(MOD_TUNE_, 0.75);
+	ctrl->setParamNormalized(MOD_WIDTH_, 0.3);
+	ctrl->presetDirty = false;
+
 	HWND hwnd = CreateWindowExW(0, L"STATIC", L"DonnaMedina editor cycle test", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
 	                            -3000, 0, 1200, 600, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
 	ShowWindow(hwnd, SW_SHOWNOACTIVATE);
@@ -378,6 +387,15 @@ int main(int argc, char** argv) {
 		if (view->attached(hwnd, kPlatformTypeHWND) != kResultTrue) { std::printf("attached failed\n"); return 2; }
 		if (verbose) std::printf("  pump\n");
 		pumpFor(400);  // GL view created, animation timer draws frames
+		if (c == 1) {
+			const double t = ctrl->getParamNormalized(TUNE_), mt = ctrl->getParamNormalized(MOD_TUNE_),
+			             mw = ctrl->getParamNormalized(MOD_WIDTH_);
+			const bool ok = std::fabs(t - 0.8) < 1e-9 && std::fabs(mt - 0.75) < 1e-9 && std::fabs(mw - 0.3) < 1e-9 &&
+			                !ctrl->presetDirty;
+			if (!ok) b59fail = 1;
+			std::printf("B-59 editor open keeps TUNE_ %.3f MOD_TUNE_ %.3f MOD_WIDTH_ %.3f, edited flag %d  %s\n", t, mt, mw,
+			            int(ctrl->presetDirty), ok ? "PASS" : "FAIL");
+		}
 		if (c == 1 && std::getenv("NO_GUI_HANDLER_PROBE") == nullptr) {  // set it to skip the probe
 			// try/catch review (B-33): GUI handlers called with ids that have no name / no view.
 			// The old code relied on try/catch here, which cannot catch null or out-of-range access.
@@ -463,7 +481,7 @@ int main(int argc, char** argv) {
 	            held ? (dangling ? "points to a FREED object" : "points to a live object") : "nullptr",
 	            track::nLiveCtl, dangling ? "FAIL (dangling)" : "PASS");
 	int result = 0;
-	if (track::nLive != 0 || dangling || mallocPerCycle > 0.05 || b11fail) result = 1;
+	if (track::nLive != 0 || dangling || mallocPerCycle > 0.05 || b11fail || b59fail) result = 1;
 
 	std::printf("malloc growth %.4f MB/cycle (limit 0.05)  %s\n", mallocPerCycle, mallocPerCycle > 0.05 ? "FAIL" : "PASS");
 	std::printf("\n%s\n", result == 0 ? "0 failure(s)" : "FAILED");

@@ -4,6 +4,7 @@
 //or needs threading
 #include "REvent.h"
 #include "NVGView.h"
+#include "presetBarView.h"
 #include <iostream>
 #include "luconData.hpp"
 #include "constants.h"
@@ -2589,6 +2590,97 @@ no viewindex at 153!*/
 		nvgRestore(vg);
 	}
 
+	void NVGView::drawPresetBar() {
+		if (!baseController)
+			return;
+		using namespace presetBar;
+		baseController->presetBarEnabled = !moreInfoWindowOpen;  // the about window covers the bar
+		const int hover = baseController->presetBarEnabled ? baseController->presetHover : -1;
+		const NVGcolor kText = nvgRGBA(255, 204, 153, 235);
+		const NVGcolor kTextHot = nvgRGBA(255, 236, 210, 255);
+		const NVGcolor kCyan = nvgRGBA(4, 186, 232, 255);
+
+		auto hoverFill = [&](int z) {
+			const auto& r = kZones[z];
+			nvgBeginPath(vg);
+			nvgRect(vg, r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+			nvgFillColor(vg, nvgRGBA(4, 186, 232, 45));
+			nvgFill(vg);
+		};
+		auto divider = [&](float x) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, floorf(x) + 0.5f, kBar.y + 4);
+			nvgLineTo(vg, floorf(x) + 0.5f, kBar.y + kBar.h - 4);
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 70));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+		};
+		auto arrow = [&](int z, bool left) {
+			const auto& r = kZones[z];
+			const float cx = r.x + r.w * 0.5f, cy = r.y + r.h * 0.5f, s = 4.0f;
+			nvgBeginPath(vg);
+			if (left) {
+				nvgMoveTo(vg, cx + s * 0.6f, cy - s);
+				nvgLineTo(vg, cx - s * 0.8f, cy);
+				nvgLineTo(vg, cx + s * 0.6f, cy + s);
+			}
+			else {
+				nvgMoveTo(vg, cx - s * 0.6f, cy - s);
+				nvgLineTo(vg, cx + s * 0.8f, cy);
+				nvgLineTo(vg, cx - s * 0.6f, cy + s);
+			}
+			nvgClosePath(vg);
+			nvgFillColor(vg, hover == z ? kTextHot : kCyan);
+			nvgFill(vg);
+		};
+
+		for (int z = 0; z < kZoneCount; z++)
+			if (hover == z)
+				hoverFill(z);
+		divider(kZones[kName].x - 1);
+		divider(kZones[kNext].x - 1);
+		divider(kZones[kSave].x - 2);
+		divider(kZones[kRnd].x - 1);
+		arrow(kPrev, true);
+		arrow(kNext, false);
+
+		// name, "*" when edited since loaded, and a small menu caret
+		const auto& n = kZones[kName];
+		std::string name = baseController->presetName.empty() ? std::string("-") : baseController->presetName;
+		if (baseController->presetDirty)
+			name += " *";
+		nvgSave(vg);
+		nvgScissor(vg, n.x + 4, n.y, n.w - 18, n.h);
+		nvgFontSize(vg, 11.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+		nvgFillColor(vg, hover == kName ? kTextHot : kText);
+		nvgText(vg, n.x + 6, n.y + n.h * 0.5f + 1.0f, name.c_str(), NULL);
+		nvgRestore(vg);
+		{
+			const float cx = n.x + n.w - 9, cy = n.y + n.h * 0.5f + 1.0f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, cx - 3.5f, cy - 2.0f);
+			nvgLineTo(vg, cx + 3.5f, cy - 2.0f);
+			nvgLineTo(vg, cx, cy + 2.5f);
+			nvgClosePath(vg);
+			nvgFillColor(vg, hover == kName ? kTextHot : nvgRGBA(4, 186, 232, 200));
+			nvgFill(vg);
+		}
+
+		// SAVE and RND
+		nvgFontSize(vg, 9.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		const char* labels[2] = {"SAVE", "RND"};
+		const int zones[2] = {kSave, kRnd};
+		for (int i = 0; i < 2; i++) {
+			const auto& r = kZones[zones[i]];
+			nvgFillColor(vg, hover == zones[i] ? kTextHot : kColLabel);
+			nvgText(vg, r.x + r.w * 0.5f, r.y + r.h * 0.5f + 1.0f, labels[i], NULL);
+		}
+	}
+
 	void NVGView::drawScopeInfo(float ix, float iy, float iw, float ih) {
 		if (!baseController)
 			return;
@@ -2792,8 +2884,9 @@ no viewindex at 153!*/
 		// 3. Title (from the art)
 		drawArtCrop(kTitleArt, floorf(kCenterX - kTitleArt.w * 0.5f), floorf(kTitle.y0 + (kTitle.h() - kTitleArt.h) * 0.5f));
 
-		// 4. Preset bar (filled in a later step)
+		// 4. Preset bar: < name > SAVE RND (drawPresetBar; PresetBarView handles the mouse)
 		drawInset(lx, kPreset.y0 + 3, rx - lx, kPreset.h() - 6, kColDimFrame);
+		drawPresetBar();
 
 		// 5. Readout: parameter name and value slots (text drawn by drawCtrlValueOutput)
 		drawColumnSectionLabel(lx, kReadout.y0 + 2, "CONTROL");

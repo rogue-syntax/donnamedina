@@ -282,6 +282,12 @@ const char PMSG_VOICES_CHAR = 'f';
 // output channel since the previous message (linear, 1.0 = 0 dBFS). Sent by the same timer while an
 // editor is open; one 0 is sent when the output goes silent, then nothing until it sounds again.
 const char PMSG_PEAK_CHAR = 'g';
+// Preset bar (2026-11-14): controller -> processor, binary "data" = a processor state (the
+// BaseProcessor::getState layout); the processor applies it with setState (main thread).
+const char CMSG_SET_STATE_CHAR = 'h';
+// controller -> processor, int "purpose": send the current state back (PMSG_STATE_CHAR, same purpose).
+const char CMSG_GET_STATE_CHAR = 'i';
+const char PMSG_STATE_CHAR = 'j';
 // Most voices sounding at once (DXGenerator::POLYCOUNT starts here; the oldest voice is stolen
 // beyond it). Shown in the scope's voice count.
 const int POLY_LIMIT = 32;

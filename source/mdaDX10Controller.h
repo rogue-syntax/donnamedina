@@ -18,7 +18,9 @@
 #include "NVGViewController.h"
 #include "mdaBaseController.h"
 #include "mdaDX10Processor.h"//why
+#include "presetTools.h"
 #include <string>
+#include <vector>
 
 namespace Steinberg {
 namespace Vst {
@@ -80,6 +82,35 @@ public:
 
 	bool presetPending = false;
 	int32 pendingPresetIndex = 0;
+
+	// ---- Preset bar (2026-11-14, mdaDX10Presets.cpp) ----
+	struct PresetEntry { std::string name; int factory = -1; std::wstring path; };
+	std::vector<PresetEntry> presetList;  // factory presets, then user .vstpreset files
+	int presetCursor = 0;                  // index in presetList of the loaded preset, -1 = none
+	int presetFactory = 0;                 // loaded factory preset, -1 = not a factory preset
+	std::wstring presetPath;               // loaded user preset file, empty = none
+	std::wstring pendingSavePath;          // waiting for the processor state to write it
+	uint32 randomCount = 0;
+	bool applyingPresetState = false;      // inside applyPresetState (setComponentState keeps the name)
+	enum { kStateForSave = 1, kStateForVariation = 2, kStateForRandom = 3 };
+	static const char* factoryPresetName(int i);
+	void rescanPresets();
+	void syncPresetCursor();
+	void presetStepCounts(std::vector<int>& out);
+	void applyPresetState(presetTools::State s);
+	void loadFactoryPreset(int index);
+	bool loadPresetFile(const std::wstring& path);
+	void loadPresetEntry(int listIndex);
+	void stepPreset(int dir);
+	void requestProcessorState(int purpose);
+	void runSaveDialog(CFrame* frame);
+	void runOpenDialog(CFrame* frame);
+	void showPresetMenu(CFrame* frame, const CPoint& where);
+	void onPresetBarClick(int zone, CFrame* frame, const CPoint& where) override;
+	void onProcessorState(const void* data, uint32 size, int64 purpose) override;
+	tresult PLUGIN_API setState(IBStream* state) SMTG_OVERRIDE;
+	tresult PLUGIN_API getState(IBStream* state) SMTG_OVERRIDE;
+	tresult PLUGIN_API setComponentState(IBStream* state) SMTG_OVERRIDE;
 
 	void checkPendingPreset();
 

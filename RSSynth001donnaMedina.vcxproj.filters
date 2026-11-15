@@ -145,6 +145,15 @@
     <ClCompile Include="source\paramDisplay.cpp">
       <Filter>Source Files\VSTSource</Filter>
     </ClCompile>
+    <ClCompile Include="source\presetTools.cpp">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClCompile>
+    <ClCompile Include="source\mdaDX10Presets.cpp">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\source\common\memorystream.cpp">
+      <Filter>Source Files\public.sdk\common</Filter>
+    </ClCompile>
     <ClCompile Include="source\mdaDX10Processor.cpp">
       <Filter>Source Files\VSTSource</Filter>
     </ClCompile>
@@ -475,6 +484,12 @@
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>
     <ClInclude Include="source\scopeCapture.h">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClInclude>
+    <ClInclude Include="source\presetTools.h">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClInclude>
+    <ClInclude Include="source\presetBarView.h">
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>
     <ClInclude Include="source\Env.h">

@@ -405,8 +405,13 @@ int DX10Controller::onBadReg(int pid, double msg) {
 
 
 int DX10Controller::widthReset(int pid, double msg) {
-	//do nothing
-	nvgViewController->nvgView->onResetButton(pid);
+	// B-59: reset only when the button is pressed (1). This handler runs for every value the reset
+	// params get: the release (0), every preset/state load and the editor-open replay. Each of those
+	// re-centred WIDTH/TUNE/FINE and the MOD ones with a performEdit, overwriting the loaded values.
+	if (msg < 0.5)
+		return 0;
+	if (nvgViewController && nvgViewController->nvgView)
+		nvgViewController->nvgView->onResetButton(pid);
 	return 0;
 }
 
@@ -898,6 +903,12 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 			}
 		}
 		presetPending = false;
+		// preset bar: the host picked a factory program
+		presetFactory = program;
+		presetPath.clear();
+		presetName = factoryPresetName(program);
+		presetDirty = false;
+		syncPresetCursor();
 		if (componentHandler)
 			componentHandler->restartComponent(kParamValuesChanged);
 	}

@@ -16,6 +16,7 @@
 
 #include "mdaBaseProcessor.h"
 #include "mdaBaseController.h"
+#include "public.sdk/source/common/memorystream.h"
 #include "helpers.h"
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "pluginterfaces/base/ibstream.h"
@@ -502,6 +503,35 @@ tresult PLUGIN_API BaseProcessor::notify(IMessage* message) {
 		outPeak.store (0.0f, std::memory_order_relaxed);
 		if (on == 0)
 			for (int p = 0; p < 128; p++) voiceStates[p].store (0, std::memory_order_relaxed);
+		return kResultTrue;
+	}
+	// Preset bar: load a state the controller built (preset file, factory preset, randomized), or
+	// send the current one back (save, randomize). notify runs on the main thread, like a host's
+	// own setState/getState.
+	if (message && message->getMessageID () && message->getMessageID ()[0] == CMSG_SET_STATE_CHAR
+		&& message->getMessageID ()[1] == 0) {
+		const void* data = nullptr;
+		uint32 size = 0;
+		if (message->getAttributes ()->getBinary ("data", data, size) == kResultTrue && data && size > 0) {
+			MemoryStream ms (const_cast<void*> (data), static_cast<TSize> (size));
+			setState (&ms);
+		}
+		return kResultTrue;
+	}
+	if (message && message->getMessageID () && message->getMessageID ()[0] == CMSG_GET_STATE_CHAR
+		&& message->getMessageID ()[1] == 0) {
+		int64 purpose = 0;
+		message->getAttributes ()->getInt ("purpose", purpose);
+		MemoryStream ms;
+		if (getState (&ms) == kResultTrue) {
+			if (IMessage* reply = allocateMessage ()) {
+				reply->setMessageID (msgIdStr (PMSG_STATE_CHAR));
+				reply->getAttributes ()->setBinary ("data", ms.getData (), static_cast<uint32> (ms.getSize ()));
+				reply->getAttributes ()->setInt ("purpose", purpose);
+				sendMessage (reply);
+				reply->release ();
+			}
+		}
 		return kResultTrue;
 	}
 	return ComponentBase::notify(message);
