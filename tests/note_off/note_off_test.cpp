@@ -12,6 +12,7 @@
 #include "../../source/mdaDX10Controller.h"  // B-01/B-02 controller test
 #include "../../source/paramDisplay.h"
 #include "../../source/presetTools.h"
+#include "../../source/lfoShape.h"
 #include "public.sdk/source/vst/vstpresetfile.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
@@ -688,7 +689,30 @@ int perfProbe(int argc, char** argv) {
 	return 0;
 }
 
+// LFO probe: holds a note with LFO 1 routed to the filter and prints LFO 1's per-voice output
+// (voiceEnvLfo[4].cenv) after each block. Args: lfo <type 0..1> <rate 0..1> <delay 0..1> <phase 0..1> [amp]
+int lfoProbe(int argc, char** argv) {
+	const double type = argc > 2 ? std::atof(argv[2]) : 0.0;
+	const double rate = argc > 3 ? std::atof(argv[3]) : 0.1;
+	const double delay = argc > 4 ? std::atof(argv[4]) : 0.0;
+	const double phase = argc > 5 ? std::atof(argv[5]) : 0.5;
+	const double amp = argc > 6 ? std::atof(argv[6]) : 1.0;
+	Options o;
+	o.params = {{0.0, {LFO_1_BPM, 0.0}}, {0.0, {LFO_1_TYPE, type}}, {0.0, {LFO_1_RATE, rate}},
+	            {0.0, {LFO_1_DELAY, delay}}, {0.0, {LFO_1_PHASE, phase}}, {0.0, {LFO_1_AMP, amp}},
+	            {0.0, {GAIN_ENV, 0.6}}};
+	o.onCreated = [](rs::DX10Processor& p) { p.generators[0].ctrlValues[GAIN_ENV_SRC] = 4; };
+	o.perBlock = [&](rs::DX10Processor& p, double t) {
+		const RVoice& v = p.generators[0].RVoicesMap[kPitch];
+		std::printf("%.4f %.4f wf=%u fo=%.3f\n", t, v.voiceEnvLfo[4].cenv, v.voiceEnvLfo[4].m_uWaveform,
+		            v.voiceEnvLfo[4].m_dFo);
+	};
+	render({"lfo", 1.0, 0.5}, {{at(0.05), true, kPitch}}, 2.0, o);
+	return 0;
+}
+
 int main(int argc, char** argv) {
+	if (argc > 1 && std::strcmp(argv[1], "lfo") == 0) return lfoProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "perf") == 0) return perfProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "golden") == 0) return goldenProbe(argc, argv);
@@ -1516,6 +1540,88 @@ int main(int argc, char** argv) {
 			paramDisplay::voiceRange(s, c.lastLo, c.lastHi, lo, hi);
 			std::snprintf(buf, sizeof(buf), "%d..%d (want %d..%d)", lo, hi, c.wantLo, c.wantHi);
 			check(c.name, lo == c.wantLo && hi == c.wantHi, buf);
+		}
+	}
+
+	// ---- LFO shape: the engine's LFO output equals lfoShape (what the LFO displays draw) (2026-11-15) ----
+	{
+		std::printf("\nLFO shape (engine vs lfoShape.h)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		struct LCase { const char* name; double type, rate, delay, phase, amp; };
+		const LCase cases[] = {
+			{"sine, phase 0.5", 0.0, 0.1, 0.0, 0.5, 1.0},
+			{"sine, phase 0.8, delay 0.25 s", 0.0, 0.1, 0.25, 0.8, 0.7},
+			{"saw, phase 0.3", 1.0 / 3, 0.1, 0.0, 0.3, 1.0},
+			{"triangle, phase 0.5, delay 0.4 s", 2.0 / 3, 0.15, 0.4, 0.5, 0.5},
+			{"square (was silent), phase 0.5", 1.0, 0.1, 0.0, 0.5, 1.0},
+			{"square, phase 0.2, delay 0.1 s", 1.0, 0.2, 0.1, 0.2, 0.8},
+		};
+		const int64 noteAt = at(0.05);
+		for (const LCase& c : cases) {
+			Options o;
+			o.params = {{0.0, {LFO_1_BPM, 0.0}}, {0.0, {LFO_1_TYPE, c.type}}, {0.0, {LFO_1_RATE, c.rate}},
+			            {0.0, {LFO_1_DELAY, c.delay}}, {0.0, {LFO_1_PHASE, c.phase}}, {0.0, {LFO_1_AMP, c.amp}},
+			            {0.0, {GAIN_ENV, 0.6}}};
+			o.onCreated = [](rs::DX10Processor& p) { p.generators[0].ctrlValues[GAIN_ENV_SRC] = 4; };
+			const int type = lfoShape::typeFromNormalized(c.type);
+			const double start = lfoShape::phaseStart(type, c.phase);
+			const double delay = lfoShape::delaySeconds(c.delay);
+			const double hz = paramDisplay::lfoRateHz(c.rate);
+			int n = 0, bad = 0;
+			double worst = 0.0, peak = 0.0;
+			o.perBlock = [&](rs::DX10Processor& p, double tEnd) {
+				const int64 last = static_cast<int64>(tEnd * kSampleRate + 0.5) - 1;  // last sample of the block
+				if (last < noteAt + 64) return;
+				const double t = double(last - noteAt) / kSampleRate;
+				const double got = p.generators[0].RVoicesMap[kPitch].voiceEnvLfo[4].cenv;
+				// skip points next to a jump (saw wrap, square edges, end of the delay): one sample off
+				// in time is a full-scale difference there
+				const double dt = 1.5e-3;
+				const double a = lfoShape::valueAt(type, start, delay, hz, t - dt), b = lfoShape::valueAt(type, start, delay, hz, t + dt);
+				if (std::fabs(a - b) > 0.25) return;
+				const double want = lfoShape::valueAt(type, start, delay, hz, t) * c.amp;
+				const double err = std::fabs(got - want);
+				worst = std::max(worst, err);
+				peak = std::max(peak, std::fabs(got));
+				n++;
+				if (err > 0.03) bad++;
+			};
+			render({"lfo", 1.0, 0.5}, {{noteAt, true, kPitch}}, 1.6, o);
+			std::snprintf(buf, sizeof(buf), "%d points, worst %.4f, peak %.2f", n, worst, peak);
+			check(c.name, n > 50 && bad == 0 && peak > c.amp * 0.9, buf);
+		}
+
+		// the start phase follows a type change made after the phase (it used to keep the old type's)
+		Options o;
+		o.params = {{0.0, {LFO_1_TYPE, 0.0}}, {0.0, {LFO_1_PHASE, 0.3}}, {0.1, {LFO_1_TYPE, 1.0}}};
+		float ps = -9.0f;
+		o.inspect = [&](rs::DX10Processor& p) { ps = p.EnvLfoCtrls[4].phaseStart; };
+		render({"lfo", 1.0, 0.5}, {}, 0.3, o);
+		std::snprintf(buf, sizeof(buf), "phaseStart %.3f (want %.3f)", ps, lfoShape::phaseStart(lfoShape::kSquare, 0.3));
+		check("phase recomputed on a type change", std::fabs(ps - lfoShape::phaseStart(lfoShape::kSquare, 0.3)) < 1e-6, buf);
+
+		std::snprintf(buf, sizeof(buf), "%d %d %d %d", lfoShape::typeFromNormalized(0.0), lfoShape::typeFromNormalized(1.0 / 3),
+		              lfoShape::typeFromNormalized(2.0 / 3), lfoShape::typeFromNormalized(1.0));
+		check("type list maps to sine/saw/tri/square", lfoShape::typeFromNormalized(1.0) == 3 &&
+		          lfoShape::typeFromNormalized(2.0 / 3) == 2 && lfoShape::typeFromNormalized(1.0 / 3) == 1, buf);
+		const double ladder[] = {0.25, 0.5, 1, 2};
+		std::snprintf(buf, sizeof(buf), "%.2f %.2f %.2f", lfoShape::chooseWindow(0, 0.1, ladder, 4),
+		              lfoShape::chooseWindow(0.3, 0.483, ladder, 4), lfoShape::chooseWindow(0, 5, ladder, 4));
+		check("display window: delay + 2 cycles, capped", lfoShape::chooseWindow(0, 0.1, ladder, 4) == 0.25 &&
+		          lfoShape::chooseWindow(0.3, 0.483, ladder, 4) == 2 && lfoShape::chooseWindow(0, 5, ladder, 4) == 2, buf);
+		{
+			paramDisplay::Context ctx;
+			ctx.lfoType = lfoShape::kSine;
+			const std::string a = paramDisplay::value(LFO_1_PHASE, 0.625, ctx);
+			ctx.lfoType = lfoShape::kSaw;
+			const std::string b = paramDisplay::value(LFO_1_PHASE, 0.75, ctx);
+			const std::string d = paramDisplay::value(LFO_1_DELAY, 0.02, ctx);
+			std::snprintf(buf, sizeof(buf), "%s | %s | %s", a.c_str(), b.c_str(), d.c_str());
+			check("readout: phase as start in the cycle, delay off", a == "START 90 deg" && b == "START 90 deg" && d == "OFF", buf);
 		}
 	}
 

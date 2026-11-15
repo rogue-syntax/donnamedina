@@ -27,4 +27,5 @@ public:
 	int toggleGlobal = 0;
 
 	float phaseStart = 1.0;
+	float phaseValue = 0.5;  // LFO_n_PHASE as set; phaseStart depends on the type too (lfoShape)
 };

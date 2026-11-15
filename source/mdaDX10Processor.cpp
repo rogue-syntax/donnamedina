@@ -2,6 +2,7 @@
 #include "mdaDX10Processor.h"
 #include "mdaDX10Controller.h"
 #include <math.h>
+#include "lfoShape.h"
 
 #include "regReader.h"
 #include <locale>
@@ -1708,7 +1709,10 @@ int DX10Processor::recalcLfo1Amp(double value) {
 	return 0;
 }
 int DX10Processor::recalcLfo1Type(double value) { 
-	EnvLfoCtrls[4].lfoType = static_cast<int>(div((value * 100), 25).quot);
+	// lfoShape: the last list entry used to map to 4 (no such wave: square was silent);
+	// the start phase depends on the type, so recompute it.
+	EnvLfoCtrls[4].lfoType = lfoShape::typeFromNormalized(value);
+	EnvLfoCtrls[4].phaseStart = static_cast<float>(lfoShape::phaseStart(EnvLfoCtrls[4].lfoType, EnvLfoCtrls[4].phaseValue));
 	return 0; 
 };
 
@@ -1749,7 +1753,10 @@ int DX10Processor::recalcLfo2Amp(double value) {
 	return 0;
 }
 int DX10Processor::recalcLfo2Type(double value) { 
-	EnvLfoCtrls[5].lfoType = static_cast<int>(div((value * 100), 25).quot);
+	// lfoShape: the last list entry used to map to 4 (no such wave: square was silent);
+	// the start phase depends on the type, so recompute it.
+	EnvLfoCtrls[5].lfoType = lfoShape::typeFromNormalized(value);
+	EnvLfoCtrls[5].phaseStart = static_cast<float>(lfoShape::phaseStart(EnvLfoCtrls[5].lfoType, EnvLfoCtrls[5].phaseValue));
 	return 0;
 };
 
@@ -1790,7 +1797,10 @@ int DX10Processor::recalcLfo3Amp(double value) {
 	return 0;
 }
 int DX10Processor::recalcLfo3Type(double value) {
-	EnvLfoCtrls[6].lfoType = static_cast<int>(div((value * 100), 25).quot);//we need to get this from ctrl notification
+	// lfoShape: the last list entry used to map to 4 (no such wave: square was silent);
+	// the start phase depends on the type, so recompute it.
+	EnvLfoCtrls[6].lfoType = lfoShape::typeFromNormalized(value);
+	EnvLfoCtrls[6].phaseStart = static_cast<float>(lfoShape::phaseStart(EnvLfoCtrls[6].lfoType, EnvLfoCtrls[6].phaseValue));
 	return 0;
 };
 
@@ -1834,42 +1844,20 @@ int DX10Processor::recalcToggleGenView(double value) {
 };
 
 int DX10Processor::recalcLfo1Phase(double value) {
-	if (EnvLfoCtrls[4].lfoType == 0 ) {
-		EnvLfoCtrls[4].phaseStart = (value-0.5)*2;
-	}
-	else if (EnvLfoCtrls[4].lfoType == 4) {
-		EnvLfoCtrls[4].phaseStart = value;
-	}
-	else {
-		EnvLfoCtrls[4].phaseStart = 1-value;
-	}
-	
+	EnvLfoCtrls[4].phaseValue = static_cast<float>(value);
+	EnvLfoCtrls[4].phaseStart = static_cast<float>(lfoShape::phaseStart(EnvLfoCtrls[4].lfoType, value));
 	return 0;
 }
 
 int DX10Processor::recalcLfo2Phase(double value) {
-	if (EnvLfoCtrls[5].lfoType == 0) {
-		EnvLfoCtrls[5].phaseStart = (value - 0.5) * 2;
-	}
-	else if (EnvLfoCtrls[5].lfoType == 4) {
-		EnvLfoCtrls[5].phaseStart = value;
-	}
-	else {
-		EnvLfoCtrls[5].phaseStart = 1 - value;
-	}
+	EnvLfoCtrls[5].phaseValue = static_cast<float>(value);
+	EnvLfoCtrls[5].phaseStart = static_cast<float>(lfoShape::phaseStart(EnvLfoCtrls[5].lfoType, value));
 	return 0;
 }
 
 int DX10Processor::recalcLfo3Phase(double value) {
-	if (EnvLfoCtrls[6].lfoType == 0) {
-		EnvLfoCtrls[6].phaseStart = (value - 0.5) * 2;
-	}
-	else if (EnvLfoCtrls[6].lfoType == 4) {
-		EnvLfoCtrls[6].phaseStart = value;
-	}
-	else {
-		EnvLfoCtrls[6].phaseStart = 1 - value;
-	}
+	EnvLfoCtrls[6].phaseValue = static_cast<float>(value);
+	EnvLfoCtrls[6].phaseStart = static_cast<float>(lfoShape::phaseStart(EnvLfoCtrls[6].lfoType, value));
 	return 0;
 }
 

@@ -208,6 +208,24 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		mp->release();
 		pumpFor(1000);  // the scope's pitch range glides to the new notes
 	}
+	// EDITOR_SHOT_LFO=1: LFO settings that show the display's cases: 1 square with a delay,
+	// 2 saw synced to 1/8, 3 a fast sine after a long delay (drawn as a band).
+	// EDITOR_SHOT_LFO=2: 1 triangle phase 0.25, 2 sine 1/4 dotted, 3 slow sine.
+	if (const char* lf = std::getenv("EDITOR_SHOT_LFO")) {
+		const bool two = std::atoi(lf) == 2;
+		struct PV { int pid; double v; };
+		const PV one[] = {
+			{LFO_1_TYPE, 1.0}, {LFO_1_RATE, 0.1}, {LFO_1_AMP, 0.8}, {LFO_1_DELAY, 0.3}, {LFO_1_PHASE, 0.5}, {LFO_1_BPM, 0},
+			{LFO_2_TYPE, 1.0 / 3}, {LFO_2_RATE, 0.5}, {LFO_2_AMP, 0.6}, {LFO_2_DELAY, 0}, {LFO_2_PHASE, 0.5}, {LFO_2_BPM, 1},
+			{LFO_3_TYPE, 0}, {LFO_3_RATE, 0.9}, {LFO_3_AMP, 0.5}, {LFO_3_DELAY, 0.6}, {LFO_3_PHASE, 0.5}, {LFO_3_BPM, 0}};
+		const PV alt[] = {
+			{LFO_1_TYPE, 2.0 / 3}, {LFO_1_RATE, 0.2}, {LFO_1_AMP, 1.0}, {LFO_1_DELAY, 0}, {LFO_1_PHASE, 0.25}, {LFO_1_BPM, 0},
+			{LFO_2_TYPE, 0}, {LFO_2_RATE, 0.3}, {LFO_2_AMP, 0.9}, {LFO_2_DELAY, 0.1}, {LFO_2_PHASE, 0.5}, {LFO_2_BPM, 1},
+			{LFO_3_TYPE, 0}, {LFO_3_RATE, 0.0}, {LFO_3_AMP, 0.3}, {LFO_3_DELAY, 0}, {LFO_3_PHASE, 0.75}, {LFO_3_BPM, 0}};
+		for (const PV& p : (two ? alt : one))
+			ctrl->setParamNormalized(p.pid, p.v);
+		pumpFor(300);
+	}
 	// EDITOR_SHOT_HOVER=<pid>: put the real cursor on that control (exercises the frame's mouse
 	// observer -> NVGView::onMouseEntered -> showParamReadout), then let the readout animate in.
 	if (const char* hv = std::getenv("EDITOR_SHOT_HOVER")) {

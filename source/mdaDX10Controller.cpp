@@ -18,6 +18,7 @@
 #include "mdaDX10Controller.h"
 #include "editorLayout.h"
 #include "paramDisplay.h"
+#include "lfoShape.h"
 #include <cmath>
 #include <cstdio>
 
@@ -463,6 +464,8 @@ std::string DX10Controller::readoutValue(int pid, double normalized) {
 	const int syncPid = paramDisplay::syncParamFor(pid);
 	if (syncPid >= 0)
 		ctx.lfoSynced = getParamNormalized(syncPid) >= 1.0;  // processor: syncBpm = (int)value
+	if (pid >= LFO_1_PHASE && pid <= LFO_3_PHASE)
+		ctx.lfoType = lfoShape::typeFromNormalized(getParamNormalized(LFO_1_TYPE + 5 * (pid - LFO_1_PHASE)));
 	std::string s = paramDisplay::value(pid, normalized, ctx);
 	if (s.empty()) {
 		char buf[32];

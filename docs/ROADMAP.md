@@ -20,8 +20,8 @@ Order within a section is a rough priority (impact for effort).
 ## 1. GUI: high-value
 - [x] **Live readout in CONTROL/VALUE**: the parameter under the mouse / being turned, with real units
       (Hz, ms, semitones, cents, tempo divisions). Done in column step 2.
-- [ ] **Animated LFO displays**: real waveform shape, shaded delay section, a moving phase dot from the
-      most recently played note.
+- [x] **LFO displays**: the LFO after a note-on on a time axis (real rate, amplitude, start phase, hatched
+      delay), not animated, by your call (docs/04-gui.md "LFO displays"). Playhead dot: with the envelope playheads.
 - [ ] **Envelope playheads**: a dot travelling along each envelope shape for the latest notes (pulses with
       rhythmic playing).
 - [ ] **Modulation visibility**: colour per source (Env 1/2/3, LFO F/G/H) tinting the knobs/squares it drives,

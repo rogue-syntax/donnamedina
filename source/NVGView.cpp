@@ -5,6 +5,7 @@
 #include "REvent.h"
 #include "NVGView.h"
 #include "presetBarView.h"
+#include "lfoShape.h"
 #include <iostream>
 #include "luconData.hpp"
 #include "constants.h"
@@ -1471,352 +1472,184 @@ no viewindex at 153!*/
 		//}
 	}
 
-	//NOT SHOWING ENOUGH RESOLUTION FOR FIRST TWO BPM SYNC STATES
-	void NVGView::drawEnv4() {
-		lfo1Amp = knobMap.at("lfo1Amp")->getValueNormalized();
-		lfo1Type = int64(knobMap.at("lfo1Type")->getValue());
-		//lfo1Rate supplied by message notify from processor
-		lfo1Slider = sliderMap.at("lfo1PhaseSlider")->getValue() - 0.5;
-		t_lfo1Width = lfoWidth / fmax(0.03, (*lfo1Rate));
-		//lfo1OriginX = lfo1OriginStartX + (lfo1Slider * (t_lfo1Width)) - (t_lfo1Width*.25) - (ceil(lfo1Slider) * t_lfo1Width);
-		
-		nvgBeginPath(vg);
-		nvgScissor(vg, 0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
-		nvgIntersectScissor(vg, lfo1OriginStartX, lfo1OriginY - lfoHeight / 2, lfoWidth, lfoHeight);
-		nvgMoveTo(vg, lfo1OriginX, lfo1OriginY);
-		switch (lfo1Type) {
-		case 0:
-			lfo1OriginX = lfo1OriginStartX + (lfo1Slider * (t_lfo1Width)) - t_lfo1Width * .5;
-			lfo1oX = lfo1OriginX + t_lfo1Width;
-			lfo1oY = lfo1OriginY;
-			lfo1oX2 = lfo1OriginX;
-			lfo1oX2Handle = lfo1oX2 + (t_lfo1Width*.5);
-			lfo1Height = lfoMinHeight + lfoHeight * lfo1Amp;
-			lfo1Height = lfo1Height * 1.25;
-			for (int i = 0; i <= (*lfo1Rate) + 2; i++) {
-				lfo1oX2Handle = lfo1oX2 + (t_lfo1Width*.5);
-				nvgBezierTo(vg,
-					(lfo1oX2Handle),
-					(lfo1oY - lfo1Height),
-					(lfo1oX2Handle),
-					(lfo1oY + lfo1Height),
-					lfo1oX, lfo1oY);
-				lfo1oX2 = lfo1oX;
-				lfo1oX = lfo1oX + t_lfo1Width;
-			}
-			break;
-		case 1:
-			lfo1OriginX = lfo1OriginStartX + (lfo1Slider * (t_lfo1Width)) - t_lfo1Width * .5;
-			lfo1oX = lfo1OriginX + t_lfo1Width;
-			lfo1oY = lfo1OriginY;
-			lfo1oX2 = lfo1OriginX;
-			lfo1oX2Handle = lfo1oX2 + (t_lfo1Width*.5);
-			lfo1Height = lfoMinHeight + lfoHeight * lfo1Amp;
-			lfo1Height = lfo1Height * .35;
-			for (int i = 0; i <= (*lfo1Rate)+2; i++) {
-				nvgLineTo(vg,
-					lfo1oX2,
-					(lfo1oY - lfo1Height)
-				);
-				nvgLineTo(vg,
-					lfo1oX,
-					(lfo1oY + lfo1Height)
-				);
-				lfo1oX2 = lfo1oX;
-				lfo1oX = lfo1oX + t_lfo1Width;
-			}
-			break;
-		case 2:
-			lfo1OriginX = lfo1OriginStartX + (lfo1Slider * (t_lfo1Width)) - t_lfo1Width * .5;
-			lfo1oX = lfo1OriginX + t_lfo1Width;
-			lfo1oY = lfo1OriginY;
-			lfo1oX2 = lfo1OriginX;
-			lfo1oX2Handle = lfo1oX2 + (t_lfo1Width*.5);
-			lfo1Height = lfoMinHeight + lfoHeight * lfo1Amp;
-			lfo1Height = lfo1Height * .35;
-			nvgMoveTo(vg, lfo1OriginX, lfo1OriginY + lfo1Height);
-			for (int i = 0; i <= (*lfo1Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo1oX2+ (t_lfo1Width*.5),
-					(lfo1oY - lfo1Height)
-				);
-				nvgLineTo(vg,
-					lfo1oX,
-					(lfo1oY + lfo1Height)
-				);
-				lfo1oX2 = lfo1oX;
-				lfo1oX = lfo1oX + t_lfo1Width;
-			}
-			break;
-		case 3:
-			lfo1OriginX = lfo1OriginStartX + (lfo1Slider * (t_lfo1Width)) - t_lfo1Width * .5;
-			lfo1oX = lfo1OriginX + t_lfo1Width;
-			lfo1oY = lfo1OriginY;
-			lfo1oX2 = lfo1OriginX;
-			lfo1oX2Handle = lfo1oX2 + (t_lfo1Width*.5);
-			lfo1Height = lfoMinHeight + lfoHeight * lfo1Amp;
-			lfo1Height = lfo1Height * .35;
-			nvgMoveTo(vg, lfo1OriginX, lfo1OriginY + lfo1Height);
-			for (int i = 0; i <= (*lfo1Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo1oX2,
-					(lfo1oY - lfo1Height)
-				);
-				nvgLineTo(vg,
-					lfo1oX2 + (t_lfo1Width*.5),
-					(lfo1oY - lfo1Height)
-				);
-				nvgLineTo(vg,
-					lfo1oX2 + (t_lfo1Width*.5),
-					(lfo1oY + lfo1Height)
-				);
-				nvgLineTo(vg,
-					lfo1oX,
-					(lfo1oY + lfo1Height)
-				);
-				lfo1oX2 = lfo1oX;
-				lfo1oX = lfo1oX + t_lfo1Width;
-			}
-			break;
+	// LFO displays (2026-11-15): what the LFO does after a note-on, on a time axis, like the envelope
+	// displays: the delay (the LFO waits at its start value) hatched, then the wave at its real rate,
+	// amplitude and start phase. Values come from the controller's parameters and lfoShape.h, the
+	// same math the engine uses. The window is the shortest of a ladder (seconds, or note lengths when
+	// synced) that holds the delay and two cycles; the period/division is written top right and the
+	// window length bottom right. Below 3 px per cycle the wave is drawn as a band.
+	void NVGView::drawEnv4() { drawLfo(0); }
+	void NVGView::drawEnv5() { drawLfo(1); }
+	void NVGView::drawEnv6() { drawLfo(2); }
+
+	void NVGView::drawLfo(int i) {
+		if (!baseController || i < 0 || i > 2)
+			return;
+		const float originX[3] = {lfo1OriginStartX, lfo2OriginStartX, lfo3OriginStartX};
+		const float originY[3] = {lfo1OriginY, lfo2OriginY, lfo3OriginY};
+		double* rateMsg[3] = {lfo1Rate, lfo2Rate, lfo3Rate};
+		const float x = originX[i], w = lfoWidth, h = lfoHeight, y = originY[i] - h * 0.5f;
+		const float cy = y + h * 0.5f;
+
+		auto par = [&](int pid) { return baseController->getParamNormalized(pid); };
+		const int base = LFO_1_RATE + 5 * i;
+		const double rateV = par(base), ampV = par(base + 1), typeV = par(base + 2);
+		const bool synced = par(base + 3) >= 1.0;  // processor: syncBpm = (int)value
+		const int type = lfoShape::typeFromNormalized(typeV);
+		const double delay = lfoShape::delaySeconds(par(base + 4));
+		const double start = lfoShape::phaseStart(type, par(LFO_1_PHASE + i));
+
+		// rate in Hz; when synced, the tempo comes from the engine's rate message (120 BPM without one)
+		int div = static_cast<int>((rateV < 0 ? 0 : (rateV > 1 ? 1 : rateV)) * 10);
+		div = div < 0 ? 0 : (div > 10 ? 10 : div);
+		double bpm = 120.0;
+		if (synced && rateMsg[i] && *rateMsg[i] > 0.0)
+			bpm = *rateMsg[i] * quants[div];
+		const double hz = synced ? bpm / quants[div] : paramDisplay::lfoRateHz(rateV);
+		const double period = 1.0 / (hz > 1e-6 ? hz : 1e-6);
+
+		// time window
+		double window;
+		std::string windowText;
+		if (synced) {
+			const double beat = 60.0 / bpm;
+			static const double kBeats[] = {0.25, 0.5, 1, 2, 4, 8, 16, 32, 64};
+			static const char* const kBeatText[] = {"1/16", "1/8", "1/4", "1/2", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
+			double ladder[9];
+			for (int k = 0; k < 9; k++) ladder[k] = kBeats[k] * beat;
+			window = lfoShape::chooseWindow(delay, period, ladder, 9);
+			for (int k = 0; k < 9; k++)
+				if (ladder[k] == window) windowText = kBeatText[k];
 		}
-		nvgStrokeColor(vg, nvgRGBA(0, 160, 192, 255));
-		nvgStrokeWidth(vg, 2.0F);
+		else {
+			static const double kSec[] = {0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64};
+			window = lfoShape::chooseWindow(delay, period, kSec, 11);
+			char t[24];
+			if (window < 1.0) snprintf(t, sizeof(t), "%.0f MS", window * 1000.0);
+			else snprintf(t, sizeof(t), "%.0f S", window);
+			windowText = t;
+		}
+		const double pxPerSec = w / window;
+		const float xd = x + static_cast<float>(delay * pxPerSec);
+		const float amp = static_cast<float>(ampV) * (h * 0.5f - 4.0f);
+		const float cyclePx = static_cast<float>(period * pxPerSec);
+
+		nvgSave(vg);
+		nvgScissor(vg, x, y, w, h);
+
+		// cycle ticks after the delay (when far enough apart), and the centre line
+		nvgBeginPath(vg);
+		if (cyclePx >= 8.0f)
+			for (float gx = xd + cyclePx; gx < x + w - 1.0f; gx += cyclePx) {
+				nvgMoveTo(vg, floorf(gx) + 0.5f, y);
+				nvgLineTo(vg, floorf(gx) + 0.5f, y + h);
+			}
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 26));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x, floorf(cy) + 0.5f);
+		nvgLineTo(vg, x + w, floorf(cy) + 0.5f);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 55));
 		nvgStroke(vg);
 
-		nvgClosePath(vg);
-		nvgResetScissor(vg);
-			
-		
-	}
-
-	void NVGView::drawEnv5() {
-		lfo2Amp = knobMap.at("lfo2Amp")->getValueNormalized();
-		lfo2Type = int64(knobMap.at("lfo2Type")->getValue());
-		//lfo2Rate supplied by message notify from processor
-		lfo2Slider = sliderMap.at("lfo2PhaseSlider")->getValue() - 0.5;
-		t_lfo2Width = lfoWidth / fmax(0.03, (*lfo2Rate));
-		//lfo2OriginX = lfo2OriginStartX + (lfo2Slider * (t_lfo2Width)) - (t_lfo2Width*.25) - (ceil(lfo2Slider) * t_lfo2Width);
-
-		nvgBeginPath(vg);
-		nvgScissor(vg, 0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
-		nvgIntersectScissor(vg, lfo2OriginStartX, lfo2OriginY - lfoHeight / 2, lfoWidth, lfoHeight);
-		nvgMoveTo(vg, lfo2OriginX, lfo2OriginY);
-		switch (lfo2Type) {
-		case 0:
-			lfo2OriginX = lfo2OriginStartX + (lfo2Slider * (t_lfo2Width)) - t_lfo2Width * .5;
-			lfo2oX = lfo2OriginX + t_lfo2Width;
-			lfo2oY = lfo2OriginY;
-			lfo2oX2 = lfo2OriginX;
-			lfo2oX2Handle = lfo2oX2 + (t_lfo2Width*.5);
-			lfo2Height = lfoMinHeight + lfoHeight * lfo2Amp;
-			lfo2Height = lfo2Height * 1.25;
-			for (int i = 0; i <= (*lfo2Rate) + 2; i++) {
-				lfo2oX2Handle = lfo2oX2 + (t_lfo2Width*.5);
-				nvgBezierTo(vg,
-					(lfo2oX2Handle),
-					(lfo2oY - lfo2Height),
-					(lfo2oX2Handle),
-					(lfo2oY + lfo2Height),
-					lfo2oX, lfo2oY);
-				lfo2oX2 = lfo2oX;
-				lfo2oX = lfo2oX + t_lfo2Width;
+		// delay: hatched, with an edge where the LFO starts moving
+		if (delay > 0.0) {
+			nvgBeginPath(vg);
+			nvgRect(vg, x, y, xd - x, h);
+			nvgFillColor(vg, nvgRGBA(255, 204, 153, 20));
+			nvgFill(vg);
+			nvgSave(vg);
+			nvgIntersectScissor(vg, x, y, xd - x, h);
+			nvgBeginPath(vg);
+			for (float hx = x - h; hx < xd; hx += 6.0f) {
+				nvgMoveTo(vg, hx, y + h);
+				nvgLineTo(vg, hx + h, y);
 			}
-			break;
-		case 1:
-			lfo2OriginX = lfo2OriginStartX + (lfo2Slider * (t_lfo2Width)) - t_lfo2Width * .5;
-			lfo2oX = lfo2OriginX + t_lfo2Width;
-			lfo2oY = lfo2OriginY;
-			lfo2oX2 = lfo2OriginX;
-			lfo2oX2Handle = lfo2oX2 + (t_lfo2Width*.5);
-			lfo2Height = lfoMinHeight + lfoHeight * lfo2Amp;
-			lfo2Height = lfo2Height * .35;
-			for (int i = 0; i <= (*lfo2Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo2oX2,
-					(lfo2oY - lfo2Height)
-				);
-				nvgLineTo(vg,
-					lfo2oX,
-					(lfo2oY + lfo2Height)
-				);
-				lfo2oX2 = lfo2oX;
-				lfo2oX = lfo2oX + t_lfo2Width;
-			}
-			break;
-		case 2:
-			lfo2OriginX = lfo2OriginStartX + (lfo2Slider * (t_lfo2Width)) - t_lfo2Width * .5;
-			lfo2oX = lfo2OriginX + t_lfo2Width;
-			lfo2oY = lfo2OriginY;
-			lfo2oX2 = lfo2OriginX;
-			lfo2oX2Handle = lfo2oX2 + (t_lfo2Width*.5);
-			lfo2Height = lfoMinHeight + lfoHeight * lfo2Amp;
-			lfo2Height = lfo2Height * .35;
-			nvgMoveTo(vg, lfo2OriginX, lfo2OriginY + lfo2Height);
-			for (int i = 0; i <= (*lfo2Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo2oX2 + (t_lfo2Width*.5),
-					(lfo2oY - lfo2Height)
-				);
-				nvgLineTo(vg,
-					lfo2oX,
-					(lfo2oY + lfo2Height)
-				);
-				lfo2oX2 = lfo2oX;
-				lfo2oX = lfo2oX + t_lfo2Width;
-			}
-			break;
-		case 3:
-			lfo2OriginX = lfo2OriginStartX + (lfo2Slider * (t_lfo2Width)) - t_lfo2Width * .5;
-			lfo2oX = lfo2OriginX + t_lfo2Width;
-			lfo2oY = lfo2OriginY;
-			lfo2oX2 = lfo2OriginX;
-			lfo2oX2Handle = lfo2oX2 + (t_lfo2Width*.5);
-			lfo2Height = lfoMinHeight + lfoHeight * lfo2Amp;
-			lfo2Height = lfo2Height * .35;
-			nvgMoveTo(vg, lfo2OriginX, lfo2OriginY + lfo2Height);
-			for (int i = 0; i <= (*lfo2Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo2oX2,
-					(lfo2oY - lfo2Height)
-				);
-				nvgLineTo(vg,
-					lfo2oX2 + (t_lfo2Width*.5),
-					(lfo2oY - lfo2Height)
-				);
-				nvgLineTo(vg,
-					lfo2oX2 + (t_lfo2Width*.5),
-					(lfo2oY + lfo2Height)
-				);
-				nvgLineTo(vg,
-					lfo2oX,
-					(lfo2oY + lfo2Height)
-				);
-				lfo2oX2 = lfo2oX;
-				lfo2oX = lfo2oX + t_lfo2Width;
-			}
-			break;
+			nvgStrokeColor(vg, nvgRGBA(255, 204, 153, 45));
+			nvgStroke(vg);
+			nvgRestore(vg);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, floorf(xd) + 0.5f, y);
+			nvgLineTo(vg, floorf(xd) + 0.5f, y + h);
+			nvgStrokeColor(vg, nvgRGBA(255, 204, 153, 90));
+			nvgStroke(vg);
 		}
-		nvgStrokeColor(vg, nvgRGBA(0, 160, 192, 255));
-		nvgStrokeWidth(vg, 2.0F);
-		nvgStroke(vg);
 
-		nvgClosePath(vg);
-		nvgResetScissor(vg);
-	}
-
-	void NVGView::drawEnv6() {
-		lfo3Amp = knobMap.at("lfo3Amp")->getValueNormalized();
-		lfo3Type = int64(knobMap.at("lfo3Type")->getValue());
-		//lfo3Rate supplied by message notify from processor
-		lfo3Slider = sliderMap.at("lfo3PhaseSlider")->getValue() - 0.5;
-		t_lfo3Width = lfoWidth / fmax(0.03, (*lfo3Rate));
-		//lfo3OriginX = lfo3OriginStartX + (lfo3Slider * (t_lfo3Width)) - (t_lfo3Width*.25) - (ceil(lfo3Slider) * t_lfo3Width);
-
-		nvgBeginPath(vg);
-		nvgScissor(vg, 0, 0, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight);
-		nvgIntersectScissor(vg, lfo3OriginStartX, lfo3OriginY - lfoHeight / 2, lfoWidth, lfoHeight);
-		nvgMoveTo(vg, lfo3OriginX, lfo3OriginY);
-		switch (lfo3Type) {
-		case 0:
-			lfo3OriginX = lfo3OriginStartX + (lfo3Slider * (t_lfo3Width)) - t_lfo3Width * .5;
-			lfo3oX = lfo3OriginX + t_lfo3Width;
-			lfo3oY = lfo3OriginY;
-			lfo3oX2 = lfo3OriginX;
-			lfo3oX2Handle = lfo3oX2 + (t_lfo3Width*.5);
-			lfo3Height = lfoMinHeight + lfoHeight * lfo3Amp;
-			lfo3Height = lfo3Height * 1.25;
-			for (int i = 0; i <= (*lfo3Rate) + 2; i++) {
-				lfo3oX2Handle = lfo3oX2 + (t_lfo3Width*.5);
-				nvgBezierTo(vg,
-					(lfo3oX2Handle),
-					(lfo3oY - lfo3Height),
-					(lfo3oX2Handle),
-					(lfo3oY + lfo3Height),
-					lfo3oX, lfo3oY);
-				lfo3oX2 = lfo3oX;
-				lfo3oX = lfo3oX + t_lfo3Width;
-			}
-			break;
-		case 1:
-			lfo3OriginX = lfo3OriginStartX + (lfo3Slider * (t_lfo3Width)) - t_lfo3Width * .5;
-			lfo3oX = lfo3OriginX + t_lfo3Width;
-			lfo3oY = lfo3OriginY;
-			lfo3oX2 = lfo3OriginX;
-			lfo3oX2Handle = lfo3oX2 + (t_lfo3Width*.5);
-			lfo3Height = lfoMinHeight + lfoHeight * lfo3Amp;
-			lfo3Height = lfo3Height * .35;
-			for (int i = 0; i <= (*lfo3Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo3oX2,
-					(lfo3oY - lfo3Height)
-				);
-				nvgLineTo(vg,
-					lfo3oX,
-					(lfo3oY + lfo3Height)
-				);
-				lfo3oX2 = lfo3oX;
-				lfo3oX = lfo3oX + t_lfo3Width;
-			}
-			break;
-		case 2:
-			lfo3OriginX = lfo3OriginStartX + (lfo3Slider * (t_lfo3Width)) - t_lfo3Width * .5;
-			lfo3oX = lfo3OriginX + t_lfo3Width;
-			lfo3oY = lfo3OriginY;
-			lfo3oX2 = lfo3OriginX;
-			lfo3oX2Handle = lfo3oX2 + (t_lfo3Width*.5);
-			lfo3Height = lfoMinHeight + lfoHeight * lfo3Amp;
-			lfo3Height = lfo3Height * .35;
-			nvgMoveTo(vg, lfo3OriginX, lfo3OriginY + lfo3Height);
-			for (int i = 0; i <= (*lfo3Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo3oX2 + (t_lfo3Width*.5),
-					(lfo3oY - lfo3Height)
-				);
-				nvgLineTo(vg,
-					lfo3oX,
-					(lfo3oY + lfo3Height)
-				);
-				lfo3oX2 = lfo3oX;
-				lfo3oX = lfo3oX + t_lfo3Width;
-			}
-			break;
-		case 3:
-			lfo3OriginX = lfo3OriginStartX + (lfo3Slider * (t_lfo3Width)) - t_lfo3Width * .5;
-			lfo3oX = lfo3OriginX + t_lfo3Width;
-			lfo3oY = lfo3OriginY;
-			lfo3oX2 = lfo3OriginX;
-			lfo3oX2Handle = lfo3oX2 + (t_lfo3Width*.5);
-			lfo3Height = lfoMinHeight + lfoHeight * lfo3Amp;
-			lfo3Height = lfo3Height * .35;
-			nvgMoveTo(vg, lfo3OriginX, lfo3OriginY + lfo3Height);
-			for (int i = 0; i <= (*lfo3Rate) + 2; i++) {
-				nvgLineTo(vg,
-					lfo3oX2,
-					(lfo3oY - lfo3Height)
-				);
-				nvgLineTo(vg,
-					lfo3oX2 + (t_lfo3Width*.5),
-					(lfo3oY - lfo3Height)
-				);
-				nvgLineTo(vg,
-					lfo3oX2 + (t_lfo3Width*.5),
-					(lfo3oY + lfo3Height)
-				);
-				nvgLineTo(vg,
-					lfo3oX,
-					(lfo3oY + lfo3Height)
-				);
-				lfo3oX2 = lfo3oX;
-				lfo3oX = lfo3oX + t_lfo3Width;
-			}
-			break;
+		const NVGcolor kLine = nvgRGBA(120, 230, 255, 235);
+		const NVGcolor kGlow = nvgRGBA(4, 186, 232, 55);
+		const NVGcolor kFill = nvgRGBA(0, 160, 192, 90);
+		const float startY = cy - static_cast<float>(lfoShape::wave(type, start)) * amp;
+		if (cyclePx < 3.0f) {
+			// too fast to draw: the delay part as a line, then the band the wave fills
+			nvgBeginPath(vg);
+			nvgRect(vg, xd, cy - amp, x + w - xd, amp * 2.0f + 0.5f);
+			nvgFillColor(vg, kFill);
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, startY);
+			nvgLineTo(vg, xd, startY);
+			nvgMoveTo(vg, xd, cy - amp);
+			nvgLineTo(vg, x + w, cy - amp);
+			nvgMoveTo(vg, xd, cy + amp);
+			nvgLineTo(vg, x + w, cy + amp);
+			nvgStrokeColor(vg, kLine);
+			nvgStrokeWidth(vg, 1.3f);
+			nvgStroke(vg);
 		}
-		nvgStrokeColor(vg, nvgRGBA(0, 160, 192, 255));
-		nvgStrokeWidth(vg, 2.0F);
-		nvgStroke(vg);
+		else {
+			// two points per pixel; square and saw edges come out (nearly) vertical
+			const int n = static_cast<int>(w * 2.0f) + 1;
+			auto ptY = [&](int k) {
+				const double t = (k * 0.5) / pxPerSec;
+				return cy - static_cast<float>(lfoShape::valueAt(type, start, delay, hz, t)) * amp;
+			};
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, x, cy);
+			for (int k = 0; k < n; k++)
+				nvgLineTo(vg, x + k * 0.5f, ptY(k));
+			nvgLineTo(vg, x + w, cy);
+			nvgClosePath(vg);
+			nvgFillColor(vg, kFill);
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			for (int k = 0; k < n; k++) {
+				if (k == 0) nvgMoveTo(vg, x, ptY(k));
+				else nvgLineTo(vg, x + k * 0.5f, ptY(k));
+			}
+			nvgLineJoin(vg, NVG_ROUND);
+			nvgStrokeColor(vg, kGlow);
+			nvgStrokeWidth(vg, 4.0f);
+			nvgStroke(vg);
+			nvgStrokeColor(vg, kLine);
+			nvgStrokeWidth(vg, 1.4f);
+			nvgStroke(vg);
+		}
 
-		nvgClosePath(vg);
-		nvgResetScissor(vg);
+		// labels: period or division (top right), window length (bottom right)
+		char rt[24];
+		if (synced)
+			snprintf(rt, sizeof(rt), "%s", paramDisplay::lfoSyncDivision(rateV));
+		else if (period < 1.0)
+			snprintf(rt, sizeof(rt), "%.0f MS", period * 1000.0);
+		else
+			snprintf(rt, sizeof(rt), "%.2f S", period);
+		nvgFontFace(vg, "lucon");
+		nvgFontSize(vg, 9.0f);
+		auto plate = [&](const char* t, float ty, bool top, NVGcolor c) {
+			float b[4];
+			const float tw = nvgTextBounds(vg, 0, 0, t, NULL, b);
+			nvgBeginPath(vg);
+			nvgRect(vg, x + w - tw - 6.0f, top ? ty - 1.0f : ty - 10.0f, tw + 6.0f, 11.0f);
+			nvgFillColor(vg, nvgRGBA(0, 0, 0, 150));
+			nvgFill(vg);
+			nvgTextAlign(vg, NVG_ALIGN_RIGHT | (top ? NVG_ALIGN_TOP : NVG_ALIGN_BOTTOM));
+			nvgFillColor(vg, c);
+			nvgText(vg, x + w - 3.0f, ty, t, NULL);
+		};
+		plate(rt, y + 2.0f, true, nvgRGBA(255, 204, 153, 220));
+		plate(windowText.c_str(), y + h - 1.0f, false, nvgRGBA(4, 186, 232, 170));
+		nvgRestore(vg);
 	}
 
 	void NVGView::drawEnv1() {

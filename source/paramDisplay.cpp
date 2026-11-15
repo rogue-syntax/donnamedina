@@ -1,5 +1,6 @@
 #include "paramDisplay.h"
 #include "constants.h"
+#include "lfoShape.h"
 
 #include <cmath>
 #include <cstdio>
@@ -351,15 +352,23 @@ std::string value (int pid, double v, const Context& ctx)
 		if (which == 1)
 			return percent (v);
 		if (which == 4) {
-			// CLFOscillator fades the LFO in over m_dDelayTime seconds (off below 0.03).
-			if (v < 0.03)
+			// The LFO waits this long at its start value, then runs (lfoShape.h; off at 0.03 and below).
+			if (lfoShape::delaySeconds (v) <= 0.0)
 				return "OFF";
 			return timeText (clamp01 (v));
 		}
 		return "";
 	}
 	if (pid >= LFO_1_PHASE && pid <= LFO_3_PHASE)
-		return fmt ("%+.0f deg", (v - 0.5) * 360.0);
+		{
+			// Where in its cycle the LFO starts at note-on (lfoShape::phaseStart), 0..359 deg.
+			if (ctx.lfoType < 0)
+				return fmt ("%.2f", v);
+			double s = lfoShape::phaseStart (ctx.lfoType, v);
+			s -= std::floor (s);
+			int deg = static_cast<int> (s * 360.0 + 0.5) % 360;
+			return fmt ("START %.0f deg", static_cast<double> (deg));
+		}
 	return "";
 }
 

@@ -725,6 +725,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float envXBuffer = 10.0;
 		float envFinalX = 119;
 
+		void drawLfo(int i);  // LFO display i (0..2); drawEnv4..6 call it
 		void drawEnv4();
 		float lfo1Amp;
 		int64 lfo1Type;

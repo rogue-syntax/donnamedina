@@ -18,6 +18,8 @@ struct Context {
 	int srcStep = -1;
 	// LFO_n_RATE: true when that LFO's BPM sync is on.
 	bool lfoSynced = false;
+	// LFO_n_PHASE: that LFO's waveform (lfoShape::Wave), or -1.
+	int lfoType = -1;
 };
 
 // Readable parameter name ("OSC TUNE", "AMP ATTACK", ...); "" for ids without one.
