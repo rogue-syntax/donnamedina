@@ -208,6 +208,7 @@ public:
 	int recalcToggleGenView(double value);
 
 	int recalcLfo1Phase(double value);
+	int recalcPolyCount(double value);
 	int recalcLfo2Phase(double value);
 	int recalcLfo3Phase(double value);
 	int recalcStepCtrlTarg(double value);

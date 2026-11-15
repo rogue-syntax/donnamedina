@@ -117,7 +117,7 @@ RuleInfo ruleFor(int pid) {
 		return freeR;
 	if (pid >= WIDTH_ENV_ADD_MULT && pid <= MAIN_FILTER_ENV_ADD_MULT)
 		return freeR;
-	return keep;  // STEP_CTRL_TARG, MASTER_VOL, reset buttons, view toggles, step buttons, ...
+	return keep;  // STEP_CTRL_TARG, MASTER_VOL, POLY_COUNT, reset buttons, view toggles, step buttons, ...
 }
 
 double clamp01(double v) { return v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v); }
@@ -148,6 +148,11 @@ bool parseState(const void* data, size_t size, State& out) {
 		if (r.u32(tag) && tag == uint32_t(MASTER_VOL_STATE_TAG) && r.f64(mv)) {
 			s.hasMasterVol = true;
 			s.masterVol = mv;
+			double pv = 0.0;
+			if (r.u32(tag) && tag == uint32_t(POLY_STATE_TAG) && r.f64(pv)) {
+				s.hasPoly = true;
+				s.poly = pv;
+			}
 		}
 	}
 	out = std::move(s);
@@ -168,6 +173,10 @@ std::vector<char> writeState(const State& s) {
 	if (s.hasMasterVol) {
 		putU32(b, uint32_t(MASTER_VOL_STATE_TAG));
 		putF64(b, s.masterVol);
+		if (s.hasPoly) {  // only after the master volume block, where the readers look for it
+			putU32(b, uint32_t(POLY_STATE_TAG));
+			putF64(b, s.poly);
+		}
 	}
 	return b;
 }

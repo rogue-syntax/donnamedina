@@ -67,7 +67,7 @@ void DX10Controller::syncPresetCursor() {
 void DX10Controller::presetStepCounts(std::vector<int>& out) {
 	out.assign(GPARAMS, -1);
 	for (int pid = 0; pid < GPARAMS && pid < STEP_BUTTONS_FIRST; pid++) {
-		if (pid == MASTER_VOL)
+		if (pid == MASTER_VOL || pid == POLY_COUNT)
 			continue;
 		Parameter* p = EditController::getParameterObject(pid);
 		if (!p)
@@ -85,6 +85,11 @@ void DX10Controller::applyPresetState(presetTools::State s) {
 	s.masterVol = vol;
 	if (s.values.size() > size_t(MASTER_VOL))
 		s.values[MASTER_VOL] = vol;
+	const double poly = EditController::getParamNormalized(POLY_COUNT);
+	s.hasPoly = true;
+	s.poly = poly;
+	if (s.values.size() > size_t(POLY_COUNT))
+		s.values[POLY_COUNT] = poly;
 	std::vector<char> blob = presetTools::writeState(s);
 
 	if (IMessage* msg = allocateMessage()) {

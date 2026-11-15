@@ -210,7 +210,7 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 
 
 
-		if (tag != MASTER_VOL)
+		if (tag != MASTER_VOL && tag != POLY_COUNT)
 			presetDirty = true;  // preset bar: the sound was edited since it was loaded
 		// B-62: this return had ended up inside the comment above (c940a82), so no GUI edit reached the host
 		return EditController::performEdit(tag, valueNormalized);
@@ -609,15 +609,18 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 	// MASTER_VOL is read from its tagged block after bypass (BaseProcessor::setState); older
 	// states hold 0 in its array slot, so a missing block means the default (0 dB).
 	auto applyMasterVol = [this] (ParamValue v) { setParamNormalized (MASTER_VOL, v); };
+	// POLY_COUNT likewise, from the "POLY" block after it (2026-11-15)
+	auto applyPoly = [this] (ParamValue v) { setParamNormalized (POLY_COUNT, v); };
 
 	// read each parameter
 	for (uint32 i = 0; i < temp; i++){
 		ParamValue value;
 		if (streamer.readDouble (value) == false) {
 			applyMasterVol (DEFAULT_MASTER_VOL);
+			applyPoly (polyToNormalized (POLY_DEFAULT));
 			return kResultFalse;
 		}
-		if (i == MASTER_VOL)
+		if (i == MASTER_VOL || i == POLY_COUNT)
 			continue;
 
 		if (nvgViewReady) {
@@ -652,6 +655,7 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 	uint32 bypassState;
 	if (streamer.readInt32u(bypassState) == false) {
 		applyMasterVol (DEFAULT_MASTER_VOL);
+		applyPoly (polyToNormalized (POLY_DEFAULT));
 		return kResultFalse;
 	}
 
@@ -663,6 +667,11 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 			applyMasterVol ((std::min) (1.0, (std::max) (0.0, masterVol)));
 		else
 			applyMasterVol (DEFAULT_MASTER_VOL);
+		double poly = 0.0;
+		if (streamer.readInt32u (tag) && tag == POLY_STATE_TAG && streamer.readDouble (poly) && std::isfinite (poly))
+			applyPoly ((std::min) (1.0, (std::max) (0.0, poly)));
+		else
+			applyPoly (polyToNormalized (POLY_DEFAULT));
 	}
 		
 	Parameter* bypassParam = parameters.getParameter (kBypassParam);
@@ -678,6 +687,12 @@ static_assert(BaseController::kScopeLength == ScopeCapture::kLength, "scope fram
 
 VSTGUI::CView* BaseController::createCustomView(VSTGUI::UTF8StringPtr name, const VSTGUI::UIAttributes& attributes,
 	const VSTGUI::IUIDescription*, VSTGUI::VST3Editor*) {
+	if (name && std::strcmp(name, "polyCount") == 0) {
+		CPoint origin(polyZone::kRect.x, polyZone::kRect.y), size(polyZone::kRect.w, polyZone::kRect.h);
+		attributes.getPointAttribute("origin", origin);
+		attributes.getPointAttribute("size", size);
+		return new PolyView(CRect(origin, size), this);
+	}
 	if (name && std::strcmp(name, "presetBar") == 0) {
 		CPoint origin(presetBar::kBar.x, presetBar::kBar.y), size(presetBar::kBar.w, presetBar::kBar.h);
 		attributes.getPointAttribute("origin", origin);
@@ -726,6 +741,110 @@ CMouseEventResult PresetBarView::onMouseDown(CPoint& where, const CButtonState& 
 	localToFrame(framePoint);
 	ctrl->onPresetBarClick(z, getFrame(), framePoint);
 	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+}
+
+// ---- polyphony control ----
+void BaseController::setPolyCount(int n, bool withGesture) {
+	n = n < 1 ? 1 : (n > POLY_MAX ? POLY_MAX : n);
+	if (n == polyCount())
+		return;
+	const ParamValue v = polyToNormalized(n);
+	if (withGesture)
+		beginEdit(POLY_COUNT);
+	setParamNormalized(POLY_COUNT, v);
+	performEdit(POLY_COUNT, v);
+	if (withGesture)
+		endEdit(POLY_COUNT);
+}
+
+void BaseController::showPolyMenu(CFrame* frame, const CPoint& where) {
+	if (!frame)
+		return;
+	static const int kValues[] = {1, 2, 4, 6, 8, 12, 16, 24, 32, 48, 64};
+	auto menu = makeOwned<COptionMenu>();
+	menu->addEntry("POLYPHONY", -1, CMenuItem::kTitle | CMenuItem::kDisabled);
+	const int cur = polyCount();
+	for (int n : kValues) {
+		char t[32];
+		snprintf(t, sizeof(t), "   %d %s", n, n == 1 ? "voice" : "voices");
+		menu->addEntry(t, -1, n == cur ? CMenuItem::kChecked : CMenuItem::kNoFlags);
+	}
+	menu->popup(frame, where, [this](COptionMenu* m) {
+		const int i = static_cast<int>(m->getLastResult()) - 1;  // entry 0 is the title
+		if (i >= 0 && i < static_cast<int>(sizeof(kValues) / sizeof(kValues[0])))
+			setPolyCount(kValues[i], true);
+	});
+}
+
+PolyView::PolyView(const CRect& size, BaseController* c) : CView(size), ctrl(c) {
+	setTransparency(true);
+	setWantsFocus(false);
+}
+
+PolyView::~PolyView() {
+	if (ctrl)
+		ctrl->polyHover = false;
+}
+
+CMouseEventResult PolyView::onMouseEntered(CPoint&, const CButtonState&) {
+	if (ctrl && ctrl->presetBarEnabled) {  // presetBarEnabled: false while the about window is open
+		ctrl->polyHover = true;
+		ctrl->showParamReadout(POLY_COUNT);
+	}
+	return kMouseEventHandled;
+}
+
+CMouseEventResult PolyView::onMouseExited(CPoint&, const CButtonState&) {
+	if (ctrl && !dragging)
+		ctrl->polyHover = false;
+	return kMouseEventHandled;
+}
+
+CMouseEventResult PolyView::onMouseDown(CPoint& where, const CButtonState& buttons) {
+	if (!ctrl || !ctrl->presetBarEnabled || !buttons.isLeftButton())
+		return kMouseEventNotHandled;
+	dragging = true;
+	moved = false;
+	startY = where.y;
+	startN = ctrl->polyCount();
+	ctrl->beginEdit(POLY_COUNT);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult PolyView::onMouseMoved(CPoint& where, const CButtonState&) {
+	if (!ctrl)
+		return kMouseEventNotHandled;
+	if (dragging) {
+		const double dy = startY - where.y;  // up = more voices, 4 px per voice
+		if (std::fabs(dy) >= 3.0)
+			moved = true;
+		if (moved) {
+			ctrl->setPolyCount(startN + static_cast<int>(dy / 4.0), false);
+			ctrl->showParamReadout(POLY_COUNT);
+		}
+	}
+	return kMouseEventHandled;
+}
+
+CMouseEventResult PolyView::onMouseUp(CPoint& where, const CButtonState&) {
+	if (!ctrl || !dragging)
+		return kMouseEventNotHandled;
+	dragging = false;
+	ctrl->endEdit(POLY_COUNT);
+	if (!moved) {
+		CPoint p(where);
+		localToFrame(p);
+		ctrl->showPolyMenu(getFrame(), p);
+	}
+	return kMouseEventHandled;
+}
+
+bool PolyView::onWheel(const CPoint&, const CMouseWheelAxis& axis, const float& distance, const CButtonState&) {
+	if (!ctrl || !ctrl->presetBarEnabled || axis != kMouseWheelAxisY || distance == 0.0f)
+		return false;
+	ctrl->setPolyCount(ctrl->polyCount() + (distance > 0.0f ? 1 : -1), true);
+	ctrl->showParamReadout(POLY_COUNT);
+	return true;
 }
 
 void BaseController::setScopeActive(bool on) {

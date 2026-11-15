@@ -205,6 +205,7 @@ const char* label (int pid)
 		case SYNC_GEN_MOD_TUNE: return "LINK MOD TUNE";
 		case STEP_CTRL_TARG: return "STEP TARGET";
 		case MASTER_VOL: return "VOLUME";
+		case POLY_COUNT: return "POLYPHONY";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
 		case WIDTH_RESET: return "OSC WIDTH RESET";
 		case TUNE_RESET: return "OSC TUNE RESET";
@@ -365,6 +366,10 @@ std::string value (int pid, double v, const Context& ctx)
 			return timeText (clamp01 (v));
 		}
 		return "";
+	}
+	if (pid == POLY_COUNT) {
+		const int n = polyFromNormalized (v);
+		return fmt (n == 1 ? "%.0f VOICE" : "%.0f VOICES", static_cast<double> (n));
 	}
 	if (pid >= LFO_1_PHASE && pid <= LFO_3_PHASE)
 		{

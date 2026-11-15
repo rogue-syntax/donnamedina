@@ -301,8 +301,7 @@ struct PlayheadSlot {
 	float src[6];  // the voice's modulation sources 1..6 (env 1..3, LFO 1..3 output; an LFO nothing
 	               // is routed to is not computed, so its value is stale)
 };
-// Most voices sounding at once (DXGenerator::POLYCOUNT starts here; the oldest voice is stolen
-// beyond it). Shown in the scope's voice count.
+// Default voice limit (DXGenerator::POLYCOUNT starts here); the POLY_COUNT parameter sets it.
 const int POLY_LIMIT = 32;
 inline unsigned char voiceStateByte (bool held, float level) {
 	if (!(level > 0.0001f)) return 0;  // silent (the engine drops voices below -80 dB)
@@ -451,6 +450,24 @@ inline double masterVolGain (double v) {
 	return 2.0 * v * v;
 }
 const unsigned int MASTER_VOL_STATE_TAG = 0x4C4F564Du;  // "MVOL" (little endian)
+
+// Polyphony (2026-11-15): how many voices may sound at once, 1..POLY_MAX (the oldest released or
+// quietest voice is stolen beyond it, DXGenerator::noteOn). Global like MASTER_VOL: not part of the
+// presets, saved in a tagged block after the master volume ("POLY"); states without it load at
+// POLY_DEFAULT. Host parameter: 64 steps, normalized (n - 1) / 63.
+const int POLY_COUNT = 147;
+const int POLY_MAX = 64;
+const int POLY_DEFAULT = 32;
+inline int polyFromNormalized (double v) {
+	if (!(v > 0.0)) return 1;  // also catches NaN
+	if (v > 1.0) v = 1.0;
+	return 1 + static_cast<int> (v * (POLY_MAX - 1) + 0.5);
+}
+inline double polyToNormalized (int n) {
+	n = n < 1 ? 1 : (n > POLY_MAX ? POLY_MAX : n);
+	return double (n - 1) / double (POLY_MAX - 1);
+}
+const unsigned int POLY_STATE_TAG = 0x594C4F50u;  // "POLY" (little endian)
 
 //const int SYNC_MOD_TUNE_MAIN = 143;
 

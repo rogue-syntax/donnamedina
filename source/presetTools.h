@@ -11,7 +11,8 @@ namespace presetTools {
 
 // The processor state as BaseProcessor::getState writes it (little endian):
 //   uint32 magic (BaseController::kMagicNumber), uint32 program, uint32 count, count x double,
-//   uint32 bypass, then optionally uint32 MASTER_VOL_STATE_TAG + double master volume.
+//   uint32 bypass, then optionally uint32 MASTER_VOL_STATE_TAG + double master volume, then optionally
+//   uint32 POLY_STATE_TAG + double polyphony (normalized).
 // States without the magic start directly with the count (very old format; parse accepts it).
 struct State {
 	bool hasHeader = true;
@@ -20,6 +21,8 @@ struct State {
 	uint32_t bypass = 0;
 	bool hasMasterVol = false;
 	double masterVol = 0.0;
+	bool hasPoly = false;
+	double poly = 0.0;
 };
 
 bool parseState(const void* data, size_t size, State& out);

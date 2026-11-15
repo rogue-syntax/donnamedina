@@ -36,6 +36,40 @@ namespace rs {
 		FILTER_RAW_MAP,/* the value at position 0.5 will be: */
 		FILTER_COOKED_MAP);/* 1800 Hz */
 
+	// POLY_COUNT: 1..POLY_MAX voices, 64 steps; the host shows and enters the number.
+	class PolyParameter : public Parameter
+	{
+	public:
+		explicit PolyParameter (ParamID tag)
+		: Parameter (USTRING ("POLYPHONY"), tag, USTRING ("voices"), polyToNormalized (POLY_DEFAULT), POLY_MAX - 1,
+		             ParameterInfo::kCanAutomate)
+		{
+		}
+
+		void toString (ParamValue valueNormalized, String128 string) const SMTG_OVERRIDE
+		{
+			char buf[16];
+			snprintf (buf, sizeof (buf), "%d", polyFromNormalized (valueNormalized));
+			UString (string, 128).fromAscii (buf);
+		}
+
+		bool fromString (const TChar* string, ParamValue& valueNormalized) const SMTG_OVERRIDE
+		{
+			UString wrapper ((TChar*)string, strlen16 (string));
+			int64 n = 0;
+			if (!wrapper.scanInt (n))
+				return false;
+			valueNormalized = polyToNormalized (static_cast<int> (n));
+			return true;
+		}
+
+		ParamValue toPlain (ParamValue valueNormalized) const SMTG_OVERRIDE { return polyFromNormalized (valueNormalized); }
+		ParamValue toNormalized (ParamValue plainValue) const SMTG_OVERRIDE
+		{
+			return polyToNormalized (static_cast<int> (plainValue + 0.5));
+		}
+	};
+
 	// MASTER_VOL: the host shows/enters dB (paramDisplay::masterVolText; gain = 2 v^2).
 	class MasterVolParameter : public Parameter
 	{
@@ -202,7 +236,7 @@ void DX10Controller::checkPendingPreset() {
 	if (presetPending && isViewReady()) {
 		DX10Processor::ensureFactoryPresets();  // B-11
 		for (int32 i = 0; i < GPARAMS; i++) {
-			if (i == MASTER_VOL) continue;  // global, not part of presets
+			if (i == MASTER_VOL || i == POLY_COUNT) continue;  // global, not part of presets
 			BaseController::setParamNormalized(i, DX10Processor::programParams[pendingPresetIndex][i]);
 		}
 		componentHandler->restartComponent(kParamValuesChanged);
@@ -265,6 +299,7 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[PAN_LR_ENV] = &DX10Controller::onEnv;
 	onCtrlChange[PAN_LR] = &DX10Controller::onEnv;
 	onCtrlChange[MASTER_VOL] = &DX10Controller::onEnvBipolar;  // readout (envName -> "VOLUME")
+	onCtrlChange[POLY_COUNT] = &DX10Controller::onEnvBipolar;  // readout "POLYPHONY / n VOICES"
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -817,6 +852,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		addPIDParameter("SYNC_MODFREAQBEAT", "%", 0, 0.0, ParameterInfo::kCanAutomate, SYNC_MODFREAQBEAT);
 
 		parameters.addParameter (new MasterVolParameter (MASTER_VOL));
+		parameters.addParameter (new PolyParameter (POLY_COUNT));
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {
@@ -904,7 +940,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		const bool viewReady = isViewReady();
 		DX10Processor::ensureFactoryPresets();  // B-11: the table may not exist yet without a processor
 		for (int32 i = 0; i < GPARAMS; i++) {
-			if (i == MASTER_VOL) continue;  // global, not part of presets (the processor keeps it too)
+			if (i == MASTER_VOL || i == POLY_COUNT) continue;  // global, not part of presets (the processor keeps them too)
 			const ParamValue v = DX10Processor::programParams[program][i];
 			BaseController::setParamNormalized(i, v);
 			if (!viewReady && i < STEP_BUTTONS_FIRST && EditController::getParameterObject(i)) {

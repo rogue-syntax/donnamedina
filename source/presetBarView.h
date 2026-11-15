@@ -32,6 +32,13 @@ inline int zoneAt(float x, float y) {
 
 } // namespace presetBar
 
+// Polyphony (2026-11-15): the scope's "VOICES n/LIMIT" plate (top left of the scope's inner area) is
+// an invisible view too (custom view "polyCount"): drag up/down or the mouse wheel changes the limit,
+// a click without dragging opens a menu of common values. NVGView draws the plate (drawScopeInfo).
+namespace polyZone {
+constexpr editorLayout::column::Rect kRect {937.0f, 201.0f, 132.0f, 13.0f};
+}
+
 namespace Steinberg { namespace Vst { namespace rs {
 
 class BaseController;
@@ -49,6 +56,27 @@ public:
 private:
 	int zoneFor(const VSTGUI::CPoint& where) const;
 	BaseController* ctrl;
+};
+
+class PolyView : public VSTGUI::CView {
+public:
+	PolyView(const VSTGUI::CRect& size, BaseController* c);
+	~PolyView() override;
+
+	VSTGUI::CMouseEventResult onMouseEntered(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseExited(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseMoved(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseUp(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	bool onWheel(const VSTGUI::CPoint& where, const VSTGUI::CMouseWheelAxis& axis, const float& distance,
+	             const VSTGUI::CButtonState& buttons) override;
+	void draw(VSTGUI::CDrawContext*) override {}  // drawn by NVGView
+
+private:
+	BaseController* ctrl;
+	bool dragging = false, moved = false;
+	double startY = 0.0;
+	int startN = 0;
 };
 
 }}} // namespaces

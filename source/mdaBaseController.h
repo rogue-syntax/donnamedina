@@ -162,6 +162,11 @@ protected:
 	std::string presetName = "Softly";
 	bool presetDirty = false;
 	int presetHover = -1;
+	// Polyphony control (PolyView): the current limit, set from the GUI as a host edit; the menu.
+	bool polyHover = false;
+	int polyCount() { return polyFromNormalized(getParamNormalized(POLY_COUNT)); }
+	void setPolyCount(int n, bool withGesture);
+	void showPolyMenu(VSTGUI::CFrame* frame, const VSTGUI::CPoint& where);
 	bool presetBarEnabled = true;  // NVGView: false while the about window covers the bar
 	virtual void onPresetBarClick(int /*zone*/, VSTGUI::CFrame* /*frame*/, const VSTGUI::CPoint& /*where*/) {}
 	virtual void onProcessorState(const void* /*data*/, uint32 /*size*/, int64 /*purpose*/) {}

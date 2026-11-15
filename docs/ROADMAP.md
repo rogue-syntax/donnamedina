@@ -45,5 +45,5 @@ Order within a section is a rough priority (impact for effort).
 - [ ] **HQ mode**: 2x oversampling to reduce FM aliasing on high notes (affordable after the 3x speedup).
 - [ ] **Per-note analog drift**: small random pitch/filter/pan offset per note.
 - [ ] **Velocity routing** to filter and mod gain (check what velocity already reaches first).
-- [ ] **Raise POLYCOUNT** from 32 to 64/128 (one line; cost is linear).
+- [x] **Polyphony control**: 1..64 voices (POLY_COUNT, global), on the scope's VOICES plate; steal order released -> quietest.
 - [ ] **FX strip**: tempo-synced (ping-pong) delay and/or chorus.

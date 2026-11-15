@@ -343,7 +343,7 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 		RVoicesMap[vl].velocity = velocityGain(*velocity);  // B-06
 		RVoicesMap[vl].noteActive = true;
 
-		if (POLYCOUNT == 1) {
+		if (portamentoMode) {
 			RVoicesMap[vl].mergedOscFo = lastOscFo;
 			//portoInc = (1000.0*(RVoicesMap[vl].WTOsc.m_dOscFo - lastOscFo)) / 1000 / sampleRate;
 			portoInc = .0036f;
@@ -354,6 +354,9 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 			// B-17: count and steal only live voices. A voice already fading out from an earlier
 			// steal (killIt + rampingDown) is the quietest, so it used to be "stolen" again and the
 			// voice limit was never enforced.
+			// Which voice to steal (2026-11-15): released voices before held ones, then the quietest by
+			// the larger of the amp envelope's target and level. The level alone (cenv) made a note in
+			// its attack (it starts at 0.0003) look like the quietest, so fast playing stole new notes.
 			int liveCount = 0;
 			int leastNote = -1;
 			float leastFloat = 0.0f;
@@ -361,8 +364,10 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 				const RVoice& v = RVoicesMap[notes[i]];
 				if (v.killIt && v.rampingDown) continue;
 				liveCount++;
-				if (leastNote < 0 || v.voiceEnvLfo[1].cenv < leastFloat) {
-					leastFloat = v.voiceEnvLfo[1].cenv;
+				const float lvl = (std::max)(v.voiceEnvLfo[1].env, v.voiceEnvLfo[1].cenv);
+				const float score = lvl + (v.noteActive ? 2.0f : 0.0f);
+				if (leastNote < 0 || score < leastFloat) {
+					leastFloat = score;
 					leastNote = i;
 				}
 			}
@@ -939,7 +944,7 @@ void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
 	voiceObj.WTOsc.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc.m_dOscFo);
 	//DElETE ? REMOVE
 	/*
-	if (POLYCOUNT == 1) {
+	if (portamentoMode) {
 		
 		//foDifference = targOscFo - mergedOscFo;
 		if (std::abs(voiceObj.targOscFo - voiceObj.mergedOscFo) > 0.003f) {

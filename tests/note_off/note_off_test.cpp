@@ -1706,6 +1706,125 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- Polyphony (2026-11-15): POLY_COUNT limit, steal order, global state ----
+	{
+		std::printf("\nPolyphony\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		auto sounding = [](rs::DX10Processor& p, std::vector<int>& out) {
+			out.clear();
+			const auto& g = p.generators[0];
+			for (int i = 0; i < g.notes.size(); i++)
+				if (!g.RVoicesMap[g.notes[i]].killIt) out.push_back(g.notes[i]);
+			std::sort(out.begin(), out.end());
+		};
+		auto list = [](const std::vector<int>& v) {
+			std::string s;
+			for (int n : v) s += std::to_string(n) + " ";
+			return s;
+		};
+		{  // default
+			int def = -1;
+			Options o;
+			o.inspect = [&](rs::DX10Processor& p) { def = p.generators[0].POLYCOUNT; };
+			render({"poly", 1.0, 0.5}, {}, 0.05, o);
+			std::snprintf(buf, sizeof(buf), "POLYCOUNT %d", def);
+			check("default limit is 32", def == POLY_DEFAULT, buf);
+		}
+		{  // limit 4, six held notes
+			std::vector<int> live;
+			int lim = -1;
+			Options o;
+			o.params = {{0.0, {POLY_COUNT, polyToNormalized(4)}}};
+			o.inspect = [&](rs::DX10Processor& p) { sounding(p, live); lim = p.generators[0].POLYCOUNT; };
+			std::vector<NoteEvent> ev;
+			for (int k = 0; k < 6; k++) ev.push_back({at(0.05 + 0.05 * k), true, int16(48 + 2 * k)});
+			render({"poly", 1.0, 0.5}, ev, 0.6, o);
+			std::snprintf(buf, sizeof(buf), "limit %d, sounding: %s", lim, list(live).c_str());
+			check("limit 4: six notes leave the newest four", lim == 4 && live == std::vector<int>({52, 54, 56, 58}), buf);
+		}
+		{  // limit 2: a released note is stolen before a held one
+			std::vector<int> live;
+			Options o;
+			o.params = {{0.0, {POLY_COUNT, polyToNormalized(2)}}};
+			o.inspect = [&](rs::DX10Processor& p) { sounding(p, live); };
+			render({"poly", 1.0, 0.9}, {{at(0.05), true, 48}, {at(0.10), true, 52}, {at(0.20), false, 52}, {at(0.25), true, 55}},
+			       0.4, o);
+			std::snprintf(buf, sizeof(buf), "sounding: %s", list(live).c_str());
+			check("steal: released voice before a held one", live == std::vector<int>({48, 55}), buf);
+		}
+		{  // limit 2: a note in its attack is not the one stolen
+			std::vector<int> live;
+			Options o;
+			o.params = {{0.0, {POLY_COUNT, polyToNormalized(2)}}};
+			o.inspect = [&](rs::DX10Processor& p) { sounding(p, live); };
+			render({"poly", 0.6, 0.5}, {{at(0.05), true, 48}, {at(0.5), true, 52}, {at(0.5) + 1024, true, 55}}, 0.7, o);
+			std::snprintf(buf, sizeof(buf), "sounding: %s", list(live).c_str());
+			check("steal: not the newest note (still in its attack)", live == std::vector<int>({52, 55}), buf);
+		}
+		{  // global: kept by a preset change, saved in the state, default for old states
+			int afterProgram = -1;
+			std::vector<char> st;
+			Options o;
+			o.params = {{0.0, {POLY_COUNT, polyToNormalized(12)}}, {0.1, {rs::BaseController::kPresetParam, 3.0 / 7.0}}};
+			o.inspect = [&](rs::DX10Processor& p) {
+				afterProgram = p.generators[0].POLYCOUNT;
+				MemoryStream ms;
+				p.getState(&ms);
+				st.assign(ms.getData(), ms.getData() + ms.getSize());
+			};
+			render({"poly", 1.0, 0.5}, {}, 0.2, o);
+			presetTools::State ps;
+			const bool parsed = presetTools::parseState(st.data(), st.size(), ps);
+			std::snprintf(buf, sizeof(buf), "after preset %d; state poly %d (block %d)", afterProgram,
+			              ps.hasPoly ? polyFromNormalized(ps.poly) : -1, int(ps.hasPoly));
+			check("preset change keeps it; state has a POLY block", afterProgram == 12 && parsed && ps.hasPoly &&
+			          polyFromNormalized(ps.poly) == 12, buf);
+			// loading: with the block -> that value; an older state (no block) -> the default
+			int withBlock = -1, without = -1;
+			for (int pass = 0; pass < 2; pass++) {
+				presetTools::State s2 = ps;
+				if (pass == 1) s2.hasPoly = false;
+				s2.values[POLY_COUNT] = 0.0;  // older states hold 0 in this slot
+				const std::vector<char> blob = presetTools::writeState(s2);
+				Options o2;
+				o2.inspect = [&](rs::DX10Processor& p) {
+					MemoryStream ms(const_cast<char*>(blob.data()), TSize(blob.size()));
+					static_cast<IComponent&>(p).setState(&ms);
+					(pass == 0 ? withBlock : without) = p.generators[0].POLYCOUNT;
+				};
+				render({"poly", 1.0, 0.5}, {}, 0.05, o2);
+			}
+			std::snprintf(buf, sizeof(buf), "with block %d, old state %d", withBlock, without);
+			check("state load: block value, else the default", withBlock == 12 && without == POLY_DEFAULT, buf);
+		}
+		{  // host text and readout
+			static HostApplication shostPoly;
+			auto* ctrl = new rs::DX10Controller();
+			ctrl->initialize(&shostPoly);
+			String128 t = {};
+			Parameter* pp = ctrl->getParameterObject(POLY_COUNT);
+			std::string txt;
+			if (pp) {
+				pp->toString(polyToNormalized(8), t);
+				char a[64] = {};
+				UString(t, 128).toAscii(a, 64);
+				txt = a;
+			}
+			const std::string ro = paramDisplay::value(POLY_COUNT, polyToNormalized(1), paramDisplay::Context());
+			const double def = pp ? pp->getInfo().defaultNormalizedValue : -1;
+			std::snprintf(buf, sizeof(buf), "host '%s', readout '%s', steps %d, default %d", txt.c_str(), ro.c_str(),
+			              pp ? int(pp->getInfo().stepCount) : -1, polyFromNormalized(def));
+			check("host text, readout, 64 steps, default 32", txt == "8" && ro == "1 VOICE" && pp &&
+			          pp->getInfo().stepCount == POLY_MAX - 1 && polyFromNormalized(def) == POLY_DEFAULT, buf);
+			ctrl->terminate();
+			ctrl->release();
+		}
+	}
+
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
 	{
 		std::printf("\nB-62 GUI edits reach the host\n");

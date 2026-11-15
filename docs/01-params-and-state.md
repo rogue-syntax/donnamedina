@@ -54,6 +54,8 @@ So step-type params have **two sources of truth**: the normalized param (`floatP
 
 - Controller state (2026-11-14): `DX10Controller::getState/setState` (the host's controller chunk) hold only the preset bar's name: tag "PBAR", version 1, factory index (-1 = none), edited flag, name (UTF-8), file path (UTF-8). Without the block (older projects) the name comes from the program number in the component state (`DX10Controller::setComponentState`).
 
+- Polyphony (2026-11-15): `POLY_COUNT` (147), 1..`POLY_MAX` (64) voices, host parameter `POLYPHONY` with 63 steps (`polyFromNormalized`/`polyToNormalized` in constants.h), default 32. Global like MASTER_VOL: preset changes (processor and controller paths, preset bar) keep it, and the state stores it in a tagged block after the master volume (`POLY_STATE_TAG` "POLY" + double); states without it load at 32 (older states hold 0 in its array slot, which is ignored). `DX10Processor::recalcPolyCount` sets `DXGenerator::POLYCOUNT`. At the limit `DXGenerator::noteOn` steals a voice: released ones before held ones, then the quietest by max(env target, level) (the level alone made a note in its attack look quietest); the stolen voice fades out over ~21 ms. The original mono/portamento branches ran when POLYCOUNT was 1; they now need `DXGenerator::portamentoMode` (off), so 1 voice is a plain limit.
+
 ## The "view ready" gate (the most important cross-cutting pattern)
 
 `BaseController::nvgViewReady`:

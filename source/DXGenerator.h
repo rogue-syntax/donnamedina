@@ -596,7 +596,10 @@ public:
 	//TRY MAKING VOICES MAP OUTPUT BUFFER TO SUM AVERAGE output?
 	float RVoicesOutput[PARTVOICES];
 	int32 POLYMODE = 0;
-	int32 POLYCOUNT = POLY_LIMIT;  // constants.h (try 8 for oct)
+	int32 POLYCOUNT = POLY_LIMIT;  // voice limit, set from POLY_COUNT (DX10Processor::recalcPolyCount)
+	// The original author's mono/portamento code ran when POLYCOUNT was 1; with a polyphony setting
+	// 1 voice is a plain voice limit, so that code now needs this (off; mono is not built yet).
+	bool portamentoMode = false;
 	int32 lastNoteIdx = 0;
 	bool pushNote;
 	int32 notes3[10];

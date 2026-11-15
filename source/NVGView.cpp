@@ -2965,11 +2965,12 @@ no viewindex at 153!*/
 		int total = 0, held = 0;
 		paramDisplay::countVoices(baseController->voiceStates, total, held);
 
+		const int limit = baseController->polyCount();  // POLY_COUNT; PolyView over this plate edits it
 		char left[48];
 		if (total == 0)
-			snprintf(left, sizeof(left), "VOICES 0/%d", POLY_LIMIT);
+			snprintf(left, sizeof(left), "VOICES 0/%d", limit);
 		else
-			snprintf(left, sizeof(left), "VOICES %d/%d  HELD %d", total, POLY_LIMIT, held);
+			snprintf(left, sizeof(left), "VOICES %d/%d  HELD %d", total, limit, held);
 		const std::string pk = "PEAK " + paramDisplay::peakText(peakHold);
 		const char* right = clipLatched ? "CLIP" : nullptr;
 
@@ -2986,7 +2987,14 @@ no viewindex at 153!*/
 		nvgRect(vg, ix, iy, lw + pad * 2, th);
 		nvgFillColor(vg, nvgRGBA(0, 0, 0, 150));
 		nvgFill(vg);
-		nvgFillColor(vg, total ? nvgRGBA(255, 204, 153, 230) : nvgRGBA(255, 204, 153, 110));
+		if (baseController->polyHover) {  // editable: outline the plate while hovered
+			nvgBeginPath(vg);
+			nvgRect(vg, ix + 0.5f, iy + 0.5f, lw + pad * 2 - 1.0f, th - 1.0f);
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 220));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+		}
+		nvgFillColor(vg, total || baseController->polyHover ? nvgRGBA(255, 204, 153, 230) : nvgRGBA(255, 204, 153, 110));
 		nvgText(vg, ix + pad, iy + 2.0f, left, NULL);
 
 		// right: peak in dBFS (amber near 0 dB), and a red CLIP tag while latched

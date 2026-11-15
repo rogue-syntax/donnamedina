@@ -771,6 +771,12 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 		&& std::isfinite (masterVol))
 		floatParams[MASTER_VOL] = (std::min) (1.0, (std::max) (0.0, masterVol));
 
+	// polyphony: the next tagged block (2026-11-15); without it the default
+	floatParams[POLY_COUNT] = polyToNormalized (POLY_DEFAULT);
+	double poly = 0.0;
+	if (streamer.readInt32u (tag) && tag == POLY_STATE_TAG && streamer.readDouble (poly) && std::isfinite (poly))
+		floatParams[POLY_COUNT] = (std::min) (1.0, (std::max) (0.0, poly));
+
 	//recalculate ();
 
 	return kResultTrue;
@@ -811,6 +817,8 @@ tresult PLUGIN_API BaseProcessor::getState (IBStream* state)
 	// master volume (see setState); older builds stop reading after bypass and ignore this
 	streamer.writeInt32u (MASTER_VOL_STATE_TAG);
 	streamer.writeDouble (floatParams[MASTER_VOL]);
+	streamer.writeInt32u (POLY_STATE_TAG);
+	streamer.writeDouble (floatParams[POLY_COUNT]);
 
 	return kResultTrue;
 }
