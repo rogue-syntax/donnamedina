@@ -1393,6 +1393,13 @@ no viewindex at 153!*/
 		// per-handler try/catch blocks could not catch the real failures (null/out-of-range access is
 		// not an exception) and have been replaced by explicit checks.
 		bool frameBegun = false;
+		{  // frame time for time-based animation (knob trails)
+			const auto now = std::chrono::steady_clock::now();
+			frameDt = lastFrameValid ? std::chrono::duration<float>(now - lastFrameTime).count() : 0.0f;
+			frameDt = frameDt < 0.0f ? 0.0f : (frameDt > 0.1f ? 0.1f : frameDt);
+			lastFrameTime = now;
+			lastFrameValid = true;
+		}
 		try {
 
 			for (int i = 0; i < static_cast<int>(animationReel.size()); i++) {
@@ -1817,8 +1824,8 @@ no viewindex at 153!*/
 		}
 	}
 
-	// Modulation overlay (2026-11-15), drawn after the controls, outside each knob's circle (the
-	// controls' own blink fill and white flash stay inside it):
+	// Modulation overlay (2026-11-15), drawn after the controls at the control's edge (kKnobEdge; the
+	// amount arc on the value track), outside the visible knob body with its blink fill and flash:
 	// - source selector (top row): a ring in its source's colour;
 	// - amount: an arc from the centre (no modulation) to the amount, in the source's colour;
 	// - the destination knob: the range the source can move it to, dim (an envelope 0..1, an LFO
@@ -1850,14 +1857,14 @@ no viewindex at 153!*/
 			if (CControl* c = ctl(d.base + 2)) {
 				const CRect r = c->getViewSize();
 				nvgBeginPath(vg);
-				nvgCircle(vg, r.getCenter().x, r.getCenter().y, r.getWidth() * 0.5f + 3.0f);
+				nvgCircle(vg, r.getCenter().x, r.getCenter().y, r.getWidth() * 0.5f * kKnobEdge);
 				nvgStrokeColor(vg, modColour(src, 0.85f));
-				nvgStrokeWidth(vg, 2.0f);
+				nvgStrokeWidth(vg, 1.8f);
 				nvgStroke(vg);
 			}
 			if (CControl* c = ctl(d.base + 1)) {
 				const CRect r = c->getViewSize();
-				knobArc(r.getCenter().x, r.getCenter().y, r.getWidth() * 0.5f + 3.0f, 0.5, amtV, modColour(src, 0.95f), 2.5f);
+				knobArc(r.getCenter().x, r.getCenter().y, r.getWidth() * 0.5f * kKnobTrack, 0.5, amtV, modColour(src, 0.95f), 2.6f);
 			}
 			if (!d.knob || std::fabs(amt) < 0.005)
 				continue;
@@ -1866,22 +1873,22 @@ no viewindex at 153!*/
 				continue;
 			const CRect r = c->getViewSize();
 			const float cx = static_cast<float>(r.getCenter().x), cy = static_cast<float>(r.getCenter().y);
-			const float rr = r.getWidth() * 0.5f + 4.0f;
+			const float rr = r.getWidth() * 0.5f * kKnobEdge;
 			const double b = par(d.base);
 			const double s = d.base == PAN_LR ? 0.5 : 1.0;
 			if (src <= 3)
-				knobArc(cx, cy, rr, b, b + amt * s, modColour(src, 0.30f), 3.0f);
+				knobArc(cx, cy, rr, b, b + amt * s, modColour(src, 0.30f), 2.4f);
 			else {
 				const double a = par(LFO_1_AMP + 5 * (src - 4));
-				knobArc(cx, cy, rr, b - std::fabs(amt) * s * a, b + std::fabs(amt) * s * a, modColour(src, 0.30f), 3.0f);
+				knobArc(cx, cy, rr, b - std::fabs(amt) * s * a, b + std::fabs(amt) * s * a, modColour(src, 0.30f), 2.4f);
 			}
 			if (ph) {
 				double v = b + amt * s * ph->src[src - 1];
 				v = v < 0.0 ? 0.0 : (v > 1.0 ? 1.0 : v);
-				knobArc(cx, cy, rr, b, v, modColour(src, 0.95f), 3.0f);
+				knobArc(cx, cy, rr, b, v, modColour(src, 0.95f), 2.4f);
 				const float ang = static_cast<float>((135.0 + 270.0 * v) * NVG_PI / 180.0);
 				nvgBeginPath(vg);
-				nvgCircle(vg, cx + rr * std::cos(ang), cy + rr * std::sin(ang), 2.4f);
+				nvgCircle(vg, cx + rr * std::cos(ang), cy + rr * std::sin(ang), 2.0f);
 				nvgFillColor(vg, nvgRGBA(255, 255, 255, 240));
 				nvgFill(vg);
 			}
@@ -2456,74 +2463,107 @@ no viewindex at 153!*/
 		*/
 	}
 
+	// Knob look (2026-11-15): the control keeps its full size (mouse area, layout), but the visible knob
+	// is smaller, so the guides around it fit inside the control:
+	//   body (kKnobBody of the radius): dark gradient disc, bright rim, pointer; the old magenta blink
+	//     fill and white blink outline are drawn on it as before;
+	//   track (kKnobTrack): a dim 270 degree arc with the value arc (drawValueArc) and, while the knob
+	//     moves, a magenta trail from where it was to where it is (knobLag follows the value with a
+	//     0.18 s time constant); stepped selectors get one dot per step instead;
+	//   edge (kKnobEdge): the modulation rings/arcs (drawModulation).
 	void NVGView::drawKnob(RData& reIn) {
-
 		knobOb = &RViewsMap.at(reIn.dataName);
 		cBKnob = knobMap.at(reIn.dataName);
+		const CRect rc = cBKnob->getViewSize();
+		const float cx = static_cast<float>(rc.getCenter().x), cy = static_cast<float>(rc.getCenter().y);
+		const float R = static_cast<float>(knobOb->drawRect.getWidth()) * 0.5f;
+		const float rb = R * kKnobBody, rt = R * kKnobTrack;
+		const double v = cBKnob->getValueNormalized();
+		const float ang = static_cast<float>((135.0 + 270.0 * v) * NVG_PI / 180.0);
+		const bool stepped = cBKnob->getMax() > 1.0001f;
 
-		/*
-		NVGpaint imgPaint;
-		imgPaint = nvgImagePattern(vg, knobOb->drawRect.getTopLeft().x, knobOb->drawRect.getTopLeft().y, knobOb->drawRect.getWidth(), knobOb->drawRect.getHeight(), 0.0f / 180.0f*NVG_PI, images[knobOb->viewType], 1.0);
-		nvgBeginPath(vg);
-		nvgRoundedRect(vg, knobOb->drawRect.getTopLeft().x, knobOb->drawRect.getTopLeft().y, knobOb->drawRect.getWidth(), knobOb->drawRect.getHeight(), 0.0);
-		nvgFillPaint(vg, imgPaint);
-		nvgFill(vg);
-		nvgClosePath(vg);
-		*/
-		
-		nvgBeginPath(vg);
-		nvgCircle(vg, cBKnob->getViewSize().getCenter().x, cBKnob->getViewSize().getCenter().y,  (knobOb->drawRect.getWidth()/2.0) );
-		nvgStrokeColor(vg, nvgRGB(4, 186, 232));
-		nvgStrokeWidth(vg, 3.0f);
-		nvgStroke(vg);
-		nvgClosePath(vg);
-		drawValueArc(cBKnob, knobOb->drawRect.getWidth() / 2.0f);
-	 
-		nvgBeginPath(vg);
-		nvgCircle(vg, cBKnob->getViewSize().getCenter().x, cBKnob->getViewSize().getCenter().y, (knobOb->drawRect.getWidth() / 2.0));
-		nvgFillColor(vg, nvgRGBA(170, 66, 133, (knobOb->alpha*knobOb->blinkIntensity)));
-		nvgFill(vg);
-		nvgClosePath(vg);
-
-		
-		/*
-		nvgFontSize(vg, 9.0f);
-		nvgFontFace(vg, "lucon");
-		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
-		nvgFillColor(vg, nvgRGB(0, 160, 192) );
-		nvgText(vg, ::editorLayout::artX(975), ::editorLayout::artY(273), envSrcNames[selectedEnvSrc], NULL);
-		*/
-		//make ctrl handles
-		CPoint cpt;// make meber
-		cBKnob->valueToPoint(cpt);
-		CPoint origin( (cBKnob->getViewSize().getWidth() / 2), (cBKnob->getViewSize().getHeight() / 2) );//make member
-		cpt.offset( cBKnob->getViewSize().left, cBKnob->getViewSize().top );
-		origin.offset( cBKnob->getViewSize().left, cBKnob->getViewSize().top );
-
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, origin.x, origin.y);//IMPLICIT CONVERSION WATCH OUT
-		nvgLineTo(vg, cpt.x, cpt.y);
-		nvgStrokeColor(vg, nvgRGBA(0, 160, 192, 255));
-		nvgStrokeWidth(vg, knobOb->strokeWidth1);
-		nvgStroke(vg);
-		nvgClosePath(vg);
-		/*
-		if (knobOb->overlayType != NONE) {
-			imgPaint = nvgImagePattern(vg, knobOb->drawRect.getCenter().x - (knobOb->overlayWidth / 2), knobOb->drawRect.getCenter().y - (knobOb->overlayHeight / 2), knobOb->overlayWidth, knobOb->overlayHeight, 0.0f / 180.0f*NVG_PI, images[knobOb->overlayType], 1.0);
-			nvgBeginPath(vg);
-			nvgRoundedRect(vg, knobOb->drawRect.getCenter().x- (knobOb->overlayWidth / 2), knobOb->drawRect.getCenter().y-(knobOb->overlayHeight/2), knobOb->overlayWidth, knobOb->overlayHeight, 0.0);
-			nvgFillPaint(vg, imgPaint);
-			nvgFill(vg);
-			nvgClosePath(vg);
+		// track
+		knobArc(cx, cy, rt, 0.0, 1.0, nvgRGBA(4, 186, 232, 85), 2.0f);
+		if (stepped) {
+			const int steps = static_cast<int>(cBKnob->getMax() + 0.5f) + 1;
+			const int cur = static_cast<int>(v * (steps - 1) + 0.5);
+			for (int k = 0; k < steps; k++) {
+				const float a = static_cast<float>((135.0 + 270.0 * k / (steps - 1)) * NVG_PI / 180.0);
+				nvgBeginPath(vg);
+				nvgCircle(vg, cx + rt * std::cos(a), cy + rt * std::sin(a), k == cur ? 2.0f : 1.1f);
+				nvgFillColor(vg, k == cur ? nvgRGBA(205, 248, 255, 255) : nvgRGBA(4, 186, 232, 150));
+				nvgFill(vg);
+			}
 		}
-		*/
+		else {
+			drawValueArc(cBKnob, rt);
+			// trail: from the lagging value to the value, fading towards the lag end
+			const int tag = static_cast<int>(cBKnob->getTag());
+			if (tag >= 0 && tag < 1000) {
+				float& lag = knobLag[tag];
+				if (!knobLagValid[tag]) {
+					lag = static_cast<float>(v);
+					knobLagValid[tag] = true;
+				}
+				lag += (static_cast<float>(v) - lag) * (1.0f - std::exp(-frameDt / 0.18f));
+				const double d = v - lag;
+				if (std::fabs(d) > 0.004) {
+					const int n = 10;
+					for (int k = 0; k < n; k++) {
+						const double a0 = lag + d * k / n, a1 = lag + d * (k + 1) / n;
+						const float alpha = 0.15f + 0.85f * float(k + 1) / n;
+						knobArc(cx, cy, rt, a0, a1, nvgRGBA(245, 60, 170, static_cast<unsigned char>(90 * alpha)), 6.0f);
+						knobArc(cx, cy, rt, a0, a1, nvgRGBA(255, 120, 210, static_cast<unsigned char>(255 * alpha)), 2.4f);
+					}
+				}
+			}
+		}
+
+		// body
 		nvgBeginPath(vg);
-		nvgCircle(vg, cBKnob->getViewSize().getCenter().x, cBKnob->getViewSize().getCenter().y, (knobOb->drawRect.getWidth() / 2.0));
-		nvgStrokeColor(vg, nvgRGBA(255, 255, 255, (255*knobOb->blinkIntensity)));
-		nvgStrokeWidth(vg, 3.0f);
+		nvgCircle(vg, cx, cy, rb + 2.5f);
+		nvgFillPaint(vg, nvgRadialGradient(vg, cx, cy, rb, rb + 2.5f, nvgRGBA(0, 0, 0, 160), nvgRGBA(0, 0, 0, 0)));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgCircle(vg, cx, cy, rb);
+		nvgFillPaint(vg, nvgRadialGradient(vg, cx - rb * 0.3f, cy - rb * 0.35f, rb * 0.1f, rb * 1.1f,
+		                                   nvgRGBA(30, 58, 86, 255), nvgRGBA(5, 8, 16, 255)));
+		nvgFill(vg);
+		nvgFillColor(vg, nvgRGBA(170, 66, 133, static_cast<unsigned char>(knobOb->alpha * knobOb->blinkIntensity)));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 235));
+		nvgStrokeWidth(vg, 1.6f);
 		nvgStroke(vg);
-		nvgClosePath(vg);
-		
+		nvgBeginPath(vg);
+		nvgArc(vg, cx, cy, rb - 1.6f, NVG_PI * 1.05f, NVG_PI * 1.7f, NVG_CW);  // highlight on the upper left
+		nvgStrokeColor(vg, nvgRGBA(150, 230, 255, 70));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+
+		// pointer, and a dot on the track at the value
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, cx + std::cos(ang) * rb * 0.3f, cy + std::sin(ang) * rb * 0.3f);
+		nvgLineTo(vg, cx + std::cos(ang) * rb * 0.85f, cy + std::sin(ang) * rb * 0.85f);
+		nvgLineCap(vg, NVG_ROUND);
+		nvgStrokeColor(vg, nvgRGBA(205, 248, 255, 255));
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
+		nvgLineCap(vg, NVG_BUTT);
+		if (!stepped) {
+			nvgBeginPath(vg);
+			nvgCircle(vg, cx + std::cos(ang) * rt, cy + std::sin(ang) * rt, 2.2f);
+			nvgFillColor(vg, nvgRGBA(235, 252, 255, 255));
+			nvgFill(vg);
+		}
+
+		// blink outline (reset / step-control animations)
+		if (knobOb->blinkIntensity > 0.0f) {
+			nvgBeginPath(vg);
+			nvgCircle(vg, cx, cy, rb);
+			nvgStrokeColor(vg, nvgRGBA(255, 255, 255, static_cast<unsigned char>(255 * knobOb->blinkIntensity)));
+			nvgStrokeWidth(vg, 2.5f);
+			nvgStroke(vg);
+		}
 	}
 
 	void NVGView::drawKnob2(RData& reIn) {

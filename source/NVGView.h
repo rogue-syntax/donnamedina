@@ -737,6 +737,13 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		void knobArc(float cx, float cy, float r, double v0, double v1, NVGcolor c, float width);
 		void drawModulation();
 		void drawValueArc(CControl* knob, float r);  // value arc on a knob's outline (drawKnob/drawKnob2)
+		// Knob look: radii as fractions of the control's half width (see drawKnob)
+		static constexpr float kKnobBody = 0.62f, kKnobTrack = 0.80f, kKnobEdge = 0.97f;
+		float knobLag[1000] = {};          // trail: each knob's lagging value
+		bool knobLagValid[1000] = {};
+		float frameDt = 0.0f;              // seconds since the previous frame (0..0.1)
+		std::chrono::steady_clock::time_point lastFrameTime;
+		bool lastFrameValid = false;
 		void drawStepTargetBadges();  // A..H: ring badges, the selected step target's pair lit
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)
