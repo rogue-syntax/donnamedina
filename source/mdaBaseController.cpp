@@ -611,15 +611,21 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 	auto applyMasterVol = [this] (ParamValue v) { setParamNormalized (MASTER_VOL, v); };
 	// POLY_COUNT likewise, from the "POLY" block after it (2026-11-15)
 	auto applyPoly = [this] (ParamValue v) { setParamNormalized (POLY_COUNT, v); };
-
+	// parameters newer than the state's version get their defaults (constants.h)
+	auto applyNewDefaults = [this] (uint32 version) {
+		applyNewParamDefaults (version, [this] (int pid, double v) { setParamNormalized (pid, v); });
+	};
+	auto truncated = [&] () {
+		applyMasterVol (DEFAULT_MASTER_VOL);
+		applyPoly (polyToNormalized (POLY_DEFAULT));
+		applyNewDefaults (1);
+		return kResultFalse;
+	};
 	// read each parameter
 	for (uint32 i = 0; i < temp; i++){
 		ParamValue value;
-		if (streamer.readDouble (value) == false) {
-			applyMasterVol (DEFAULT_MASTER_VOL);
-			applyPoly (polyToNormalized (POLY_DEFAULT));
-			return kResultFalse;
-		}
+		if (streamer.readDouble (value) == false)
+			return truncated ();
 		if (i == MASTER_VOL || i == POLY_COUNT)
 			continue;
 
@@ -653,25 +659,30 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 
 	// bypass
 	uint32 bypassState;
-	if (streamer.readInt32u(bypassState) == false) {
-		applyMasterVol (DEFAULT_MASTER_VOL);
-		applyPoly (polyToNormalized (POLY_DEFAULT));
-		return kResultFalse;
-	}
+	if (streamer.readInt32u(bypassState) == false)
+		return truncated ();
 
 	{
-		uint32 tag = 0;
-		double masterVol = 0.0;
-		if (streamer.readInt32u (tag) && tag == MASTER_VOL_STATE_TAG && streamer.readDouble (masterVol)
-			&& std::isfinite (masterVol))
-			applyMasterVol ((std::min) (1.0, (std::max) (0.0, masterVol)));
-		else
-			applyMasterVol (DEFAULT_MASTER_VOL);
-		double poly = 0.0;
-		if (streamer.readInt32u (tag) && tag == POLY_STATE_TAG && streamer.readDouble (poly) && std::isfinite (poly))
-			applyPoly ((std::min) (1.0, (std::max) (0.0, poly)));
-		else
-			applyPoly (polyToNormalized (POLY_DEFAULT));
+		// tagged blocks after bypass, in any order: master volume, polyphony, state version
+		double masterVol = DEFAULT_MASTER_VOL, poly = polyToNormalized (POLY_DEFAULT);
+		uint32 version = 1;
+		for (int k = 0; k < 32; k++) {
+			uint32 tag = 0;
+			double v = 0.0;
+			if (!streamer.readInt32u (tag) || !streamer.readDouble (v))
+				break;
+			if (!std::isfinite (v))
+				continue;
+			if (tag == MASTER_VOL_STATE_TAG)
+				masterVol = (std::min) (1.0, (std::max) (0.0, v));
+			else if (tag == POLY_STATE_TAG)
+				poly = (std::min) (1.0, (std::max) (0.0, v));
+			else if (tag == STATE_VERSION_TAG && v >= 1.0 && v < 1.0e6)
+				version = static_cast<uint32> (v);
+		}
+		applyMasterVol (masterVol);
+		applyPoly (poly);
+		applyNewDefaults (version);
 	}
 		
 	Parameter* bypassParam = parameters.getParameter (kBypassParam);

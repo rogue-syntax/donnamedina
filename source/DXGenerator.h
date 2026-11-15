@@ -600,6 +600,8 @@ public:
 	// The original author's mono/portamento code ran when POLYCOUNT was 1; with a polyphony setting
 	// 1 voice is a plain voice limit, so that code now needs this (off; mono is not built yet).
 	bool portamentoMode = false;
+	// Snap: the retrigger/steal fade time (SNAP_TIME, DX10Processor::recalcSnapTime)
+	float retrigFadeMs = 21.0f;
 	int32 lastNoteIdx = 0;
 	bool pushNote;
 	int32 notes3[10];

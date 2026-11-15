@@ -39,7 +39,7 @@ Order within a section is a rough priority (impact for effort).
 - [x] A–H step-target badges: the selected target's dial letter and control letter lit as a pair (docs/04-gui.md).
 
 ## 3. Sound and engine
-- [ ] **Snap / retrigger-time knob**: expose the fixed 21 ms self-cut fade (≈2 ms punchy … ≈80 ms smooth).
+- [x] **Snap**: SNAP_TIME 2..80 ms (default 21) on the new PLAY panel; state version block for new parameters.
 - [ ] **Per-note expression** (VST3 Note Expression / MPE): bend, volume, pan, brightness per note; fits the
       one-voice-per-pitch design.
 - [ ] **HQ mode**: 2x oversampling to reduce FM aliasing on high notes (affordable after the 3x speedup).

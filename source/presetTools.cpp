@@ -143,16 +143,14 @@ bool parseState(const void* data, size_t size, State& out) {
 	for (uint32_t i = 0; i < count; i++)
 		r.f64(s.values[i]);
 	if (r.u32(s.bypass)) {
-		uint32_t tag = 0;
-		double mv = 0.0;
-		if (r.u32(tag) && tag == uint32_t(MASTER_VOL_STATE_TAG) && r.f64(mv)) {
-			s.hasMasterVol = true;
-			s.masterVol = mv;
-			double pv = 0.0;
-			if (r.u32(tag) && tag == uint32_t(POLY_STATE_TAG) && r.f64(pv)) {
-				s.hasPoly = true;
-				s.poly = pv;
-			}
+		for (int k = 0; k < 32; k++) {  // tagged blocks, any order
+			uint32_t tag = 0;
+			double v = 0.0;
+			if (!r.u32(tag) || !r.f64(v))
+				break;
+			if (tag == uint32_t(MASTER_VOL_STATE_TAG)) { s.hasMasterVol = true; s.masterVol = v; }
+			else if (tag == uint32_t(POLY_STATE_TAG)) { s.hasPoly = true; s.poly = v; }
+			else if (tag == uint32_t(STATE_VERSION_TAG) && v >= 1.0 && v < 1.0e6) s.version = uint32_t(v);
 		}
 	}
 	out = std::move(s);
@@ -173,10 +171,14 @@ std::vector<char> writeState(const State& s) {
 	if (s.hasMasterVol) {
 		putU32(b, uint32_t(MASTER_VOL_STATE_TAG));
 		putF64(b, s.masterVol);
-		if (s.hasPoly) {  // only after the master volume block, where the readers look for it
-			putU32(b, uint32_t(POLY_STATE_TAG));
-			putF64(b, s.poly);
-		}
+	}
+	if (s.hasPoly) {
+		putU32(b, uint32_t(POLY_STATE_TAG));
+		putF64(b, s.poly);
+	}
+	if (s.version > 0) {
+		putU32(b, uint32_t(STATE_VERSION_TAG));
+		putF64(b, double(s.version));
 	}
 	return b;
 }

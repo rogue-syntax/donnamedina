@@ -4,6 +4,7 @@
 #define __CONSTANTS__
 #include "Env.h"
 #include <string>
+#include <cmath>
 /*
 #if SMTG_OS_WINDOWS && !defined(__GNUC__)
 typedef long int32;
@@ -468,6 +469,43 @@ inline double polyToNormalized (int n) {
 	return double (n - 1) / double (POLY_MAX - 1);
 }
 const unsigned int POLY_STATE_TAG = 0x594C4F50u;  // "POLY" (little endian)
+
+// Snap (2026-11-15): the retrigger/steal fade (a sounding voice fades out before it restarts or is
+// taken) was a fixed 21 ms. SNAP_TIME sets it, 2..80 ms on a log curve (ms = 2 * 40^v); part of the
+// preset. Short = a hard, clicky re-attack; long = smooth repeats.
+const int SNAP_TIME = 148;
+inline double snapMs (double v) {
+	if (!(v > 0.0)) v = 0.0;
+	if (v > 1.0) v = 1.0;
+	return 2.0 * std::pow (40.0, v);
+}
+inline double snapToNormalized (double ms) { return std::log (ms / 2.0) / std::log (40.0); }
+const double SNAP_DEFAULT_MS = 21.0;
+
+// State version (2026-11-15). Parameters added after the first release would load as 0 from older
+// states and presets (their slot in the saved array was unused). getState now ends with a tagged
+// version block; when a state's version is older than the one a parameter arrived in, that
+// parameter gets its default (applyNewParamDefaults). Readers take the tagged blocks after the
+// bypass flag in any order: MASTER_VOL_STATE_TAG, POLY_STATE_TAG, STATE_VERSION_TAG.
+const unsigned int STATE_VERSION_TAG = 0x52455653u;  // "SVER" (little endian)
+const unsigned int STATE_VERSION = 2;                 // 1 = states without the block
+struct NewParamDefault { int pid; double normalized; unsigned int since; };
+inline const NewParamDefault* newParamDefaults (int& count) {
+	static const NewParamDefault k[] = {
+		{SNAP_TIME, snapToNormalized (SNAP_DEFAULT_MS), 2},
+	};
+	count = static_cast<int> (sizeof (k) / sizeof (k[0]));
+	return k;
+}
+// Calls set(pid, normalized) for every parameter newer than `version`.
+template <typename F>
+inline void applyNewParamDefaults (unsigned int version, F set) {
+	int n = 0;
+	const NewParamDefault* d = newParamDefaults (n);
+	for (int i = 0; i < n; i++)
+		if (d[i].since > version)
+			set (d[i].pid, d[i].normalized);
+}
 
 //const int SYNC_MOD_TUNE_MAIN = 143;
 

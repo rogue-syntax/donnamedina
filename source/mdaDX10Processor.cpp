@@ -97,6 +97,7 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 		floatParams[i] = programParams[0][i];
 	}
 	generators[0].POLYCOUNT = polyFromNormalized(floatParams[POLY_COUNT]);
+	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 
 	rampedParams[MAINENV1_RAMPINDEX].level = mainEnv1Cenv;
 	quarterSecond = sampleRate / 8;
@@ -640,6 +641,7 @@ void DX10Processor::fillFactoryPresets () {
 	for (int32 p = 0; p < 20; p++) {
 		programParams[p][MASTER_VOL] = static_cast<float> (DEFAULT_MASTER_VOL);
 		programParams[p][POLY_COUNT] = static_cast<float> (polyToNormalized (POLY_DEFAULT));  // global too
+		applyNewParamDefaults (0, [p] (int pid, double v) { programParams[p][pid] = static_cast<float> (v); });
 	}
 }
 
@@ -729,6 +731,7 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 
 		recalculators[LFO_1_PHASE] = &DX10Processor::recalcLfo1Phase;
 		recalculators[POLY_COUNT] = &DX10Processor::recalcPolyCount;
+		recalculators[SNAP_TIME] = &DX10Processor::recalcSnapTime;
 		recalculators[LFO_2_PHASE] = &DX10Processor::recalcLfo2Phase;
 		recalculators[LFO_3_PHASE] = &DX10Processor::recalcLfo3Phase;
 
@@ -947,6 +950,7 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 			}	
 			floatParams[MASTER_VOL] = keepVol;
 			floatParams[POLY_COUNT] = keepPoly;
+			generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 		}
 
 	} else if (index == BaseController::kModWheelParam){ // mod wheel
@@ -985,6 +989,7 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 	}
 	floatParams[MASTER_VOL] = keepVol;
 	floatParams[POLY_COUNT] = keepPoly;
+	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);
@@ -1852,6 +1857,11 @@ int DX10Processor::recalcToggleGenView(double value) {
 	return 0;
 };
 
+int DX10Processor::recalcSnapTime(double value) {
+	generators[0].retrigFadeMs = static_cast<float>(snapMs(value));
+	return 0;
+}
+
 int DX10Processor::recalcPolyCount(double value) {
 	generators[0].POLYCOUNT = polyFromNormalized(value);
 	return 0;
@@ -2020,6 +2030,7 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 						}
 						floatParams[MASTER_VOL] = keepVol;
 						floatParams[POLY_COUNT] = keepPoly;
+						generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 					}
 
 				}
@@ -2069,6 +2080,7 @@ tresult DX10Processor::setState(IBStream* state) {
 	// B-08: apply whatever was read even if the state was truncated, then report the result.
 	const tresult readResult = BaseProcessor::setState(state);
 	recalcPolyCount(floatParams[POLY_COUNT]);
+	recalcSnapTime(floatParams[SNAP_TIME]);
 	//////////////////////////////////////////////
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);

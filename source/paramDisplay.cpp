@@ -206,6 +206,7 @@ const char* label (int pid)
 		case STEP_CTRL_TARG: return "STEP TARGET";
 		case MASTER_VOL: return "VOLUME";
 		case POLY_COUNT: return "POLYPHONY";
+		case SNAP_TIME: return "SNAP";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
 		case WIDTH_RESET: return "OSC WIDTH RESET";
 		case TUNE_RESET: return "OSC TUNE RESET";
@@ -367,6 +368,8 @@ std::string value (int pid, double v, const Context& ctx)
 		}
 		return "";
 	}
+	if (pid == SNAP_TIME)
+		return fmt ("%.1f MS", snapMs (v));
 	if (pid == POLY_COUNT) {
 		const int n = polyFromNormalized (v);
 		return fmt (n == 1 ? "%.0f VOICE" : "%.0f VOICES", static_cast<double> (n));

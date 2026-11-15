@@ -70,6 +70,40 @@ namespace rs {
 		}
 	};
 
+	// SNAP_TIME: the retrigger/steal fade in ms (2..80, log; constants.h snapMs).
+	class SnapParameter : public Parameter
+	{
+	public:
+		explicit SnapParameter (ParamID tag)
+		: Parameter (USTRING ("SNAP"), tag, USTRING ("ms"), snapToNormalized (SNAP_DEFAULT_MS), 0,
+		             ParameterInfo::kCanAutomate)
+		{
+		}
+
+		void toString (ParamValue valueNormalized, String128 string) const SMTG_OVERRIDE
+		{
+			char buf[16];
+			snprintf (buf, sizeof (buf), "%.1f", snapMs (valueNormalized));
+			UString (string, 128).fromAscii (buf);
+		}
+
+		bool fromString (const TChar* string, ParamValue& valueNormalized) const SMTG_OVERRIDE
+		{
+			UString wrapper ((TChar*)string, strlen16 (string));
+			double ms = 0.0;
+			if (!wrapper.scanFloat (ms) || !(ms > 0.0))
+				return false;
+			valueNormalized = (std::min) (1.0, (std::max) (0.0, snapToNormalized (ms)));
+			return true;
+		}
+
+		ParamValue toPlain (ParamValue valueNormalized) const SMTG_OVERRIDE { return snapMs (valueNormalized); }
+		ParamValue toNormalized (ParamValue plainValue) const SMTG_OVERRIDE
+		{
+			return plainValue > 0.0 ? (std::min) (1.0, (std::max) (0.0, snapToNormalized (plainValue))) : 0.0;
+		}
+	};
+
 	// MASTER_VOL: the host shows/enters dB (paramDisplay::masterVolText; gain = 2 v^2).
 	class MasterVolParameter : public Parameter
 	{
@@ -300,6 +334,7 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[PAN_LR] = &DX10Controller::onEnv;
 	onCtrlChange[MASTER_VOL] = &DX10Controller::onEnvBipolar;  // readout (envName -> "VOLUME")
 	onCtrlChange[POLY_COUNT] = &DX10Controller::onEnvBipolar;  // readout "POLYPHONY / n VOICES"
+	onCtrlChange[SNAP_TIME] = &DX10Controller::onEnvBipolar;   // readout "SNAP / 21.0 MS"
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -853,6 +888,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 
 		parameters.addParameter (new MasterVolParameter (MASTER_VOL));
 		parameters.addParameter (new PolyParameter (POLY_COUNT));
+		parameters.addParameter (new SnapParameter (SNAP_TIME));
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {

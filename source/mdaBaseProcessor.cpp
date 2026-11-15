@@ -746,14 +746,25 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 			return kResultFalse;
 	}
 
+	// Globals and parameters newer than the state get their defaults (constants.h, state version);
+	// the tagged blocks after bypass override them.
+	floatParams[MASTER_VOL] = DEFAULT_MASTER_VOL;
+	floatParams[POLY_COUNT] = polyToNormalized (POLY_DEFAULT);
+	uint32 version = 1;
+	auto finish = [&] () {
+		applyNewParamDefaults (version, [this] (int pid, double v) { floatParams[pid] = v; });
+	};
+
 	// read each parameter: as many as the state has, at most GPARAMS; skip any extra ones
 	const uint32 count = temp;
 	for (uint32 i = 0; i < count; i++)
 	{
 		double v = 0.0;
-		if (!streamer.readDouble (v))
+		if (!streamer.readDouble (v)) {
+			finish ();
 			return kResultFalse;  // truncated: keep what was read so far
-		if (i < GPARAMS && std::isfinite (v))
+		}
+		if (i < GPARAMS && i != MASTER_VOL && i != POLY_COUNT && std::isfinite (v))
 			floatParams[i] = v;
 	}
 
@@ -762,20 +773,22 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 	if (streamer.readInt32u (bypass))
 		bypassState = bypass > 0;
 
-	// master volume: a tagged block after bypass (written by getState since 2026-11-14). States
-	// without it load at 0 dB; the array slot is ignored because older states hold 0 there.
-	floatParams[MASTER_VOL] = DEFAULT_MASTER_VOL;
-	uint32 tag = 0;
-	double masterVol = 0.0;
-	if (streamer.readInt32u (tag) && tag == MASTER_VOL_STATE_TAG && streamer.readDouble (masterVol)
-		&& std::isfinite (masterVol))
-		floatParams[MASTER_VOL] = (std::min) (1.0, (std::max) (0.0, masterVol));
-
-	// polyphony: the next tagged block (2026-11-15); without it the default
-	floatParams[POLY_COUNT] = polyToNormalized (POLY_DEFAULT);
-	double poly = 0.0;
-	if (streamer.readInt32u (tag) && tag == POLY_STATE_TAG && streamer.readDouble (poly) && std::isfinite (poly))
-		floatParams[POLY_COUNT] = (std::min) (1.0, (std::max) (0.0, poly));
+	// tagged blocks: master volume (since 2026-11-14), polyphony and state version (2026-11-15)
+	for (int k = 0; k < 32; k++) {
+		uint32 tag = 0;
+		double v = 0.0;
+		if (!streamer.readInt32u (tag) || !streamer.readDouble (v))
+			break;
+		if (!std::isfinite (v))
+			continue;
+		if (tag == MASTER_VOL_STATE_TAG)
+			floatParams[MASTER_VOL] = (std::min) (1.0, (std::max) (0.0, v));
+		else if (tag == POLY_STATE_TAG)
+			floatParams[POLY_COUNT] = (std::min) (1.0, (std::max) (0.0, v));
+		else if (tag == STATE_VERSION_TAG && v >= 1.0 && v < 1.0e6)
+			version = static_cast<uint32> (v);
+	}
+	finish ();
 
 	//recalculate ();
 
@@ -819,6 +832,8 @@ tresult PLUGIN_API BaseProcessor::getState (IBStream* state)
 	streamer.writeDouble (floatParams[MASTER_VOL]);
 	streamer.writeInt32u (POLY_STATE_TAG);
 	streamer.writeDouble (floatParams[POLY_COUNT]);
+	streamer.writeInt32u (STATE_VERSION_TAG);
+	streamer.writeDouble (double (STATE_VERSION));
 
 	return kResultTrue;
 }

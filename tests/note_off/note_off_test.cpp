@@ -1825,6 +1825,94 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- Snap (2026-11-15): retrigger fade time, and the state version for new parameters ----
+	{
+		std::printf("\nSnap (retrigger fade) and state version\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		std::snprintf(buf, sizeof(buf), "%.2f %.2f %.2f ms", snapMs(0.0), snapMs(1.0), snapMs(snapToNormalized(SNAP_DEFAULT_MS)));
+		check("mapping 2..80 ms, default 21", std::fabs(snapMs(0.0) - 2.0) < 1e-9 && std::fabs(snapMs(1.0) - 80.0) < 1e-9 &&
+		          std::fabs(snapMs(snapToNormalized(21.0)) - 21.0) < 1e-9, buf);
+		// replay a held note at 0.3 s (hold decay, so only the snap ramp lowers it); still fading at t1?
+		auto fading = [&](double snapNorm, double t1) {
+			bool f = false;
+			Options o;
+			o.params = {{0.0, {SNAP_TIME, snapNorm}}};
+			o.perBlock = [&](rs::DX10Processor& p, double t) {
+				if (t >= t1 && t - t1 < 0.0116)
+					f = p.generators[0].RVoicesMap[kPitch].rampingDown;
+			};
+			render({"snap", 1.0, 0.5}, {{at(0.05), true, kPitch}, {at(0.3), true, kPitch}}, t1 + 0.05, o);  // held, replayed (no release)
+			return f;
+		};
+		const bool long50 = fading(1.0, 0.35), long110 = fading(1.0, 0.41), short12 = fading(0.0, 0.312);
+		std::snprintf(buf, sizeof(buf), "80 ms: fading at +50 ms %d, +110 ms %d; 2 ms: at +12 ms %d", int(long50), int(long110), int(short12));
+		check("fade lasts the snap time", long50 && !long110 && !short12, buf);
+
+		// state version: an old state (no SVER block, 0 in the snap slot) loads at 21 ms
+		std::vector<char> st;
+		float fadeAfterProgram = 0.0f;
+		{
+			Options o;
+			o.params = {{0.0, {SNAP_TIME, 0.9}}};
+			o.inspect = [&](rs::DX10Processor& p) {
+				MemoryStream ms;
+				p.getState(&ms);
+				st.assign(ms.getData(), ms.getData() + ms.getSize());
+			};
+			render({"snap", 1.0, 0.5}, {}, 0.05, o);
+		}
+		presetTools::State ps;
+		presetTools::parseState(st.data(), st.size(), ps);
+		float withVersion = 0.0f, oldState = 0.0f;
+		for (int pass = 0; pass < 2; pass++) {
+			presetTools::State s2 = ps;
+			if (pass == 1) {
+				s2.version = 0;            // written without the block, like an older build
+				s2.values[SNAP_TIME] = 0.0;  // and its slot held 0
+			}
+			const std::vector<char> blob = presetTools::writeState(s2);
+			Options o;
+			o.inspect = [&](rs::DX10Processor& p) {
+				MemoryStream ms(const_cast<char*>(blob.data()), TSize(blob.size()));
+				static_cast<IComponent&>(p).setState(&ms);
+				(pass == 0 ? withVersion : oldState) = p.generators[0].retrigFadeMs;
+			};
+			render({"snap", 1.0, 0.5}, {}, 0.05, o);
+		}
+		{
+			Options o;
+			o.params = {{0.0, {SNAP_TIME, 0.0}}, {0.02, {rs::BaseController::kPresetParam, 2.0 / 7.0}}};
+			o.inspect = [&](rs::DX10Processor& p) { fadeAfterProgram = p.generators[0].retrigFadeMs; };
+			render({"snap", 1.0, 0.5}, {}, 0.05, o);
+		}
+		std::snprintf(buf, sizeof(buf), "state v%u: %.1f ms; old state %.1f ms; program change %.1f ms", ps.version, withVersion,
+		              oldState, fadeAfterProgram);
+		check("new state keeps it, old state/preset -> 21 ms", ps.version == STATE_VERSION &&
+		          std::fabs(withVersion - snapMs(0.9)) < 0.01 && std::fabs(oldState - 21.0f) < 0.01 &&
+		          std::fabs(fadeAfterProgram - 21.0f) < 0.01, buf);
+		// controller: same rule for an old state
+		{
+			static HostApplication shostSnap;
+			auto* ctrl = new rs::DX10Controller();
+			ctrl->initialize(&shostSnap);
+			presetTools::State s2 = ps;
+			s2.version = 0;
+			s2.values[SNAP_TIME] = 0.0;
+			const std::vector<char> blob = presetTools::writeState(s2);
+			MemoryStream ms(const_cast<char*>(blob.data()), TSize(blob.size()));
+			ctrl->setComponentState(&ms);
+			const double v = ctrl->getParamNormalized(SNAP_TIME);
+			std::snprintf(buf, sizeof(buf), "%.1f ms", snapMs(v));
+			check("controller: old state -> 21 ms", std::fabs(snapMs(v) - 21.0) < 0.01, buf);
+			ctrl->terminate();
+			ctrl->release();
+		}
+	}
+
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
 	{
 		std::printf("\nB-62 GUI edits reach the host\n");

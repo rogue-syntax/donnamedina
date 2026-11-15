@@ -2720,6 +2720,7 @@ no viewindex at 153!*/
 		nvgFill(vg);
 
 		drawRightColumn();
+		drawPlayPanel();
 	}
 
 	// ---- right column ------------------------------------------------------------------------
@@ -2728,6 +2729,22 @@ no viewindex at 153!*/
 		const NVGcolor kColLabel = nvgRGBA(0, 204, 255, 255);   // label text cyan of the art
 		const NVGcolor kColMagenta = nvgRGBA(93, 32, 93, 255);  // CONTROL box magenta of the art
 		const NVGcolor kColDimFrame = nvgRGBA(4, 186, 232, 120);
+	}
+
+	// PLAY panel (2026-11-15): frame, title and knob labels for the performance knobs (SNAP, ...);
+	// the knobs are normal controls (vstgui.uidesc) drawn by drawKnob.
+	void NVGView::drawPlayPanel() {
+		using namespace ::editorLayout::play;
+		drawInset(kPanel.x, kPanel.y, kPanel.w, kPanel.h, kColDimFrame);
+		drawColumnSectionLabel(kPanel.x + 5.0f, kPanel.y + 3.0f, "PLAY");
+		static const char* const kLabels[4] = {"SNAP", "", "", ""};
+		nvgFontSize(vg, 9.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+		nvgFillColor(vg, kColLabel);
+		for (int i = 0; i < 4; i++)
+			if (kLabels[i][0])
+				nvgText(vg, slotCenterX(i), kLabelY, kLabels[i], NULL);
 	}
 
 	void NVGView::drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy) {

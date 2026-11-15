@@ -744,7 +744,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float frameDt = 0.0f;              // seconds since the previous frame (0..0.1)
 		std::chrono::steady_clock::time_point lastFrameTime;
 		bool lastFrameValid = false;
-		void drawStepTargetBadges();  // A..H: ring badges, the selected step target's pair lit
+		void drawStepTargetBadges();
+		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)  // A..H: ring badges, the selected step target's pair lit
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)
 		// while it is routed somewhere; srcGlow is that level smoothed (fast up, slow down).

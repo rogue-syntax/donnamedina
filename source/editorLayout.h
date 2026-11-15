@@ -28,6 +28,16 @@ constexpr float artY (float y) { return y + kArtOffsetY; }
 // Background grid of the art: 5 px cells, line colour on multiples of 5.
 constexpr int kGridStep = 5;
 
+// PLAY panel (2026-11-15): performance knobs in the free area right of STEP CTRL TARGET (window
+// coordinates); four 44 px slots. The knob origins must match vstgui.uidesc.
+namespace play {
+struct Rect { float x, y, w, h; };
+constexpr Rect kPanel {742.0f, 456.0f, 176.0f, 74.0f};
+constexpr float kSlotW = 44.0f;
+constexpr float kKnobY = 473.0f, kKnobSize = 30.0f, kLabelY = 506.0f;
+constexpr float slotCenterX (int i) { return kPanel.x + kSlotW * (i + 0.5f); }
+}
+
 // Right column (window coordinates), drawn by NVGView::drawRightColumn. The art's own right column
 // (title, pan, control, build info, logo boxes) is covered with grid from kBlankArtX0 (art x) rightwards;
 // the title and logo are redrawn from the art at the positions below.

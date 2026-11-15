@@ -428,16 +428,16 @@ void DXGenerator::retriggerVoice(RVoice& voiceObj, bool killIt) {
 
 void DXGenerator::saveTargValues(RVoice& voiceObj, bool killIt) {
 	if (killIt == true) {
-		voiceObj.voiceEnvLfo[1].envInc = -(1000.0*voiceObj.voiceEnvLfo[1].env) / 21 / sampleRate;
-		voiceObj.voiceEnvLfo[4].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[4].m_dAmplitude) / 21 / sampleRate;
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[5].m_dAmplitude) / 21 / sampleRate;
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[6].m_dAmplitude) / 21 / sampleRate;
+		voiceObj.voiceEnvLfo[1].envInc = -(1000.0*voiceObj.voiceEnvLfo[1].env) / retrigFadeMs / sampleRate;
+		voiceObj.voiceEnvLfo[4].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[4].m_dAmplitude) / retrigFadeMs / sampleRate;
+		voiceObj.voiceEnvLfo[5].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[5].m_dAmplitude) / retrigFadeMs / sampleRate;
+		voiceObj.voiceEnvLfo[6].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[6].m_dAmplitude) / retrigFadeMs / sampleRate;
 	}
 	else {
-		voiceObj.voiceEnvLfo[1].envInc = -(1000.0*voiceObj.voiceEnvLfo[1].env) / 21 / sampleRate;
-		voiceObj.voiceEnvLfo[4].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[4].m_dAmplitude) / 21 / sampleRate;
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[5].m_dAmplitude) / 21 / sampleRate;
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[6].m_dAmplitude) / 21 / sampleRate;
+		voiceObj.voiceEnvLfo[1].envInc = -(1000.0*voiceObj.voiceEnvLfo[1].env) / retrigFadeMs / sampleRate;
+		voiceObj.voiceEnvLfo[4].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[4].m_dAmplitude) / retrigFadeMs / sampleRate;
+		voiceObj.voiceEnvLfo[5].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[5].m_dAmplitude) / retrigFadeMs / sampleRate;
+		voiceObj.voiceEnvLfo[6].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[6].m_dAmplitude) / retrigFadeMs / sampleRate;
 	}
 }
 	
