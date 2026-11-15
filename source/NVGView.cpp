@@ -1744,6 +1744,28 @@ no viewindex at 153!*/
 		nvgLineCap(vg, NVG_BUTT);
 	}
 
+	// Knob value arcs (2026-11-15): the knob's outline is the track; the part from the minimum (or, for
+	// bipolar knobs, from the centre) to the value is drawn bright with a soft glow, so values read at
+	// a glance. Stepped selector knobs (source, LFO type: max > 1) get none. Drawn by drawKnob/drawKnob2
+	// under their blink outline, so the reset/step blink still shows on top.
+	void NVGView::drawValueArc(CControl* knob, float r) {
+		if (!knob || knob->getMax() > 1.0001f)
+			return;
+		const int pid = static_cast<int>(knob->getTag());
+		static const int kBase[] = {WIDTH_, TUNE_, FINE_, OCT_, INT_, MOD_GAIN_, MOD_WIDTH_, MOD_TUNE_, MOD_FINE_,
+			MOD_OCT_, MOD_INT_, MOD_BEAT_, GAIN_, FILTER_, PAN_LR};
+		bool bipolar = pid == TUNE_ || pid == FINE_ || pid == MOD_TUNE_ || pid == MOD_FINE_ || pid == PAN_LR;
+		for (int b : kBase)
+			if (pid == b + 1)
+				bipolar = true;  // modulation amounts: centre = none
+		const double v = knob->getValueNormalized();
+		const CRect rc = knob->getViewSize();
+		const float cx = static_cast<float>(rc.getCenter().x), cy = static_cast<float>(rc.getCenter().y);
+		const double from = bipolar ? 0.5 : 0.0;
+		knobArc(cx, cy, r, from, v, nvgRGBA(60, 210, 255, 70), 6.0f);
+		knobArc(cx, cy, r, from, v, nvgRGBA(205, 248, 255, 235), 2.2f);
+	}
+
 	// Modulation overlay (2026-11-15), drawn after the controls, outside each knob's circle (the
 	// controls' own blink fill and white flash stay inside it):
 	// - source selector (top row): a ring in its source's colour;
@@ -2404,6 +2426,7 @@ no viewindex at 153!*/
 		nvgStrokeWidth(vg, 3.0f);
 		nvgStroke(vg);
 		nvgClosePath(vg);
+		drawValueArc(cBKnob, knobOb->drawRect.getWidth() / 2.0f);
 	 
 		nvgBeginPath(vg);
 		nvgCircle(vg, cBKnob->getViewSize().getCenter().x, cBKnob->getViewSize().getCenter().y, (knobOb->drawRect.getWidth() / 2.0));
@@ -2463,6 +2486,7 @@ no viewindex at 153!*/
 		nvgStrokeWidth(vg, 2.0f);
 		nvgStroke(vg);
 		nvgClosePath(vg);
+		drawValueArc(cBKnob, knobOb->drawRect.getWidth() / 2.0f);
 
 		/*nvgBeginPath(vg);
 		nvgCircle(vg, cBKnob->getViewSize().getCenter().x, cBKnob->getViewSize().getCenter().y, (knobOb->drawRect.getWidth() / 2.0));

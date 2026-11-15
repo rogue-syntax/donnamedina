@@ -736,6 +736,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		NVGcolor modColour(int src, float a);
 		void knobArc(float cx, float cy, float r, double v0, double v1, NVGcolor c, float width);
 		void drawModulation();
+		void drawValueArc(CControl* knob, float r);  // value arc on a knob's outline (drawKnob/drawKnob2)
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)
 		// while it is routed somewhere; srcGlow is that level smoothed (fast up, slow down).

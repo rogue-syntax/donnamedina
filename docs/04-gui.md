@@ -12,6 +12,9 @@ Read, not run. Only the editor lifecycle has been traced so far.
 - `#moreInfo` (about window) now covers the logo. Its click/hover outline `CBMoreInfoButton::pathOutline` defaults to fixed art coordinates in the SDK (`cbuttons.h`); `setupMoreInfoBtn` now derives it from the view rect. (Between b0a0434 and this change the outline was 35/15 px off the moved button.)
 - `tests/editor_cycle`: `EDITOR_SHOT=<file.bmp>` opens the editor on screen once and saves a screenshot (the registration overlay is turned off for it, as the test has no processor).
 
+## Knob value arcs (2026-11-15)
+- `NVGView::drawValueArc` (called by drawKnob/drawKnob2 before their blink outline): the outline is the track; from the minimum, or from the centre for bipolar knobs (modulation amounts, TUNE/FINE, MOD TUNE/FINE, PAN), to the value it is drawn bright with a glow. Stepped selector knobs (max > 1: sources, LFO type) get none. Modulation rings sit outside the outline (next section).
+
 ## Modulation colours and rings (2026-11-15)
 - Each modulation source has a colour (`NVGView::modColour`): env 1 teal, env 2 magenta, env 3 amber, LFO 1 lime, LFO 2 violet, LFO 3 coral. Each envelope/LFO display has a 2 px strip in its colour along its top edge (`drawSourceStrip`).
 - `NVGView::drawModulation` (after the controls, before the step-target outline) draws outside each knob's circle, so the controls' own blink fill and white flash are untouched. For each destination X (X, X_ENV, X_ENV_SRC; WIDTH, TUNE, FINE, OCT, INT, MOD GAIN/WIDTH/TUNE/FINE/OCT/INT/BEAT, GAIN, FILTER, PAN) whose source is not none:
