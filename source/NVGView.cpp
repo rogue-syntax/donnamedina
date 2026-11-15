@@ -1511,126 +1511,150 @@ no viewindex at 153!*/
 		const double period = 1.0 / (hz > 1e-6 ? hz : 1e-6);
 
 		// time window
-		double window;
-		std::string windowText;
+		double fitWindow;
+		std::string fitText;
 		if (synced) {
 			const double beat = 60.0 / bpm;
 			static const double kBeats[] = {0.25, 0.5, 1, 2, 4, 8, 16, 32, 64};
 			static const char* const kBeatText[] = {"1/16", "1/8", "1/4", "1/2", "1 BAR", "2 BARS", "4 BARS", "8 BARS", "16 BARS"};
 			double ladder[9];
 			for (int k = 0; k < 9; k++) ladder[k] = kBeats[k] * beat;
-			window = lfoShape::chooseWindow(delay, period, ladder, 9);
+			fitWindow = lfoShape::chooseWindow(delay, period, ladder, 9);
 			for (int k = 0; k < 9; k++)
-				if (ladder[k] == window) windowText = kBeatText[k];
+				if (ladder[k] == fitWindow) fitText = kBeatText[k];
 		}
 		else {
 			static const double kSec[] = {0.0625, 0.125, 0.25, 0.5, 1, 2, 4, 8, 16, 32, 64};
-			window = lfoShape::chooseWindow(delay, period, kSec, 11);
+			fitWindow = lfoShape::chooseWindow(delay, period, kSec, 11);
 			char t[24];
-			if (window < 1.0) snprintf(t, sizeof(t), "%.0f MS", window * 1000.0);
-			else snprintf(t, sizeof(t), "%.0f S", window);
-			windowText = t;
+			if (fitWindow < 1.0) snprintf(t, sizeof(t), "%.0f MS", fitWindow * 1000.0);
+			else snprintf(t, sizeof(t), "%.0f S", fitWindow);
+			fitText = t;
 		}
-		const double pxPerSec = w / window;
-		const float xd = x + static_cast<float>(delay * pxPerSec);
-		const float amp = static_cast<float>(ampV) * (h * 0.5f - 4.0f);
-		const float cyclePx = static_cast<float>(period * pxPerSec);
+
+		// While the rate, delay or sync control is held (BaseController::isEditing), the window stays
+		// where it was, so turning the knob packs or stretches the wave on screen; on release (or when the
+		// host changes the rate) the view crossfades to the newly fitted window over 0.3 s. The playhead
+		// dots are hidden meanwhile.
+		lfoShape::ViewWindow& V = lfoView[i];
+		const bool editing = baseController->isEditing(base) || baseController->isEditing(base + 3) ||
+		                     baseController->isEditing(base + 4);
+		const double nowSec = std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count();
+		const float fade = static_cast<float>(V.update(fitWindow, fitText, editing, nowSec));
 
 		nvgSave(vg);
 		nvgScissor(vg, x, y, w, h);
+		auto layer = [&](double window, float alpha) {
+			nvgGlobalAlpha(vg, alpha);
+			const double pxPerSec = w / window;
+			const float xd = x + static_cast<float>(delay * pxPerSec);
+			const float amp = static_cast<float>(ampV) * (h * 0.5f - 4.0f);
+			const float cyclePx = static_cast<float>(period * pxPerSec);
 
-		// cycle ticks after the delay (when far enough apart), and the centre line
-		nvgBeginPath(vg);
-		if (cyclePx >= 8.0f)
-			for (float gx = xd + cyclePx; gx < x + w - 1.0f; gx += cyclePx) {
-				nvgMoveTo(vg, floorf(gx) + 0.5f, y);
-				nvgLineTo(vg, floorf(gx) + 0.5f, y + h);
-			}
-		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 26));
-		nvgStrokeWidth(vg, 1.0f);
-		nvgStroke(vg);
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, x, floorf(cy) + 0.5f);
-		nvgLineTo(vg, x + w, floorf(cy) + 0.5f);
-		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 55));
-		nvgStroke(vg);
 
-		// delay: hatched, with an edge where the LFO starts moving
-		if (delay > 0.0) {
+			// cycle ticks after the delay (when far enough apart), and the centre line
 			nvgBeginPath(vg);
-			nvgRect(vg, x, y, xd - x, h);
-			nvgFillColor(vg, nvgRGBA(255, 204, 153, 20));
-			nvgFill(vg);
-			nvgSave(vg);
-			nvgIntersectScissor(vg, x, y, xd - x, h);
-			nvgBeginPath(vg);
-			for (float hx = x - h; hx < xd; hx += 6.0f) {
-				nvgMoveTo(vg, hx, y + h);
-				nvgLineTo(vg, hx + h, y);
-			}
-			nvgStrokeColor(vg, nvgRGBA(255, 204, 153, 45));
+			if (cyclePx >= 8.0f)
+				for (float gx = xd + cyclePx; gx < x + w - 1.0f; gx += cyclePx) {
+					nvgMoveTo(vg, floorf(gx) + 0.5f, y);
+					nvgLineTo(vg, floorf(gx) + 0.5f, y + h);
+				}
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 26));
+			nvgStrokeWidth(vg, 1.0f);
 			nvgStroke(vg);
-			nvgRestore(vg);
 			nvgBeginPath(vg);
-			nvgMoveTo(vg, floorf(xd) + 0.5f, y);
-			nvgLineTo(vg, floorf(xd) + 0.5f, y + h);
-			nvgStrokeColor(vg, nvgRGBA(255, 204, 153, 90));
+			nvgMoveTo(vg, x, floorf(cy) + 0.5f);
+			nvgLineTo(vg, x + w, floorf(cy) + 0.5f);
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 55));
 			nvgStroke(vg);
-		}
 
-		const NVGcolor kLine = nvgRGBA(120, 230, 255, 235);
-		const NVGcolor kGlow = nvgRGBA(4, 186, 232, 55);
-		const NVGcolor kFill = nvgRGBA(0, 160, 192, 90);
-		const float startY = cy - static_cast<float>(lfoShape::wave(type, start)) * amp;
-		if (cyclePx < 3.0f) {
-			// too fast to draw: the delay part as a line, then the band the wave fills
-			nvgBeginPath(vg);
-			nvgRect(vg, xd, cy - amp, x + w - xd, amp * 2.0f + 0.5f);
-			nvgFillColor(vg, kFill);
-			nvgFill(vg);
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, x, startY);
-			nvgLineTo(vg, xd, startY);
-			nvgMoveTo(vg, xd, cy - amp);
-			nvgLineTo(vg, x + w, cy - amp);
-			nvgMoveTo(vg, xd, cy + amp);
-			nvgLineTo(vg, x + w, cy + amp);
-			nvgStrokeColor(vg, kLine);
-			nvgStrokeWidth(vg, 1.3f);
-			nvgStroke(vg);
-		}
-		else {
-			// two points per pixel; square and saw edges come out (nearly) vertical
-			const int n = static_cast<int>(w * 2.0f) + 1;
-			auto ptY = [&](int k) {
-				const double t = (k * 0.5) / pxPerSec;
-				return cy - static_cast<float>(lfoShape::valueAt(type, start, delay, hz, t)) * amp;
-			};
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, x, cy);
-			for (int k = 0; k < n; k++)
-				nvgLineTo(vg, x + k * 0.5f, ptY(k));
-			nvgLineTo(vg, x + w, cy);
-			nvgClosePath(vg);
-			nvgFillColor(vg, kFill);
-			nvgFill(vg);
-			nvgBeginPath(vg);
-			for (int k = 0; k < n; k++) {
-				if (k == 0) nvgMoveTo(vg, x, ptY(k));
-				else nvgLineTo(vg, x + k * 0.5f, ptY(k));
+			// delay: hatched, with an edge where the LFO starts moving
+			if (delay > 0.0) {
+				nvgBeginPath(vg);
+				nvgRect(vg, x, y, xd - x, h);
+				nvgFillColor(vg, nvgRGBA(255, 204, 153, 20));
+				nvgFill(vg);
+				nvgSave(vg);
+				nvgIntersectScissor(vg, x, y, xd - x, h);
+				nvgBeginPath(vg);
+				for (float hx = x - h; hx < xd; hx += 6.0f) {
+					nvgMoveTo(vg, hx, y + h);
+					nvgLineTo(vg, hx + h, y);
+				}
+				nvgStrokeColor(vg, nvgRGBA(255, 204, 153, 45));
+				nvgStroke(vg);
+				nvgRestore(vg);
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, floorf(xd) + 0.5f, y);
+				nvgLineTo(vg, floorf(xd) + 0.5f, y + h);
+				nvgStrokeColor(vg, nvgRGBA(255, 204, 153, 90));
+				nvgStroke(vg);
 			}
-			nvgLineJoin(vg, NVG_ROUND);
-			nvgStrokeColor(vg, kGlow);
-			nvgStrokeWidth(vg, 4.0f);
-			nvgStroke(vg);
-			nvgStrokeColor(vg, kLine);
-			nvgStrokeWidth(vg, 1.4f);
-			nvgStroke(vg);
+
+			const NVGcolor kLine = nvgRGBA(120, 230, 255, 235);
+			const NVGcolor kGlow = nvgRGBA(4, 186, 232, 55);
+			const NVGcolor kFill = nvgRGBA(0, 160, 192, 90);
+			const float startY = cy - static_cast<float>(lfoShape::wave(type, start)) * amp;
+			if (cyclePx < 3.0f) {
+				// too fast to draw: the delay part as a line, then the band the wave fills
+				nvgBeginPath(vg);
+				nvgRect(vg, xd, cy - amp, x + w - xd, amp * 2.0f + 0.5f);
+				nvgFillColor(vg, kFill);
+				nvgFill(vg);
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, x, startY);
+				nvgLineTo(vg, xd, startY);
+				nvgMoveTo(vg, xd, cy - amp);
+				nvgLineTo(vg, x + w, cy - amp);
+				nvgMoveTo(vg, xd, cy + amp);
+				nvgLineTo(vg, x + w, cy + amp);
+				nvgStrokeColor(vg, kLine);
+				nvgStrokeWidth(vg, 1.3f);
+				nvgStroke(vg);
+			}
+			else {
+				// two points per pixel; square and saw edges come out (nearly) vertical
+				const int n = static_cast<int>(w * 2.0f) + 1;
+				auto ptY = [&](int k) {
+					const double t = (k * 0.5) / pxPerSec;
+					return cy - static_cast<float>(lfoShape::valueAt(type, start, delay, hz, t)) * amp;
+				};
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, x, cy);
+				for (int k = 0; k < n; k++)
+					nvgLineTo(vg, x + k * 0.5f, ptY(k));
+				nvgLineTo(vg, x + w, cy);
+				nvgClosePath(vg);
+				nvgFillColor(vg, kFill);
+				nvgFill(vg);
+				nvgBeginPath(vg);
+				for (int k = 0; k < n; k++) {
+					if (k == 0) nvgMoveTo(vg, x, ptY(k));
+					else nvgLineTo(vg, x + k * 0.5f, ptY(k));
+				}
+				nvgLineJoin(vg, NVG_ROUND);
+				nvgStrokeColor(vg, kGlow);
+				nvgStrokeWidth(vg, 4.0f);
+				nvgStroke(vg);
+				nvgStrokeColor(vg, kLine);
+				nvgStrokeWidth(vg, 1.4f);
+				nvgStroke(vg);
+			}
+			nvgGlobalAlpha(vg, 1.0f);
+		};
+		if (fade < 1.0f) {
+			layer(V.fromWindow, 1.0f - fade);
+			layer(V.window, fade);
 		}
+		else
+			layer(V.window, 1.0f);
+		const double window = V.window;
+		const double pxPerSec = w / window;
+		const float amp = static_cast<float>(ampV) * (h * 0.5f - 4.0f);
 
 		// playheads: each recent voice's LFO restarted at its note-on; past the window, the dot wraps
 		// over the whole cycles shown after the delay
-		if (baseController) {
+		if (!editing && !V.fading) {
 			const float dt = playheadDt();
 			for (int k = kPlayheadSlots - 1; k >= 0; k--) {
 				const PlayheadSlot& s = baseController->playheads[k];
@@ -1674,7 +1698,13 @@ no viewindex at 153!*/
 			nvgText(vg, x + w - 3.0f, ty, t, NULL);
 		};
 		plate(rt, y + 2.0f, true, nvgRGBA(255, 204, 153, 220));
-		plate(windowText.c_str(), y + h - 1.0f, false, nvgRGBA(4, 186, 232, 170));
+		if (fade < 1.0f) {
+			nvgGlobalAlpha(vg, 1.0f - fade);
+			plate(V.fromText.c_str(), y + h - 1.0f, false, nvgRGBA(4, 186, 232, 170));
+			nvgGlobalAlpha(vg, fade);
+		}
+		plate(V.text.c_str(), y + h - 1.0f, false, nvgRGBA(4, 186, 232, 170));
+		nvgGlobalAlpha(vg, 1.0f);
 		nvgRestore(vg);
 	}
 

@@ -10,6 +10,7 @@
 #include "mdaBaseController.h"
 #include "editorLayout.h"
 #include "paramDisplay.h"
+#include "lfoShape.h"
 #include "constants.h"
 #include <time.h> 
 #include "vstgui/lib/controls/ccontrol.h"
@@ -726,6 +727,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float envFinalX = 119;
 
 		void drawLfo(int i);  // LFO display i (0..2); drawEnv4..6 call it
+		lfoShape::ViewWindow lfoView[3];  // drawLfo: the window shown (held while a rate/delay/sync edit lasts)
 		// Playheads: a dot per recent voice on the envelope and LFO displays (BaseController::playheads).
 		void drawEnvPlayheads();
 		void drawPlayDot(float x, float y, bool newest, bool held, float level);

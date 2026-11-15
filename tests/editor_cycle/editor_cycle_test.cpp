@@ -238,6 +238,17 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 			ctrl->setParamNormalized(p.pid, p.v);
 		pumpFor(300);
 	}
+	// EDITOR_SHOT_LFO_HOLD=1: hold LFO 1's rate knob (beginEdit) and speed it up from ~0.5 Hz to
+	// ~12 Hz: the shot shows the wave packed into the old 8 s window (no playhead dots).
+	if (std::getenv("EDITOR_SHOT_LFO_HOLD")) {
+		ctrl->setParamNormalized(LFO_1_BPM, 0.0);
+		ctrl->setParamNormalized(LFO_1_DELAY, 0.0);
+		ctrl->setParamNormalized(LFO_1_RATE, 0.02);
+		pumpFor(400);
+		ctrl->beginEdit(LFO_1_RATE);
+		ctrl->setParamNormalized(LFO_1_RATE, 0.1);
+		pumpFor(300);
+	}
 	// EDITOR_SHOT_MOD=1: one routing per source, so every colour shows (sources as list steps / 6)
 	if (std::getenv("EDITOR_SHOT_MOD")) {
 		struct PV { int pid; double v; };

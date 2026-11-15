@@ -9,6 +9,7 @@
 // - Output = wave(phase) * amp, bipolar -amp..+amp.
 
 #include <cmath>
+#include <string>
 
 namespace lfoShape {
 
@@ -69,5 +70,41 @@ inline double chooseWindow(double delay, double period, const double* ladder, in
 			return ladder[i];
 	return ladder[n - 1];
 }
+
+// The window an LFO display shows. While the rate/delay/sync control is held (`editing`) it stays
+// where it was, so turning the knob packs or stretches the wave; once released (or when the fitted
+// window changes otherwise, e.g. host automation) it crossfades to the fitted one over kFade seconds.
+struct ViewWindow {
+	static constexpr double kFade = 0.3;
+	double window = -1.0, fromWindow = -1.0;
+	std::string text, fromText;
+	double fadeStart = 0.0;
+	bool fading = false;
+
+	// Call once per frame with the fitted window and its label; returns the new view's opacity
+	// (1 = settled; below 1 the old view, fromWindow/fromText, is drawn with 1 - that).
+	double update(double fit, const std::string& fitText, bool editing, double now) {
+		if (window <= 0.0) {
+			window = fit;
+			text = fitText;
+		}
+		if (!editing && (fit != window || fitText != text)) {
+			fromWindow = window;
+			fromText = text;
+			window = fit;
+			text = fitText;
+			fadeStart = now;
+			fading = true;
+		}
+		if (!fading)
+			return 1.0;
+		const double f = (now - fadeStart) / kFade;
+		if (f >= 1.0) {
+			fading = false;
+			return 1.0;
+		}
+		return f < 0.0 ? 0.0 : f;
+	}
+};
 
 } // namespace lfoShape

@@ -72,6 +72,9 @@ public:
 	ParameterContainer& getParameters () { return parameters; }
 
 	tresult beginEdit(Steinberg::Vst::ParamID tag) override;
+	// true between beginEdit and endEdit of that parameter (a knob held in the editor)
+	bool isEditing(int pid) const { return pid >= 0 && pid < GPARAMS && editingParam[pid]; }
+	bool editingParam[GPARAMS] = {};
 	tresult performEdit(Steinberg::Vst::ParamID tag, Steinberg::Vst::ParamValue valueNormalized) override;
 	tresult endEdit(Steinberg::Vst::ParamID tag) override;
 	Parameter* getParameterObject(Steinberg::Vst::ParamID tag) override;

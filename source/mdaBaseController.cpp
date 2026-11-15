@@ -163,6 +163,8 @@ Parameter* BaseController::getParameterObject (ParamID tag)
 //------------------------------------------------------------------------
 tresult BaseController::beginEdit (ParamID tag)
 {
+	if (tag < GPARAMS)
+		editingParam[tag] = true;
 	if (EditController::getParameterObject (tag))
 		if (tag < STEP_BUTTONS_FIRST) {
 			return EditController::beginEdit(tag);
@@ -222,6 +224,8 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 //------------------------------------------------------------------------
 tresult BaseController::endEdit (ParamID tag)
 {
+	if (tag < GPARAMS)
+		editingParam[tag] = false;
 	if (EditController::getParameterObject (tag))
 		if (tag < STEP_BUTTONS_FIRST) {
 			return EditController::endEdit(tag);

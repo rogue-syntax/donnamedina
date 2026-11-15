@@ -1690,6 +1690,20 @@ int main(int argc, char** argv) {
 			std::snprintf(buf, sizeof(buf), "%s | %s | %s", a.c_str(), b.c_str(), d.c_str());
 			check("readout: phase as start in the cycle, delay off", a == "START 90 deg" && b == "START 90 deg" && d == "OFF", buf);
 		}
+		{
+			// display window: held while editing, crossfade after release, then settled
+			lfoShape::ViewWindow v;
+			const double f0 = v.update(8.0, "8 S", false, 10.0);
+			const double f1 = v.update(0.25, "250 MS", true, 10.1);   // knob held: stays at 8 s
+			const double w1 = v.window;
+			const double f2 = v.update(0.25, "250 MS", false, 10.2);  // released: fade starts
+			const double w2 = v.window, from2 = v.fromWindow;
+			const double f3 = v.update(0.25, "250 MS", false, 10.35); // half way
+			const double f4 = v.update(0.25, "250 MS", false, 10.6);  // done
+			std::snprintf(buf, sizeof(buf), "%.2f %.2f/%.2f %.2f %.2f>%.2f %.2f %.2f %d", f0, f1, w1, f2, from2, w2, f3, f4, int(v.fading));
+			check("LFO view: holds while editing, then crossfades", f0 == 1.0 && f1 == 1.0 && w1 == 8.0 && f2 == 0.0 &&
+			          from2 == 8.0 && w2 == 0.25 && std::fabs(f3 - 0.5) < 1e-6 && f4 == 1.0 && !v.fading, buf);
+		}
 	}
 
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
