@@ -46,4 +46,4 @@ Order within a section is a rough priority (impact for effort).
 - [x] **Drift**: per-note random pitch (+-15 cents), filter and pan offsets, DRIFT knob on the PLAY panel.
 - [x] **Expression**: one bipolar knob offsetting BRIGHT / FILTER / FM DEPTH / WIDTH, optionally scaled by velocity (VEL).
 - [x] **Polyphony control**: 1..64 voices (POLY_COUNT, global), on the scope's VOICES plate; steal order released -> quietest.
-- [ ] **FX strip**: tempo-synced (ping-pong) delay and/or chorus.
+- [x] **FX strip**: tempo-synced ping-pong delay (DELAY row in the right column) and chorus (panel next to STEP CTRL TARGET); the logo band became the PLAY and DELAY rows.

@@ -6,6 +6,7 @@
 #include "NVGView.h"
 #include "presetBarView.h"
 #include "lfoShape.h"
+#include "fxStrip.h"
 #include <iostream>
 #include "luconData.hpp"
 #include "constants.h"
@@ -2720,7 +2721,6 @@ no viewindex at 153!*/
 		nvgFill(vg);
 
 		drawRightColumn();
-		drawPlayPanel();
 	}
 
 	// ---- right column ------------------------------------------------------------------------
@@ -2731,26 +2731,49 @@ no viewindex at 153!*/
 		const NVGcolor kColDimFrame = nvgRGBA(4, 186, 232, 120);
 	}
 
-	// PLAY panel (2026-11-15): frame, title and knob labels for the performance knobs (SNAP, ...);
-	// the knobs are normal controls (vstgui.uidesc) drawn by drawKnob.
+	// PLAY and FX rows in the right column (2026-11-15): section labels, knob wells and labels; the
+	// knobs and toggles are normal controls (vstgui.uidesc) drawn by drawKnob/drawButton.
 	void NVGView::drawPlayPanel() {
-		using namespace ::editorLayout::play;
-		drawInset(kPanel.x, kPanel.y, kPanel.w, kPanel.h, kColDimFrame);
-		drawColumnSectionLabel(kPanel.x + 5.0f, kPanel.y + 3.0f, "PLAY");
-		const char* kLabels[4] = {"SNAP", "DRIFT", "EXPR", ""};
+		using namespace ::editorLayout::column;
+		const float lx = kX0 + 9;
+		drawColumnSectionLabel(lx, kPlay.y0 + 2, "PLAY");
+		const char* labels[4] = {"SNAP", "DRIFT", "EXPR", ""};
 		if (baseController)
-			kLabels[3] = exprTargetName(exprTargetFromNormalized(baseController->getParamNormalized(EXPR_TARGET)));
+			labels[3] = exprTargetName(exprTargetFromNormalized(baseController->getParamNormalized(EXPR_TARGET)));
 		nvgFontSize(vg, 9.0f);
 		nvgFontFace(vg, "lucon");
-		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		nvgFillColor(vg, kColLabel);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 4; i++)
-			if (kLabels[i][0])
-				nvgText(vg, slotCenterX(i), kLabelY, kLabels[i], NULL);
-		// the VEL toggle (#exprVel, 864,460 10x10) is labelled to its right
+			nvgText(vg, slotCenterX(i), kPlay.y0 + kRowLabelDY, labels[i], NULL);
+		// the HQ (#hqMode, 1150,388) and VEL (#exprVel, 1194,388) toggles are labelled to their right
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-		nvgText(vg, 878.0f, 465.5f, "VEL", NULL);
-		nvgText(vg, 832.0f, 465.5f, "HQ", NULL);  // #hqMode at 818,460
+		nvgText(vg, 1164.0f, 393.5f, "HQ", NULL);
+		nvgText(vg, 1208.0f, 393.5f, "VEL", NULL);
+
+		// FX row: the ping-pong delay (the chorus sits in the panel next to STEP CTRL TARGET)
+		drawColumnSectionLabel(lx, kFx.y0 + 2, "DELAY");
+		const char* fxLabels[4] = {"", "FEEDBACK", "TONE", "MIX"};
+		if (baseController)
+			fxLabels[0] = fx::delayDivisionName(fx::delayDivisionFromNormalized(baseController->getParamNormalized(DLY_TIME)));
+		nvgFontSize(vg, 9.0f);
+		nvgFontFace(vg, "lucon");
+		nvgFillColor(vg, kColLabel);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+		for (int i = 0; i < 4; i++)
+			nvgText(vg, slotCenterX(i), kFx.y0 + kRowLabelDY, fxLabels[i], NULL);
+
+		// CHORUS panel in the main area, right of STEP CTRL TARGET (742,456 176x74, three slots)
+		const float px = 742.0f, py = 456.0f, pw = 176.0f, ph = 74.0f;
+		drawInset(px, py, pw, ph, kColDimFrame);
+		drawColumnSectionLabel(px + 5.0f, py + 3.0f, "CHORUS");
+		static const char* const choLabels[3] = {"RATE", "DEPTH", "MIX"};
+		nvgFontSize(vg, 9.0f);
+		nvgFontFace(vg, "lucon");
+		nvgFillColor(vg, kColLabel);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+		for (int i = 0; i < 3; i++)
+			nvgText(vg, px + pw / 3.0f * (i + 0.5f), 506.0f, choLabels[i], NULL);
 	}
 
 	void NVGView::drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy) {
@@ -3137,7 +3160,7 @@ no viewindex at 153!*/
 		fillGrid(blankX, 0, (kArtOffsetX + kArtWidth) - blankX, kEditorHeight);
 
 		// 2. One continuous frame: chamfered top-right and bottom-left corners, like the art's boxes.
-		const float x0 = kX0, x1 = kX1, y0 = kTitle.y0, y1 = kLogo.y1, c = 10.0f;
+		const float x0 = kX0, x1 = kX1, y0 = kTitle.y0, y1 = kFx.y1, c = 10.0f;
 		nvgBeginPath(vg);
 		nvgMoveTo(vg, x0, y0);
 		nvgLineTo(vg, x1 - c, y0);
@@ -3154,7 +3177,7 @@ no viewindex at 153!*/
 		nvgStroke(vg);
 
 		// separators between the bands
-		const Band bands[] = {kTitle, kPreset, kReadout, kScope, kMaster, kLogo};
+		const Band bands[] = {kTitle, kPreset, kReadout, kScope, kMaster, kPlay, kFx};
 		const int nBands = int(sizeof(bands) / sizeof(bands[0]));
 		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 110));
 		nvgStrokeWidth(vg, 1.0f);
@@ -3211,10 +3234,9 @@ no viewindex at 153!*/
 		nvgText(vg, kPanAmtKnob.x + kPanAmtKnob.w * 0.5f, ly, "ENV AMT", NULL);
 		nvgText(vg, kPanSrcKnob.x + kPanSrcKnob.w * 0.5f, ly, "ENV SRC", NULL);
 
-		// 9. Logo (from the art) in a black framed slot; the #moreInfo button (kMoreInfo) covers the
-		//    slot and opens the about window.
-		drawInset(kMoreInfo.x, kMoreInfo.y, kMoreInfo.w, kMoreInfo.h, kColDimFrame);
-		drawArtCrop(kLogoArt, floorf(kCenterX - kLogoArt.w * 0.5f), floorf(kMoreInfo.y + (kMoreInfo.h - kLogoArt.h) * 0.5f));
+		// 8. PLAY and FX rows (drawPlayPanel). The logo is gone; #moreInfo (the about window) now sits
+		//    on the title.
+		drawPlayPanel();
 	}
 
 	void NVGView::drawOGL() {

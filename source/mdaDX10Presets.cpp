@@ -66,7 +66,9 @@ void DX10Controller::syncPresetCursor() {
 
 void DX10Controller::presetStepCounts(std::vector<int>& out) {
 	out.assign(GPARAMS, -1);
-	for (int pid = 0; pid < GPARAMS && pid < STEP_BUTTONS_FIRST; pid++) {
+	for (int pid = 0; pid < GPARAMS && pid <= FX_PARAM_LAST; pid++) {
+		if (!isHostParam(pid))
+			continue;
 		if (isGlobalParam(pid))
 			continue;
 		Parameter* p = EditController::getParameterObject(pid);

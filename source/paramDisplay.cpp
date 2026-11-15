@@ -1,6 +1,7 @@
 #include "paramDisplay.h"
 #include "constants.h"
 #include "lfoShape.h"
+#include "fxStrip.h"
 
 #include <cmath>
 #include <cstdio>
@@ -210,6 +211,13 @@ const char* label (int pid)
 		case EXPR_AMOUNT: return "EXPRESSION";
 		case DRIFT_AMOUNT: return "DRIFT";
 		case HQ_MODE: return "HQ 2X";
+		case DLY_TIME: return "DELAY TIME";
+		case DLY_FDBK: return "DELAY FEEDBACK";
+		case DLY_TONE: return "DELAY TONE";
+		case DLY_MIX: return "DELAY MIX";
+		case CHO_RATE: return "CHORUS RATE";
+		case CHO_DEPTH: return "CHORUS DEPTH";
+		case CHO_MIX: return "CHORUS MIX";
 		case EXPR_TARGET: return "EXPR TARGET";
 		case EXPR_VEL: return "EXPR VELOCITY";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
@@ -375,6 +383,16 @@ std::string value (int pid, double v, const Context& ctx)
 	}
 	if (pid == SNAP_TIME)
 		return fmt ("%.1f MS", snapMs (v));
+	switch (pid) {
+		case DLY_TIME: return fx::delayDivisionName (fx::delayDivisionFromNormalized (v));
+		case DLY_FDBK: return fmt ("%.0f %%", fx::delayFeedback (v) * 100.0);
+		case DLY_TONE: return hzText (fx::delayToneHz (v));
+		case CHO_RATE: return fmt ("%.2f Hz", fx::chorusRateHz (v));
+		case CHO_DEPTH: return fmt ("%.1f MS", fx::chorusDepthMs (v));
+		case DLY_MIX:
+		case CHO_MIX: return v < 0.005 ? std::string ("OFF") : fmt ("%.0f %%", v * 100.0);
+		default: break;
+	}
 	if (pid == DRIFT_AMOUNT) {
 		if (v < 0.005)
 			return "OFF";

@@ -19,6 +19,7 @@
 #include "editorLayout.h"
 #include "paramDisplay.h"
 #include "lfoShape.h"
+#include "fxStrip.h"
 #include <cmath>
 #include <cstdio>
 
@@ -340,6 +341,8 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[EXPR_VEL] = &DX10Controller::onToggleButton;  // button glow, readout ON/OFF
 	onCtrlChange[DRIFT_AMOUNT] = &DX10Controller::onEnvBipolar; // readout "DRIFT / 40 % (6 CENTS)"
 	onCtrlChange[HQ_MODE] = &DX10Controller::onToggleButton;    // button glow, readout ON/OFF
+	for (int id = FX_PARAM_FIRST; id <= FX_PARAM_LAST; id++)
+		onCtrlChange[id] = &DX10Controller::onEnvBipolar;       // readout (paramDisplay)
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -908,6 +911,20 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		parameters.addParameter (USTRING ("EXPR VELOCITY"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, EXPR_VEL);
 		parameters.addParameter (USTRING ("DRIFT"), USTRING ("%"), 0, 0.0, ParameterInfo::kCanAutomate, DRIFT_AMOUNT);
 		parameters.addParameter (USTRING ("HQ (2x OVERSAMPLING)"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, HQ_MODE);
+		{
+			auto* t = new StringListParameter (USTRING ("DELAY TIME"), DLY_TIME);
+			for (int i = 0; i < fx::kDelayDivisions; i++)
+				t->appendString (USTRING (fx::delayDivisionName (i)));
+			t->setNormalized (7.0 / 11.0);
+			t->getInfo ().defaultNormalizedValue = 7.0 / 11.0;
+			parameters.addParameter (t);
+		}
+		parameters.addParameter (USTRING ("DELAY FEEDBACK"), USTRING ("%"), 0, 0.35, ParameterInfo::kCanAutomate, DLY_FDBK);
+		parameters.addParameter (USTRING ("DELAY TONE"), USTRING ("%"), 0, 0.6, ParameterInfo::kCanAutomate, DLY_TONE);
+		parameters.addParameter (USTRING ("DELAY MIX"), USTRING ("%"), 0, 0.0, ParameterInfo::kCanAutomate, DLY_MIX);
+		parameters.addParameter (USTRING ("CHORUS RATE"), USTRING ("%"), 0, 0.4, ParameterInfo::kCanAutomate, CHO_RATE);
+		parameters.addParameter (USTRING ("CHORUS DEPTH"), USTRING ("%"), 0, 0.5, ParameterInfo::kCanAutomate, CHO_DEPTH);
+		parameters.addParameter (USTRING ("CHORUS MIX"), USTRING ("%"), 0, 0.0, ParameterInfo::kCanAutomate, CHO_MIX);
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {
@@ -968,7 +985,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		if (isViewReady()) {//not enough to know if the things the the view are really ready
 			(this->*onCtrlChange.at(tag))(tag, value);
 
-			if (tag < STEP_BUTTONS_FIRST) {
+			if (isHostParam(int(tag))) {
 
 				res = BaseController::setParamNormalized(tag, value);
 			}
@@ -977,7 +994,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 			}
 
 		}
-		else if (tag < STEP_BUTTONS_FIRST) {
+		else if (isHostParam(int(tag))) {
 			res = BaseController::setParamNormalized(tag, value);
 			// the GUI catches up from these in onNVGViewReady() when the editor opens.
 			// (tags >= STEP_BUTTONS_FIRST are momentary step buttons; their handler performs an edit, so they are
@@ -998,7 +1015,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 			if (isGlobalParam(i)) continue;  // global, not part of presets (the processor keeps them too)
 			const ParamValue v = DX10Processor::programParams[program][i];
 			BaseController::setParamNormalized(i, v);
-			if (!viewReady && i < STEP_BUTTONS_FIRST && EditController::getParameterObject(i)) {
+			if (!viewReady && isHostParam(i) && EditController::getParameterObject(i)) {
 				pendingStateUpdates[i] = v;  // GUI catches up when the editor opens
 				hasPendingState = true;
 			}

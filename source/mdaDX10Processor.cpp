@@ -104,6 +104,7 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 	recalcExprVel(floatParams[EXPR_VEL]);
 	recalcExprTarget(floatParams[EXPR_TARGET]);
 	recalcDrift(floatParams[DRIFT_AMOUNT]);
+	recalcFx(0.0);
 
 	rampedParams[MAINENV1_RAMPINDEX].level = mainEnv1Cenv;
 	quarterSecond = sampleRate / 8;
@@ -743,6 +744,8 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 		recalculators[EXPR_TARGET] = &DX10Processor::recalcExprTarget;
 		recalculators[DRIFT_AMOUNT] = &DX10Processor::recalcDrift;
 		recalculators[HQ_MODE] = &DX10Processor::recalcHq;
+		for (int id = FX_PARAM_FIRST; id <= FX_PARAM_LAST; id++)
+			recalculators[id] = &DX10Processor::recalcFx;
 		recalculators[LFO_2_PHASE] = &DX10Processor::recalcLfo2Phase;
 		recalculators[LFO_3_PHASE] = &DX10Processor::recalcLfo3Phase;
 
@@ -936,8 +939,13 @@ tresult PLUGIN_API DX10Processor::setActive (TBool state){
 		//this interferes with loading saved states!
 	}
 	const tresult r = BaseProcessor::setActive (state);
-	if (state)
+	if (state) {
 		applyEngineRate ();  // the host's rate is known now (B-63); HQ doubles it
+		const double hostRate = getSampleRate () > 0.0 ? getSampleRate () : 44100.0;
+		fxDelay.prepare (hostRate, 8.0);  // 1/1 at 30 BPM; allocated here, not on the audio thread
+		fxChorus.prepare (hostRate);
+		recalcFx (0.0);
+	}
 	return r;
 }
 
@@ -970,6 +978,7 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 			recalcExprVel(floatParams[EXPR_VEL]);
 			recalcExprTarget(floatParams[EXPR_TARGET]);
 			recalcDrift(floatParams[DRIFT_AMOUNT]);
+			recalcFx(0.0);
 		}
 
 	} else if (index == BaseController::kModWheelParam){ // mod wheel
@@ -1015,6 +1024,7 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 	recalcExprVel(floatParams[EXPR_VEL]);
 	recalcExprTarget(floatParams[EXPR_TARGET]);
 	recalcDrift(floatParams[DRIFT_AMOUNT]);
+	recalcFx(0.0);
 
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);
@@ -1278,6 +1288,9 @@ void DX10Processor::doProcessing(ProcessData& data) {
 		// Process all samples in this chunk
 		if (hqWanted != hqActive)
 			applyEngineRate();  // HQ switched: rebuild the voices for the new rate
+		// delay time for this chunk: the division at the host tempo, in samples at the host rate
+		const float fxDelaySamples = static_cast<float>(fx::delayBeats(fxDelayDiv) * 60.0 / (bpm > 1.0 ? bpm : 120.0) *
+		                                                (getSampleRate() > 0.0 ? getSampleRate() : 44100.0));
 		for (int32 i = 0; i < sampleFrames; i++) {
 			// Generate audio for all active generators
 			float gl, gr;
@@ -1296,6 +1309,9 @@ void DX10Processor::doProcessing(ProcessData& data) {
 				gl = generators[0].o1;
 				gr = generators[0].o2;
 			}
+			// FX strip (fxStrip.h): chorus, then the ping-pong delay; with a mix of 0 they add exactly 0
+			fxChorus.process(gl, gr, fxChorusRate, fxChorusDepth, fxChorusMix);
+			fxDelay.process(gl, gr, fxDelaySamples, fxDelayFb, fxDelayToneCoef, fxDelayMix);
 			masterGain += (masterTarg - masterGain) * masterGainCoef;
 			const float l = gl * masterGain, r = gr * masterGain;
 			*out1++ = l;
@@ -1900,6 +1916,18 @@ int DX10Processor::recalcToggleGenView(double value) {
 
 // HQ: the request is taken up at the start of the next chunk (applyEngineRate, audio thread) or at
 // activation, never while another thread renders.
+int DX10Processor::recalcFx(double) {
+	const double hostRate = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+	fxDelayDiv = fx::delayDivisionFromNormalized(floatParams[DLY_TIME]);
+	fxDelayFb = static_cast<float>(fx::delayFeedback(floatParams[DLY_FDBK]));
+	fxDelayToneCoef = static_cast<float>(1.0 - std::exp(-6.283185307179586 * fx::delayToneHz(floatParams[DLY_TONE]) / hostRate));
+	fxDelayMix = static_cast<float>(floatParams[DLY_MIX]);
+	fxChorusRate = fx::chorusRateHz(floatParams[CHO_RATE]);
+	fxChorusDepth = fx::chorusDepthMs(floatParams[CHO_DEPTH]);
+	fxChorusMix = static_cast<float>(floatParams[CHO_MIX]);
+	return 0;
+}
+
 int DX10Processor::recalcHq(double value) {
 	hqWanted = value >= 0.5;
 	return 0;
@@ -2127,6 +2155,7 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 						recalcExprVel(floatParams[EXPR_VEL]);
 						recalcExprTarget(floatParams[EXPR_TARGET]);
 						recalcDrift(floatParams[DRIFT_AMOUNT]);
+						recalcFx(0.0);
 					}
 
 				}
@@ -2177,11 +2206,13 @@ tresult DX10Processor::setState(IBStream* state) {
 	const tresult readResult = BaseProcessor::setState(state);
 	recalcPolyCount(floatParams[POLY_COUNT]);
 	recalcHq(floatParams[HQ_MODE]);
+	recalcFx(0.0);
 	recalcSnapTime(floatParams[SNAP_TIME]);
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);
 	recalcExprTarget(floatParams[EXPR_TARGET]);
 	recalcDrift(floatParams[DRIFT_AMOUNT]);
+	recalcFx(0.0);
 	//////////////////////////////////////////////
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);

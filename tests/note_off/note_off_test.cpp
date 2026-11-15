@@ -2178,6 +2178,63 @@ int main(int argc, char** argv) {
 		check("HQ is global (preset change keeps it, saved)", hqAfter == 1 && ps.hasHq && ps.hq == 1.0, buf);
 	}
 
+	// ---- FX strip (2026-11-15): chorus and ping-pong delay ----
+	{
+		std::printf("\nFX strip (chorus, ping-pong delay)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		const std::vector<NoteEvent> blip = {{at(0.05), true, 60}, {at(0.07), false, 60}};
+		auto renderFx = [&](std::vector<std::pair<double, std::pair<ParamID, double>>> params, std::vector<float>& L,
+		                    std::vector<float>& R) {
+			Options o;
+			o.params = params;
+			o.captureL = &L;
+			o.captureR = &R;
+			render({"fx", 1.0, 0.1}, blip, 1.4, o);
+		};
+		std::vector<float> l0, r0, l1, r1;
+		renderFx({}, l0, r0);
+		renderFx({{0.0, {DLY_FDBK, 0.9}}, {0.0, {CHO_DEPTH, 1.0}}, {0.0, {CHO_RATE, 1.0}}, {0.0, {DLY_TIME, 0.0}}}, l1, r1);
+		check("mixes at 0: no change (bit exact)", l0 == l1 && r0 == r1, (l0 == l1 && r0 == r1) ? "identical" : "differs");
+
+		// delay 1/4 at 120 BPM = 0.5 s, mix 100 %, feedback 50 %: echoes left at +0.5 s, right at +1.0 s
+		std::vector<float> l2, r2;
+		renderFx({{0.0, {DLY_TIME, 8.0 / 11.0}}, {0.0, {DLY_MIX, 1.0}}, {0.0, {DLY_FDBK, 0.5 / 0.95}}, {0.0, {DLY_TONE, 1.0}}}, l2, r2);
+		auto peakIn = [&](const std::vector<float>& v, double t0, double t1) {
+			float p = 0.0f;
+			for (int64 i = at(t0); i < at(t1) && i < int64(v.size()); i++) p = std::max(p, std::fabs(v[size_t(i)]));
+			return p;
+		};
+		const float dry = peakIn(l2, 0.05, 0.2);
+		const float gapL = peakIn(l2, 0.3, 0.5), echoL = peakIn(l2, 0.54, 0.7), echoR1 = peakIn(r2, 0.54, 0.7);
+		const float echoR = peakIn(r2, 1.04, 1.2), echoL2 = peakIn(l2, 1.04, 1.2);
+		std::snprintf(buf, sizeof(buf), "dry %.3f, gap %.4f, L@0.55 %.3f (R %.3f), R@1.05 %.3f (L %.3f)", dry, gapL, echoL, echoR1,
+		              echoR, echoL2);
+		check("ping-pong: L at one division, then R", dry > 0.05f && gapL < 0.01f * dry && echoL > 0.3f * dry &&
+		          echoR1 < 0.1f * echoL && echoR > 0.2f * echoL && echoR < echoL && echoL2 < 0.1f * echoR, buf);
+
+		// chorus: changes the sound, keeps the level
+		std::vector<float> l3, r3;
+		renderFx({{0.0, {CHO_MIX, 1.0}}, {0.0, {CHO_DEPTH, 1.0}}}, l3, r3);
+		double e0 = 0.0, e3 = 0.0, diff = 0.0;
+		for (size_t i = 0; i < l0.size() && i < l3.size(); i++) {
+			e0 += double(l0[i]) * l0[i];
+			e3 += double(l3[i]) * l3[i];
+			diff += double(l3[i] - l0[i]) * (l3[i] - l0[i]);
+		}
+		const double db = 10.0 * std::log10(e3 / e0), ddb = 10.0 * std::log10(diff / e0);
+		std::snprintf(buf, sizeof(buf), "level %+.2f dB, difference %.1f dB re. dry", db, ddb);
+		check("chorus: different sound, similar level", std::fabs(db) < 3.0 && ddb > -30.0, buf);
+
+		const std::string t = paramDisplay::value(DLY_TIME, 7.0 / 11.0, paramDisplay::Context()),
+		                  m = paramDisplay::value(DLY_MIX, 0.0, paramDisplay::Context());
+		std::snprintf(buf, sizeof(buf), "'%s' '%s'", t.c_str(), m.c_str());
+		check("readout", t == "1/8." && m == "OFF", buf);
+	}
+
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
 	{
 		std::printf("\nB-62 GUI edits reach the host\n");

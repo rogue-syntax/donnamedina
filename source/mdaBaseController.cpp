@@ -166,7 +166,7 @@ tresult BaseController::beginEdit (ParamID tag)
 	if (tag < GPARAMS)
 		editingParam[tag] = true;
 	if (EditController::getParameterObject (tag))
-		if (tag < STEP_BUTTONS_FIRST) {
+		if (isHostParam(int(tag))) {
 			return EditController::beginEdit(tag);
 		}
 	return kResultFalse;
@@ -179,7 +179,7 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 	//if (isViewReady() == false) {
 	//	return kResultFalse;
 	//}
-	if (tag < STEP_BUTTONS_FIRST) {
+	if (isHostParam(int(tag))) {
 		if (EditController::getParameterObject(tag))
 			if (linkTune == 1) {
 				if (tag == TUNE_) {
@@ -227,7 +227,7 @@ tresult BaseController::endEdit (ParamID tag)
 	if (tag < GPARAMS)
 		editingParam[tag] = false;
 	if (EditController::getParameterObject (tag))
-		if (tag < STEP_BUTTONS_FIRST) {
+		if (isHostParam(int(tag))) {
 			return EditController::endEdit(tag);
 		}
 	return kResultFalse;

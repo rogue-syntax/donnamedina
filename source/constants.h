@@ -477,6 +477,17 @@ const unsigned int POLY_STATE_TAG = 0x594C4F50u;  // "POLY" (little endian)
 const int HQ_MODE = 109;
 const unsigned int HQ_STATE_TAG = 0x20205148u;  // "HQ  " (little endian)
 
+// FX strip (2026-11-15, fxStrip.h): chorus and a tempo-synced ping-pong delay, part of the preset.
+// Ids above the step buttons (173..184), so isHostParam() includes this block.
+const int DLY_TIME = 191;    // tempo division list (fx::delayBeats)
+const int DLY_FDBK = 192;
+const int DLY_TONE = 193;
+const int DLY_MIX = 194;
+const int CHO_RATE = 195;
+const int CHO_DEPTH = 196;
+const int CHO_MIX = 197;
+const int FX_PARAM_FIRST = DLY_TIME, FX_PARAM_LAST = CHO_MIX;
+
 // Global parameters: kept across preset changes, saved in their own tagged state blocks.
 inline bool isGlobalParam (int pid) { return pid == 146 /* MASTER_VOL */ || pid == POLY_COUNT || pid == HQ_MODE; }
 
@@ -542,6 +553,13 @@ inline const NewParamDefault* newParamDefaults (int& count) {
 		{EXPR_VEL, 0.0, 2},
 		{EXPR_TARGET, 0.0, 2},
 		{DRIFT_AMOUNT, 0.0, 2},
+		{DLY_TIME, 7.0 / 11.0, 2},  // 1/8.
+		{DLY_FDBK, 0.35, 2},
+		{DLY_TONE, 0.6, 2},
+		{DLY_MIX, 0.0, 2},
+		{CHO_RATE, 0.4, 2},
+		{CHO_DEPTH, 0.5, 2},
+		{CHO_MIX, 0.0, 2},
 	};
 	count = static_cast<int> (sizeof (k) / sizeof (k[0]));
 	return k;
@@ -606,6 +624,8 @@ const int STEP_CTRL_12 = 184;
 // B-07: tags from here on are the momentary step-control buttons (GUI only: they are not stored as
 // values or edited as host parameters). Replaces the magic number 173 in the controllers.
 const int STEP_BUTTONS_FIRST = STEP_CTRL_1;
+// Host (automatable) parameters: everything below the step buttons, and the FX block above them.
+inline bool isHostParam (int tag) { return tag < STEP_BUTTONS_FIRST || (tag >= FX_PARAM_FIRST && tag <= FX_PARAM_LAST); }
 
 const int FINAL_PAN = 190;
 

@@ -17,6 +17,7 @@
 #pragma once
 
 #include "hqDecimator.h"
+#include "fxStrip.h"
 #include "mdaBaseProcessor.h"
 #include <math.h>
 
@@ -216,6 +217,12 @@ public:
 	int recalcExprTarget(double value);
 	int recalcDrift(double value);
 	int recalcHq(double value);
+	int recalcFx(double value);  // any FX parameter: re-reads all of them from floatParams
+	fx::PingPongDelay fxDelay;
+	fx::Chorus fxChorus;
+	int fxDelayDiv = 7;
+	float fxDelayFb = 0.0f, fxDelayToneCoef = 1.0f, fxDelayMix = 0.0f, fxChorusMix = 0.0f;
+	double fxChorusRate = 0.5, fxChorusDepth = 2.5;
 	void applyEngineRate();
 	bool hqWanted = false, hqActive = false;
 	HqDecimator hqLeft, hqRight;

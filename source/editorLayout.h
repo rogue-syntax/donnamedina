@@ -28,16 +28,6 @@ constexpr float artY (float y) { return y + kArtOffsetY; }
 // Background grid of the art: 5 px cells, line colour on multiples of 5.
 constexpr int kGridStep = 5;
 
-// PLAY panel (2026-11-15): performance knobs in the free area right of STEP CTRL TARGET (window
-// coordinates); four 44 px slots. The knob origins must match vstgui.uidesc.
-namespace play {
-struct Rect { float x, y, w, h; };
-constexpr Rect kPanel {742.0f, 456.0f, 176.0f, 74.0f};
-constexpr float kSlotW = 44.0f;
-constexpr float kKnobY = 473.0f, kKnobSize = 30.0f, kLabelY = 506.0f;
-constexpr float slotCenterX (int i) { return kPanel.x + kSlotW * (i + 0.5f); }
-}
-
 // Right column (window coordinates), drawn by NVGView::drawRightColumn. The art's own right column
 // (title, pan, control, build info, logo boxes) is covered with grid from kBlankArtX0 (art x) rightwards;
 // the title and logo are redrawn from the art at the positions below.
@@ -53,12 +43,17 @@ constexpr Band kPreset {77.0f, 105.0f};
 constexpr Band kReadout {111.0f, 175.0f};
 constexpr Band kScope {181.0f, 305.0f};   // waveform over the sounding voices (voices band merged in)
 constexpr Band kMaster {311.0f, 379.0f};
-constexpr Band kLogo {385.0f, 518.0f};
+// Below the master row (2026-11-15; the logo band was here): PLAY and FX rows of four knob slots
+// (slotCenterX), the knob tops at y0 + kRowKnobDY (30 px knobs), labels at y0 + kRowLabelDY.
+constexpr Band kPlay {385.0f, 449.0f};
+constexpr Band kFx {455.0f, 518.0f};
+constexpr float kRowKnobDY = 17.0f, kRowLabelDY = 50.0f;
+constexpr float kSlotX0 = 937.0f, kSlotW = 73.5f;
+constexpr float slotCenterX (int i) { return kSlotX0 + kSlotW * (i + 0.5f); }
 
 // Source rectangles in the art (art coordinates) for the redrawn title and logo.
 struct Rect { float x, y, w, h; };
 constexpr Rect kTitleArt {967.0f, 29.0f, 143.0f, 63.0f};
-constexpr Rect kLogoArt {972.0f, 389.0f, 133.0f, 124.0f};
 
 // Master row knobs, four equal slots (must match the origins/sizes of #masterVol, #panLR, #panLREnv,
 // #panLREnvSrc in vstgui.uidesc).
@@ -66,8 +61,8 @@ constexpr Rect kVolKnob {954.0f, 328.0f, 40.0f, 40.0f};
 constexpr Rect kPanKnob {1027.0f, 328.0f, 40.0f, 40.0f};
 constexpr Rect kPanAmtKnob {1106.0f, 333.0f, 30.0f, 30.0f};
 constexpr Rect kPanSrcKnob {1179.0f, 333.0f, 30.0f, 30.0f};
-// #moreInfo (opens the about window) sits on the logo.
-constexpr Rect kMoreInfo {kCenterX - 70.0f, 387.0f, 140.0f, 129.0f};
+// #moreInfo (opens the about window) sits on the title (the logo it used to cover is gone).
+constexpr Rect kMoreInfo {1012.0f, 6.0f, 143.0f, 63.0f};
 } // namespace column
 
 } // namespace editorLayout
