@@ -67,6 +67,14 @@ public:
 	void updateVoiceStates ();
 	void sendVoiceStates ();  // main thread
 
+	// Playheads: updateVoiceStates also writes the kPlayheadSlots most recently started voices
+	// (each field atomic; a torn slot only misplaces a dot for one frame); sendPlayheads (timer).
+	std::atomic<int> phPitch[kPlayheadSlots];
+	std::atomic<float> phAge[kPlayheadSlots], phRel[kPlayheadSlots], phLevel[kPlayheadSlots];
+	bool playheadsLastSentEmpty = false;
+	void clearPlayheads ();
+	void sendPlayheads ();  // main thread
+
 	// Output peak: the render loop folds each chunk's peak in (notePeak, audio thread, while
 	// scopeEnabled); sendPeak (timer) takes it and sends PMSG_PEAK_CHAR.
 	std::atomic<float> outPeak {0.0f};

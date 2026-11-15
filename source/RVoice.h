@@ -89,6 +89,11 @@ public:
 	float modWidthPole = 0.0f;
 
 	bool noteActive = false;
+	// Playheads (2026-11-15): DXGenerator::sampleClock when the envelopes/LFOs last restarted
+	// (processNoteOn) and when the release started (releaseVoice); serial orders the note-ons.
+	unsigned long long startClock = 0;
+	unsigned long long releaseClock = 0;
+	unsigned int serial = 0;
 	
 	//float* envBank[7][2];
 	float* envBank[7];

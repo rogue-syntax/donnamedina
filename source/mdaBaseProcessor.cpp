@@ -48,7 +48,12 @@ BaseProcessor::BaseProcessor ()
 , bypassState (false)
 , msgQueue (kMsgQueueSize)
 {
-
+	for (int k = 0; k < kPlayheadSlots; k++) {
+		phPitch[k].store (-1);
+		phAge[k].store (0.0f);
+		phRel[k].store (-1.0f);
+		phLevel[k].store (0.0f);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -80,6 +85,7 @@ void BaseProcessor::onTimer (Timer* /*timer*/)
 	flushMessageQueue ();
 	sendScopeFrame ();
 	sendVoiceStates ();
+	sendPlayheads ();
 	sendPeak ();
 }
 
@@ -126,6 +132,85 @@ void BaseProcessor::updateVoiceStates ()
 	}
 	for (int p = 0; p < 128; p++)
 		voiceStates[p].store (now[p], std::memory_order_relaxed);
+
+	// Playheads: the most recently (re)started voices, newest first. Voices being stolen (killIt)
+	// are skipped: they are fading out for a new note.
+	int best[kPlayheadSlots];
+	unsigned int bestSerial[kPlayheadSlots];
+	int nBest = 0;
+	if (g.RVoicesMap) {
+		for (int i = 0; i < g.notes.size (); i++) {
+			const int32 pitch = g.notes[i];
+			if (pitch < 0 || pitch >= 128)
+				continue;
+			const RVoice& v = g.RVoicesMap[pitch];
+			if (v.killIt)
+				continue;
+			int at = nBest;
+			while (at > 0 && bestSerial[at - 1] < v.serial)
+				at--;
+			if (at >= kPlayheadSlots)
+				continue;
+			const int last = nBest < kPlayheadSlots ? nBest : kPlayheadSlots - 1;
+			for (int k = last; k > at; k--) {
+				best[k] = best[k - 1];
+				bestSerial[k] = bestSerial[k - 1];
+			}
+			best[at] = pitch;
+			bestSerial[at] = v.serial;
+			if (nBest < kPlayheadSlots)
+				nBest++;
+		}
+	}
+	const double sr = g.sampleRate > 0.0f ? g.sampleRate : 44100.0;
+	for (int k = 0; k < kPlayheadSlots; k++) {
+		if (k >= nBest) {
+			phPitch[k].store (-1, std::memory_order_relaxed);
+			continue;
+		}
+		const RVoice& v = g.RVoicesMap[best[k]];
+		const float age = static_cast<float> (double (g.sampleClock - v.startClock) / sr);
+		float rel = -1.0f;
+		if (!v.noteActive && v.releaseClock >= v.startClock)
+			rel = static_cast<float> (double (g.sampleClock - v.releaseClock) / sr);
+		phAge[k].store (age, std::memory_order_relaxed);
+		phRel[k].store (rel, std::memory_order_relaxed);
+		phLevel[k].store (v.voiceEnvLfo[1].cenv, std::memory_order_relaxed);
+		phPitch[k].store (best[k], std::memory_order_relaxed);
+	}
+}
+
+void BaseProcessor::clearPlayheads ()
+{
+	for (int k = 0; k < kPlayheadSlots; k++)
+		phPitch[k].store (-1, std::memory_order_relaxed);
+}
+
+void BaseProcessor::sendPlayheads ()
+{
+	if (!scopeEnabled.load (std::memory_order_relaxed))
+		return;
+	PlayheadSlot s[kPlayheadSlots];
+	bool empty = true;
+	for (int k = 0; k < kPlayheadSlots; k++) {
+		s[k].pitch = phPitch[k].load (std::memory_order_relaxed);
+		s[k].age = phAge[k].load (std::memory_order_relaxed);
+		s[k].relAge = phRel[k].load (std::memory_order_relaxed);
+		s[k].level = phLevel[k].load (std::memory_order_relaxed);
+		if (s[k].pitch >= 0)
+			empty = false;
+	}
+	if (empty && playheadsLastSentEmpty)
+		return;
+	playheadsLastSentEmpty = empty;
+	IMessage* msg = allocateMessage ();
+	if (!msg)
+		return;
+	msg->setMessageID (msgIdStr (PMSG_PLAYHEADS_CHAR));
+	msg->getAttributes ()->setBinary ("data", s, sizeof (s));
+	msg->getAttributes ()->setInt ("id", this->myInstanceId);
+	sendMessage (msg);
+	msg->release ();
 }
 
 void BaseProcessor::sendVoiceStates ()
@@ -499,10 +584,13 @@ tresult PLUGIN_API BaseProcessor::notify(IMessage* message) {
 		scopeEnabled.store (on != 0);
 		scopeLastSentSilent = false;  // the editor starts empty: send the next frame even if flat
 		voiceStatesSentValid = false;  // and the voice strip in full
+		playheadsLastSentEmpty = false;
 		peakLastSentZero = false;
 		outPeak.store (0.0f, std::memory_order_relaxed);
-		if (on == 0)
+		if (on == 0) {
 			for (int p = 0; p < 128; p++) voiceStates[p].store (0, std::memory_order_relaxed);
+			clearPlayheads ();
+		}
 		return kResultTrue;
 	}
 	// Preset bar: load a state the controller built (preset file, factory preset, randomized), or

@@ -10,6 +10,7 @@
 #include "vstgui/plugin-bindings/vst3editor.h"
 #include "RSView.h"
 #include <cuchar>
+#include <chrono>
 #include "logscale.h"
 #include "SynthParamLimits.h"
 #include "CParamSmooth.h"
@@ -165,6 +166,11 @@ protected:
 		const VSTGUI::IUIDescription* description, VSTGUI::VST3Editor* editor) override;
 	// Voice strip: the latest per-pitch states from the processor (PMSG_VOICES_CHAR, voiceStateByte).
 	unsigned char voiceStates[128] = {};
+	// Playheads: the latest slots (PMSG_PLAYHEADS_CHAR) and when they arrived; NVGView moves the
+	// dots on from there between messages.
+	PlayheadSlot playheads[kPlayheadSlots] = {{-1, 0, -1, 0}, {-1, 0, -1, 0}, {-1, 0, -1, 0}, {-1, 0, -1, 0}};
+	std::chrono::steady_clock::time_point playheadTime;
+	unsigned int playheadFrames = 0;
 	// Output peak since the previous message (PMSG_PEAK_CHAR, linear); peakFrames counts messages.
 	float outPeak = 0.0f;
 	unsigned int peakFrames = 0;

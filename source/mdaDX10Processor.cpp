@@ -1241,6 +1241,7 @@ void DX10Processor::doProcessing(ProcessData& data) {
 		for (int32 i = 0; i < sampleFrames; i++) {
 			// Generate audio for all active generators
 			generators[0].mainProcessing();
+			generators[0].sampleClock++;  // playheads
 			masterGain += (masterTarg - masterGain) * masterGainCoef;
 			const float l = generators[0].o1 * masterGain, r = generators[0].o2 * masterGain;
 			*out1++ = l;

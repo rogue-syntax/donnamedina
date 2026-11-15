@@ -288,6 +288,17 @@ const char CMSG_SET_STATE_CHAR = 'h';
 // controller -> processor, int "purpose": send the current state back (PMSG_STATE_CHAR, same purpose).
 const char CMSG_GET_STATE_CHAR = 'i';
 const char PMSG_STATE_CHAR = 'j';
+// Playheads (2026-11-15): processor -> controller, binary "data" = kPlayheadSlots PlayheadSlot, the
+// most recently started voices, newest first (pitch -1 = empty slot). Sent by the timer every tick
+// while any slot is used, then one all-empty message; only while an editor is open.
+const char PMSG_PLAYHEADS_CHAR = 'k';
+const int kPlayheadSlots = 4;
+struct PlayheadSlot {
+	int pitch;     // -1 = empty
+	float age;     // seconds since the voice's envelopes and LFOs (re)started
+	float relAge;  // seconds since its release started, -1 while the key is held
+	float level;   // amp-envelope level (env 1 cenv)
+};
 // Most voices sounding at once (DXGenerator::POLYCOUNT starts here; the oldest voice is stolen
 // beyond it). Shown in the scope's voice count.
 const int POLY_LIMIT = 32;

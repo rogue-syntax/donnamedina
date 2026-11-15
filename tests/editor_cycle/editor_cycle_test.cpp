@@ -207,6 +207,15 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		ctrl->notify(mp);
 		mp->release();
 		pumpFor(1000);  // the scope's pitch range glides to the new notes
+		// and playheads (sent last: the view moves them on for at most 0.1 s after a message):
+		// newest held in its attack/decay, one held longer, two releasing
+		PlayheadSlot ph[kPlayheadSlots] = {{57, 0.06f, -1.0f, 0.9f}, {60, 0.45f, -1.0f, 0.7f},
+		                                   {64, 1.2f, 0.25f, 0.35f}, {45, 2.0f, 0.9f, 0.12f}};
+		HostMessage* mh = new HostMessage;
+		mh->setMessageID("k");
+		mh->getAttributes()->setBinary("data", ph, sizeof(ph));
+		ctrl->notify(mh);
+		mh->release();
 	}
 	// EDITOR_SHOT_LFO=1: LFO settings that show the display's cases: 1 square with a delay,
 	// 2 saw synced to 1/8, 3 a fast sine after a long delay (drawn as a band).

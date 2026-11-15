@@ -1543,6 +1543,73 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- Playheads (2026-11-15): the newest voices' times since note-on / release ----
+	{
+		std::printf("\nPlayheads\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		// five notes 0.1 s apart (one more than the slots), the newest released at 0.4 s, and a
+		// retrigger of a sounding pitch (60) at 0.6 s
+		struct Snap { double t = -1; PlayheadSlot s[kPlayheadSlots]; };
+		Snap a, b, c;
+		Options o;
+		o.onCreated = [](rs::DX10Processor& p) { p.scopeEnabled.store(true); };
+		o.perBlock = [&](rs::DX10Processor& p, double t) {
+			Snap* dst = (t >= 0.35 && a.t < 0) ? &a : ((t >= 0.5 && b.t < 0) ? &b : ((t >= 0.7 && c.t < 0) ? &c : nullptr));
+			if (!dst) return;
+			dst->t = t;
+			for (int k = 0; k < kPlayheadSlots; k++)
+				dst->s[k] = {p.phPitch[k].load(), p.phAge[k].load(), p.phRel[k].load(), p.phLevel[k].load()};
+		};
+		render(Settings{"playheads", 0.995, 0.85},
+		       {{at(0.0), true, 48}, {at(0.1), true, 52}, {at(0.2), true, 55}, {at(0.25), true, 60}, {at(0.3), true, 64},
+		        {at(0.4), false, 64}, {at(0.6), true, 60}}, 0.8, o);
+		// a block is 11.6 ms: the snapshot time is the end of the first block past the mark
+		const int wantP[4] = {64, 60, 55, 52};
+		const double wantOn[4] = {0.3, 0.25, 0.2, 0.1};
+		bool ok = true;
+		std::string d;
+		for (int k = 0; k < 4; k++) {
+			const double want = a.t - wantOn[k];
+			ok = ok && a.s[k].pitch == wantP[k] && std::fabs(a.s[k].age - want) < 0.002 && a.s[k].relAge < 0;
+			char t[32];
+			std::snprintf(t, sizeof(t), "%d:%.3f ", a.s[k].pitch, a.s[k].age);
+			d += t;
+		}
+		check("newest four voices, newest first, age since note-on", ok, d.c_str());
+		std::snprintf(buf, sizeof(buf), "%d age %.3f rel %.3f (want %.3f / %.3f)", b.s[0].pitch, b.s[0].age, b.s[0].relAge,
+		              b.t - 0.3, b.t - 0.4);
+		check("released voice: time since release", b.s[0].pitch == 64 && std::fabs(b.s[0].relAge - (b.t - 0.4)) < 0.002 &&
+		          std::fabs(b.s[0].age - (b.t - 0.3)) < 0.002 && b.s[0].level > 0.0f, buf);
+		// the retrigger restarts the voice after the ~21 ms fade, so its age is from then
+		std::snprintf(buf, sizeof(buf), "%d age %.3f (note-on %.3f s before)", c.s[0].pitch, c.s[0].age, c.t - 0.6);
+		check("retriggered voice is newest, age from its restart", c.s[0].pitch == 60 && c.s[0].age < c.t - 0.6 &&
+		          c.s[0].age > c.t - 0.6 - 0.03 && c.s[0].relAge < 0, buf);
+		const int byTimer = g_msgsOut[static_cast<unsigned char>(PMSG_PLAYHEADS_CHAR)];
+		const int inProcess = g_msgsIn[static_cast<unsigned char>(PMSG_PLAYHEADS_CHAR)];
+		std::snprintf(buf, sizeof(buf), "%d sent by timer, %d inside process", byTimer, inProcess);
+		check("playhead messages from the timer only", byTimer > 0 && inProcess == 0, buf);
+
+		static HostApplication shostPh;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&shostPh);
+		PlayheadSlot s[kPlayheadSlots] = {{60, 0.5f, -1.0f, 0.8f}, {64, 0.7f, 0.1f, 0.3f}, {-1, 0, -1, 0}, {-1, 0, -1, 0}};
+		HostMessage* m = new HostMessage;
+		m->setMessageID("k");
+		m->getAttributes()->setBinary("data", s, sizeof(s));
+		ctrl->notify(m);
+		m->release();
+		std::snprintf(buf, sizeof(buf), "%d %.2f / %d %.2f, frames %u", ctrl->playheads[0].pitch, ctrl->playheads[0].age,
+		              ctrl->playheads[1].pitch, ctrl->playheads[1].relAge, ctrl->playheadFrames);
+		check("controller receives playheads", ctrl->playheads[0].pitch == 60 && ctrl->playheads[1].relAge > 0.09f &&
+		          ctrl->playheads[2].pitch == -1 && ctrl->playheadFrames == 1, buf);
+		ctrl->terminate();
+		ctrl->release();
+	}
+
 	// ---- LFO shape: the engine's LFO output equals lfoShape (what the LFO displays draw) (2026-11-15) ----
 	{
 		std::printf("\nLFO shape (engine vs lfoShape.h)\n");

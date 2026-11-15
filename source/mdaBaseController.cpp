@@ -406,6 +406,19 @@ tresult PLUGIN_API BaseController::notify (IMessage* message){
 		return kResultTrue;
 	}
 
+	if (message->getMessageID() && message->getMessageID()[0] == PMSG_PLAYHEADS_CHAR
+		&& message->getMessageID()[1] == 0) {
+		const void* data = nullptr;
+		uint32 size = 0;
+		if (message->getAttributes()->getBinary("data", data, size) == kResultTrue && data
+			&& size == sizeof(playheads)) {
+			std::memcpy(playheads, data, size);
+			playheadTime = std::chrono::steady_clock::now();
+			playheadFrames++;
+		}
+		return kResultTrue;
+	}
+
 	if (message->getMessageID() && message->getMessageID()[0] == PMSG_STATE_CHAR
 		&& message->getMessageID()[1] == 0) {
 		const void* data = nullptr;
@@ -720,6 +733,8 @@ void BaseController::setScopeActive(bool on) {
 	if (!on) {
 		scopeFrames = 0;  // next open starts empty
 		std::memset(voiceStates, 0, sizeof(voiceStates));
+		for (auto& p : playheads) p.pitch = -1;
+		playheadFrames = 0;
 		outPeak = 0.0f;
 		peakFrames = 0;
 	}

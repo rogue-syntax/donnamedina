@@ -1424,6 +1424,7 @@ no viewindex at 153!*/
 			drawEnv1();
 			drawEnv2();
 			drawEnv3();
+			drawEnvPlayheads();
 			// draw lfo
 			drawEnv4();
 			drawEnv5();
@@ -1626,6 +1627,28 @@ no viewindex at 153!*/
 			nvgStroke(vg);
 		}
 
+		// playheads: each recent voice's LFO restarted at its note-on; past the window, the dot wraps
+		// over the whole cycles shown after the delay
+		if (baseController) {
+			const float dt = playheadDt();
+			for (int k = kPlayheadSlots - 1; k >= 0; k--) {
+				const PlayheadSlot& s = baseController->playheads[k];
+				if (s.pitch < 0)
+					continue;
+				double t = s.age + dt;
+				if (t > window) {
+					const double cyc = std::floor((window - delay) / period);
+					if (cyc >= 1.0)
+						t = delay + std::fmod(t - delay, cyc * period);
+					else
+						t = std::fmod(t, window);
+				}
+				const float px = x + static_cast<float>(t * pxPerSec);
+				const float py = cy - static_cast<float>(lfoShape::valueAt(type, start, delay, hz, t)) * amp;
+				drawPlayDot(px, py, k == 0, s.relAge < 0.0f, s.level);
+			}
+		}
+
 		// labels: period or division (top right), window length (bottom right)
 		char rt[24];
 		if (synced)
@@ -1650,6 +1673,92 @@ no viewindex at 153!*/
 		plate(rt, y + 2.0f, true, nvgRGBA(255, 204, 153, 220));
 		plate(windowText.c_str(), y + h - 1.0f, false, nvgRGBA(4, 186, 232, 170));
 		nvgRestore(vg);
+	}
+
+	float NVGView::playheadDt() {
+		if (!baseController || baseController->playheadFrames == 0)
+			return 0.0f;
+		const float dt = std::chrono::duration<float>(std::chrono::steady_clock::now() - baseController->playheadTime).count();
+		return dt < 0.0f ? 0.0f : (dt > 0.1f ? 0.1f : dt);
+	}
+
+	void NVGView::drawPlayDot(float x, float y, bool newest, bool held, float level) {
+		// magenta while the key is held, cyan in the release (like the voice bars in the scope);
+		// fades with the voice's level; the newest voice's dot is the largest
+		float a = std::sqrt(level > 0.0f ? level : 0.0f);
+		a = 0.35f + 0.65f * (a > 1.0f ? 1.0f : a);
+		if (!newest)
+			a *= 0.6f;
+		const float r = newest ? 3.2f : 2.3f;
+		const NVGcolor c = held ? nvgRGBA(255, 60, 220, 255) : nvgRGBA(60, 220, 255, 255);
+		NVGcolor glow = c;
+		glow.a = 0.55f * a;
+		NVGcolor clear = c;
+		clear.a = 0.0f;
+		nvgBeginPath(vg);
+		nvgCircle(vg, x, y, r * 3.2f);
+		nvgFillPaint(vg, nvgRadialGradient(vg, x, y, r * 0.5f, r * 3.2f, glow, clear));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgCircle(vg, x, y, r);
+		nvgFillColor(vg, nvgRGBAf(1.0f, 1.0f, 1.0f, a));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBAf(c.r, c.g, c.b, a));
+		nvgStrokeWidth(vg, 1.2f);
+		nvgStroke(vg);
+	}
+
+	// Envelope playheads (2026-11-15): a dot per recent voice travelling along the drawn shape
+	// (origin -> attack peak -> decay end -> release end, as drawEnv1..3 just computed). The shapes are
+	// not drawn to a time scale, so the dot moves through each segment in that stage's real time
+	// (paramDisplay::envTimeSeconds, 95 %): attack from note-on, then decay (a held decay at max
+	// crosses its flat line in 1 s), then on release (decay toggle off) the release segment. With the
+	// toggle on the engine ignores the note-off (except a held decay, which then ends in ~20 ms).
+	void NVGView::drawEnvPlayheads() {
+		if (!baseController)
+			return;
+		const float dt = playheadDt();
+		const float ox[3] = {env1OriginX, env2OriginX, env3OriginX}, oy[3] = {env1OriginY, env2OriginY, env3OriginY};
+		const float ax[3] = {env1AttX, env2AttX, env3AttX}, ay[3] = {env1AttY, env2AttY, env3AttY};
+		const float dx[3] = {env1DecX, env2DecX, env3DecX}, dy[3] = {env1DecY, env2DecY, env3DecY};
+		const float rx[3] = {env1RelX, env2RelX, env3RelX}, ry[3] = {env1RelY, env2RelY, env3RelY};
+		for (int n = 0; n < 3; n++) {
+			const float P[4][2] = {{ox[n], oy[n]}, {ax[n], ay[n]}, {dx[n], dy[n]}, {rx[n], ry[n]}};
+			const int base = ENV_1_ATTACK + 5 * n;
+			const double tAtt = paramDisplay::envTimeSeconds(base, baseController->getParamNormalized(base));
+			const double tDec = paramDisplay::envTimeSeconds(base + 1, baseController->getParamNormalized(base + 1));
+			const double tRel = paramDisplay::envTimeSeconds(base + 2, baseController->getParamNormalized(base + 2));
+			const bool toggleOn = baseController->getParamNormalized(base + 3) >= 0.5;
+			for (int k = kPlayheadSlots - 1; k >= 0; k--) {
+				const PlayheadSlot& s = baseController->playheads[k];
+				if (s.pitch < 0)
+					continue;
+				const double age = s.age + dt;
+				const double rel = s.relAge >= 0.0f ? s.relAge + dt : -1.0;
+				int seg;
+				double f;
+				if (rel >= 0.0 && !toggleOn) {
+					seg = 2;
+					f = rel / (tRel > 1e-3 ? tRel : 1e-3);
+				}
+				else if (rel >= 0.0 && tDec < 0.0) {
+					seg = 1;
+					f = rel / 0.02;
+				}
+				else if (age < tAtt) {
+					seg = 0;
+					f = age / tAtt;
+				}
+				else {
+					seg = 1;
+					f = (age - tAtt) / (tDec < 0.0 ? 1.0 : (tDec > 1e-3 ? tDec : 1e-3));
+				}
+				f = f < 0.0 ? 0.0 : (f > 1.0 ? 1.0 : f);
+				const float px = P[seg][0] + static_cast<float>(f) * (P[seg + 1][0] - P[seg][0]);
+				const float py = P[seg][1] + static_cast<float>(f) * (P[seg + 1][1] - P[seg][1]);
+				drawPlayDot(px, py, k == 0, rel < 0.0, s.level);
+			}
+		}
 	}
 
 	void NVGView::drawEnv1() {

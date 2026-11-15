@@ -549,6 +549,8 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 
 
 	voiceObj.sampleCount = 0;
+	voiceObj.startClock = sampleClock;  // playheads
+	voiceObj.serial = ++noteSerial;
 
 	//DO LFO INITS
 	//Set decay release toggles
@@ -658,6 +660,7 @@ void DXGenerator::releaseVoice(RVoice& voice) {
 		}
 	}
 	voice.noteActive = false;
+	voice.releaseClock = sampleClock;  // playheads
 }
 
 void DXGenerator::detectSilence( int32* activeVoices ) {

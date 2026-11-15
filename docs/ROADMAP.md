@@ -21,9 +21,9 @@ Order within a section is a rough priority (impact for effort).
 - [x] **Live readout in CONTROL/VALUE**: the parameter under the mouse / being turned, with real units
       (Hz, ms, semitones, cents, tempo divisions). Done in column step 2.
 - [x] **LFO displays**: the LFO after a note-on on a time axis (real rate, amplitude, start phase, hatched
-      delay), not animated, by your call (docs/04-gui.md "LFO displays"). Playhead dot: with the envelope playheads.
-- [ ] **Envelope playheads**: a dot travelling along each envelope shape for the latest notes (pulses with
-      rhythmic playing).
+      delay), not animated, by your call (docs/04-gui.md "LFO displays"), with playhead dots.
+- [x] **Playheads**: a dot per recent voice (newest 4) travelling along each envelope shape and LFO display
+      (docs/04-gui.md "Playheads").
 - [ ] **Modulation visibility**: colour per source (Env 1/2/3, LFO F/G/H) tinting the knobs/squares it drives,
       and/or a ring around knobs showing the live modulated value.
 - [x] **Preset bar**: name with a preset menu, prev/next, save (.vstpreset), randomize (column step 5).

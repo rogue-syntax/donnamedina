@@ -361,6 +361,10 @@ public:
 	// reads; unused ones are not computed. Bit k set = envBank[k] is read. Updated every sample in
 	// mainProcessing (cheap: a few int compares per generator, not per voice).
 	int lfoUsedMask = 0x70;
+	// Playheads: samples rendered (DX10Processor::doProcessing adds one per sample) and a note-on
+	// counter; processNoteOn/releaseVoice stamp them into the voice.
+	unsigned long long sampleClock = 0;
+	unsigned int noteSerial = 0;
 	void updateLfoUsage();
 	float paramThresh = 0.0f;
 
