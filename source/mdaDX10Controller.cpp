@@ -270,7 +270,7 @@ void DX10Controller::checkPendingPreset() {
 	if (presetPending && isViewReady()) {
 		DX10Processor::ensureFactoryPresets();  // B-11
 		for (int32 i = 0; i < GPARAMS; i++) {
-			if (i == MASTER_VOL || i == POLY_COUNT) continue;  // global, not part of presets
+			if (isGlobalParam(i)) continue;  // global, not part of presets
 			BaseController::setParamNormalized(i, DX10Processor::programParams[pendingPresetIndex][i]);
 		}
 		componentHandler->restartComponent(kParamValuesChanged);
@@ -339,6 +339,7 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[EXPR_TARGET] = &DX10Controller::onEnvBipolar; // readout "EXPR TARGET / FILTER"
 	onCtrlChange[EXPR_VEL] = &DX10Controller::onToggleButton;  // button glow, readout ON/OFF
 	onCtrlChange[DRIFT_AMOUNT] = &DX10Controller::onEnvBipolar; // readout "DRIFT / 40 % (6 CENTS)"
+	onCtrlChange[HQ_MODE] = &DX10Controller::onToggleButton;    // button glow, readout ON/OFF
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -906,6 +907,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		}
 		parameters.addParameter (USTRING ("EXPR VELOCITY"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, EXPR_VEL);
 		parameters.addParameter (USTRING ("DRIFT"), USTRING ("%"), 0, 0.0, ParameterInfo::kCanAutomate, DRIFT_AMOUNT);
+		parameters.addParameter (USTRING ("HQ (2x OVERSAMPLING)"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, HQ_MODE);
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {
@@ -993,7 +995,7 @@ tresult PLUGIN_API DX10Controller::setParamNormalized (ParamID tag, ParamValue v
 		const bool viewReady = isViewReady();
 		DX10Processor::ensureFactoryPresets();  // B-11: the table may not exist yet without a processor
 		for (int32 i = 0; i < GPARAMS; i++) {
-			if (i == MASTER_VOL || i == POLY_COUNT) continue;  // global, not part of presets (the processor keeps them too)
+			if (isGlobalParam(i)) continue;  // global, not part of presets (the processor keeps them too)
 			const ParamValue v = DX10Processor::programParams[program][i];
 			BaseController::setParamNormalized(i, v);
 			if (!viewReady && i < STEP_BUTTONS_FIRST && EditController::getParameterObject(i)) {

@@ -23,6 +23,8 @@ struct State {
 	double masterVol = 0.0;
 	bool hasPoly = false;
 	double poly = 0.0;
+	bool hasHq = false;
+	double hq = 0.0;
 	uint32_t version = 0;  // STATE_VERSION_TAG block; 0 = none (written only when > 0)
 };
 

@@ -74,6 +74,7 @@ struct VoiceList {
 		items[count++] = x;
 		return true;
 	}
+	void clear() { count = 0; }
 	void eraseAt(int i) {
 		for (int k = i; k < count - 1; k++) items[k] = items[k + 1];
 		count--;

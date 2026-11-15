@@ -209,6 +209,7 @@ const char* label (int pid)
 		case SNAP_TIME: return "SNAP";
 		case EXPR_AMOUNT: return "EXPRESSION";
 		case DRIFT_AMOUNT: return "DRIFT";
+		case HQ_MODE: return "HQ 2X";
 		case EXPR_TARGET: return "EXPR TARGET";
 		case EXPR_VEL: return "EXPR VELOCITY";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob

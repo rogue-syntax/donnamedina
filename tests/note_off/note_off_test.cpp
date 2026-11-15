@@ -233,6 +233,7 @@ struct Options {
 	std::function<void(rs::DX10Processor&)> onCreated;  // after initialize/connect, before processing
 	std::vector<float>* captureL = nullptr;  // if set: receives every output sample (left)
 	std::vector<float>* captureR = nullptr;
+	double sampleRate = 0.0;  // 0 = kSampleRate; events (NoteEvent::sample) are in samples at this rate
 };
 
 struct Settings {
@@ -245,6 +246,7 @@ struct Settings {
 // 10 ms window.
 std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& events, double seconds,
                           const Options& opt = {}) {
+	const double sr = opt.sampleRate > 0.0 ? opt.sampleRate : kSampleRate;  // HQ/B-63 tests run at other rates
 	// A real host context (so allocateMessage works) and a peer that counts messages.
 	static HostApplication host;
 	static CountingPeer peer;
@@ -253,7 +255,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	IConnectionPoint* usedPeer = opt.peer ? opt.peer : static_cast<IConnectionPoint*>(&peer);
 	proc->connect(usedPeer);
 	if (opt.onCreated) opt.onCreated(*proc);
-	ProcessSetup setup{kRealtime, kSample32, kBlock, kSampleRate};
+	ProcessSetup setup{kRealtime, kSample32, kBlock, sr};
 	proc->setupProcessing(setup);
 	proc->setActive(true);
 	proc->regKeyLegit = true;  // bypass the registration gate for the test
@@ -270,12 +272,12 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	out.channelBuffers32 = chans;
 
 	ProcessContext ctx{};
-	ctx.sampleRate = kSampleRate;
+	ctx.sampleRate = sr;
 	ctx.tempo = opt.tempo;
 	ctx.state = ProcessContext::kTempoValid;
 
-	const int64 total = static_cast<int64>(seconds * kSampleRate);
-	const int64 window = static_cast<int64>(0.010 * kSampleRate);
+	const int64 total = static_cast<int64>(seconds * sr);
+	const int64 window = static_cast<int64>(0.010 * sr);
 	std::vector<float> peaks(static_cast<size_t>(total / window) + 1, 0.0f);
 
 	int64 pos = 0;
@@ -322,7 +324,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 			first = false;
 		}
 		for (const auto& p : opt.params) {
-			const int64 s0 = static_cast<int64>(p.first * kSampleRate);
+			const int64 s0 = static_cast<int64>(p.first * sr);
 			if (s0 >= pos && s0 < pos + kBlock) {
 				int32 idx = 0;
 				if (auto* q = changes.addParameterData(p.second.first, idx)) {
@@ -331,7 +333,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 				}
 			}
 		}
-		if (opt.tempo2 > 0.0 && pos >= static_cast<int64>(opt.tempo2At * kSampleRate))
+		if (opt.tempo2 > 0.0 && pos >= static_cast<int64>(opt.tempo2At * sr))
 			ctx.tempo = opt.tempo2;
 
 		ProcessData data{};
@@ -353,7 +355,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		proc->process(data);
 		heapwatch::g_inProcess = false;
 		g_inProcess = false;
-		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + kBlock) / kSampleRate);
+		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + kBlock) / sr);
 		pumpMessages();
 
 		if (chans[0] != left.data() || chans[1] != right.data()) {
@@ -656,10 +658,12 @@ int perfProbe(int argc, char** argv) {
 		Options o;
 		o.keepPatchEnvelopes = true;
 		o.params = {{0.0, {ENV_1_DECAY, 1.0}}};  // hold, so all voices stay active
+		const bool perfHq = std::getenv("PERF_HQ") != nullptr;  // HQ: voices at 2x (set before activation)
 		double t0 = 0, t1 = 0;
 		const bool profile = std::getenv("PERF_PROFILE") != nullptr;
 		HANDLE th = nullptr;
-		o.onCreated = [&](rs::DX10Processor&) {
+		o.onCreated = [&](rs::DX10Processor& p) {
+			if (perfHq) { p.hqWanted = true; p.floatParams[HQ_MODE] = 1.0; }
 			if (profile) {
 				sampler::ips.clear();
 				DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &sampler::target,
@@ -689,6 +693,65 @@ int perfProbe(int argc, char** argv) {
 	return 0;
 }
 
+// Alias probe: a high note with heavy FM, normal vs HQ. Prints the share of the spectrum's energy that
+// lies away from the note's harmonics (aliasing folds there). Args: alias [pitch] [modGain]
+int aliasProbe(int argc, char** argv) {
+	const int pitch = argc > 2 ? std::atoi(argv[2]) : 96;
+	const double modGain = argc > 3 ? std::atof(argv[3]) : 0.9;
+	const int N = 16384;
+	std::vector<double> magNormal, magHq;
+	for (int hq = 0; hq < 2; hq++) {
+		std::vector<float> cap;
+		Options o;
+		o.captureL = &cap;
+		o.params = {{0.0, {MOD_GAIN_, modGain}}, {0.0, {DRIFT_AMOUNT, 0.0}}};
+		o.onCreated = [&](rs::DX10Processor& p) { if (hq) { p.hqWanted = true; p.floatParams[HQ_MODE] = 1.0; } };
+		render({"alias", 1.0, 0.5}, {{0, true, int16(pitch)}}, 1.2, o);
+		// steady part, Hann window, DFT magnitude^2 per bin (direct, N log N not needed here: use Goertzel-like loop)
+		const size_t start = cap.size() - N;
+		std::vector<double> x(N);
+		for (int i = 0; i < N; i++)
+			x[i] = cap[start + i] * (0.5 - 0.5 * std::cos(2.0 * 3.141592653589793 * i / (N - 1)));
+		// FFT (radix 2)
+		std::vector<std::complex<double>> X(N);
+		for (int i = 0; i < N; i++) X[i] = x[i];
+		for (int i = 1, j = 0; i < N; i++) {
+			int bit = N >> 1;
+			for (; j & bit; bit >>= 1) j ^= bit;
+			j ^= bit;
+			if (i < j) std::swap(X[i], X[j]);
+		}
+		for (int len = 2; len <= N; len <<= 1) {
+			const double ang = -2.0 * 3.141592653589793 / len;
+			const std::complex<double> wl(std::cos(ang), std::sin(ang));
+			for (int i = 0; i < N; i += len) {
+				std::complex<double> w(1.0);
+				for (int k = 0; k < len / 2; k++) {
+					const std::complex<double> u = X[i + k], v = X[i + k + len / 2] * w;
+					X[i + k] = u + v;
+					X[i + k + len / 2] = u - v;
+					w *= wl;
+				}
+			}
+		}
+		std::vector<double>& mag = hq ? magHq : magNormal;
+		mag.assign(N / 2, 0.0);
+		for (int k = 1; k < N / 2; k++) mag[k] = std::abs(X[k]);
+	}
+	// HQ is the clean reference: what the normal render adds on top of it is mostly aliasing (folded
+	// partials); both renders are identical otherwise (same envelopes, levels within 0.02 dB).
+	double ref = 0.0, extra = 0.0, extraHigh = 0.0;
+	for (int k = 1; k < N / 2; k++) {
+		ref += magHq[k] * magHq[k];
+		const double d = magNormal[k] > magHq[k] ? magNormal[k] - magHq[k] : 0.0;
+		extra += d * d;
+		if (k * kSampleRate / N > 5000.0) extraHigh += d * d;
+	}
+	std::printf("pitch %d, mod gain %.2f: normal adds %.1f dB of energy the HQ render lacks (%.1f dB of it above 5 kHz)\n",
+	            pitch, modGain, 10.0 * std::log10((extra > 0 ? extra : 1e-30) / ref), 10.0 * std::log10((extraHigh > 0 ? extraHigh : 1e-30) / ref));
+	return 0;
+}
+
 // LFO probe: holds a note with LFO 1 routed to the filter and prints LFO 1's per-voice output
 // (voiceEnvLfo[4].cenv) after each block. Args: lfo <type 0..1> <rate 0..1> <delay 0..1> <phase 0..1> [amp]
 int lfoProbe(int argc, char** argv) {
@@ -713,6 +776,7 @@ int lfoProbe(int argc, char** argv) {
 
 int main(int argc, char** argv) {
 	if (argc > 1 && std::strcmp(argv[1], "lfo") == 0) return lfoProbe(argc, argv);
+	if (argc > 1 && std::strcmp(argv[1], "alias") == 0) return aliasProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "perf") == 0) return perfProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "golden") == 0) return goldenProbe(argc, argv);
@@ -2049,6 +2113,69 @@ int main(int argc, char** argv) {
 		check("retrigger: new offsets", p1 != p2 && p1 != 0.0f && p2 != 0.0f, buf);
 		const std::string r = paramDisplay::value(DRIFT_AMOUNT, 0.4, paramDisplay::Context());
 		check("readout", r == "40 % (+-6 CENTS)", r.c_str());
+	}
+
+	// ---- HQ mode and the engine rate (B-63) (2026-11-15) ----
+	{
+		std::printf("\nHQ (2x) and sample rate (B-63)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[220];
+		// one note, decay 0.6 (no hold): the time the 10 ms peak level takes to fall to half of its maximum
+		struct R { double halfTime; float peak; double rms; float genRate; double phAge; };
+		auto run = [&](double sr, bool hq) {
+			R r{-1.0, 0.0f, 0.0, 0.0f, -1.0};
+			Options o;
+			o.sampleRate = sr;
+			o.params = {{0.0, {HQ_MODE, hq ? 1.0 : 0.0}}};
+			std::vector<float> cap;
+			o.captureL = &cap;
+			o.onCreated = [](rs::DX10Processor& p) { p.scopeEnabled.store(true); };
+			o.perBlock = [&](rs::DX10Processor& p, double t) {
+				r.genRate = p.generators[0].sampleRate;
+				if (r.phAge < 0.0 && t >= 0.3 && p.phPitch[0].load() >= 0)
+					r.phAge = p.phAge[0].load() - (t - 0.05);  // playhead age error at this block
+			};
+			const std::vector<float> peaks = render({"hq", 0.6, 0.5}, {{static_cast<int64>(0.05 * sr), true, 60}}, 1.5, o);
+			size_t imax = 0;
+			for (size_t i = 0; i < peaks.size(); i++)
+				if (peaks[i] > r.peak) { r.peak = peaks[i]; imax = i; }
+			for (size_t i = imax; i < peaks.size(); i++)  // first 10 ms window after the peak below half of it
+				if (peaks[i] < 0.5f * r.peak) { r.halfTime = i * 0.010; break; }
+			double s = 0.0;
+			for (float v : cap) s += double(v) * v;
+			r.rms = std::sqrt(s / (cap.empty() ? 1 : cap.size()));
+			return r;
+		};
+		const R a = run(44100.0, false), b = run(96000.0, false), c = run(44100.0, true), d = run(96000.0, true);
+		std::snprintf(buf, sizeof(buf), "half level at %.3f s (44.1k), %.3f s (96k)", a.halfTime, b.halfTime);
+		check("B-63: envelope time independent of the host rate", a.halfTime > 0 && std::fabs(a.halfTime - b.halfTime) <= 0.011, buf);
+		std::snprintf(buf, sizeof(buf), "engine %.0f / %.0f Hz; half level %.2f / %.2f s", c.genRate, d.genRate, c.halfTime, d.halfTime);
+		check("HQ: engine at 2x, same envelope time", c.genRate == 88200.0f && d.genRate == 192000.0f &&
+		          std::fabs(c.halfTime - a.halfTime) <= 0.02 && std::fabs(d.halfTime - a.halfTime) <= 0.02, buf);
+		const double db = 20.0 * std::log10(c.rms / a.rms);
+		std::snprintf(buf, sizeof(buf), "rms %.4f vs %.4f (%+.2f dB), peak %.3f vs %.3f", c.rms, a.rms, db, c.peak, a.peak);
+		check("HQ: same level (decimator gain 1)", std::fabs(db) < 0.5, buf);
+		std::snprintf(buf, sizeof(buf), "playhead age error %.4f s (normal %.4f s)", c.phAge, a.phAge);
+		check("HQ: playhead clock in seconds", std::fabs(c.phAge) < 0.015 && std::fabs(a.phAge) < 0.015, buf);
+		// global: kept across a preset change and saved in its own block
+		int hqAfter = -1;
+		std::vector<char> st;
+		Options o;
+		o.params = {{0.0, {HQ_MODE, 1.0}}, {0.05, {rs::BaseController::kPresetParam, 4.0 / 7.0}}};
+		o.inspect = [&](rs::DX10Processor& p) {
+			hqAfter = p.hqActive ? 1 : 0;
+			MemoryStream ms;
+			p.getState(&ms);
+			st.assign(ms.getData(), ms.getData() + ms.getSize());
+		};
+		render({"hq", 1.0, 0.5}, {}, 0.2, o);
+		presetTools::State ps;
+		presetTools::parseState(st.data(), st.size(), ps);
+		std::snprintf(buf, sizeof(buf), "after preset change %d; state block %d = %.0f", hqAfter, int(ps.hasHq), ps.hq);
+		check("HQ is global (preset change keeps it, saved)", hqAfter == 1 && ps.hasHq && ps.hq == 1.0, buf);
 	}
 
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----

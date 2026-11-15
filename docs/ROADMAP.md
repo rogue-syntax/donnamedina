@@ -42,7 +42,7 @@ Order within a section is a rough priority (impact for effort).
 - [x] **Snap**: SNAP_TIME 2..80 ms (default 21) on the new PLAY panel; state version block for new parameters.
 - [ ] **Per-note expression** (VST3 Note Expression / MPE): bend, volume, pan, brightness per note; fits the
       one-voice-per-pitch design.
-- [ ] **HQ mode**: 2x oversampling to reduce FM aliasing on high notes (affordable after the 3x speedup).
+- [x] **HQ mode**: 2x oversampling toggle (HQ in the PLAY title row), ~1.95x voice CPU; fixed B-63 on the way.
 - [x] **Drift**: per-note random pitch (+-15 cents), filter and pan offsets, DRIFT knob on the PLAY panel.
 - [x] **Expression**: one bipolar knob offsetting BRIGHT / FILTER / FM DEPTH / WIDTH, optionally scaled by velocity (VEL).
 - [x] **Polyphony control**: 1..64 voices (POLY_COUNT, global), on the scope's VOICES plate; steal order released -> quietest.

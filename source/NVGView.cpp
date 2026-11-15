@@ -2750,6 +2750,7 @@ no viewindex at 153!*/
 		// the VEL toggle (#exprVel, 864,460 10x10) is labelled to its right
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
 		nvgText(vg, 878.0f, 465.5f, "VEL", NULL);
+		nvgText(vg, 832.0f, 465.5f, "HQ", NULL);  // #hqMode at 818,460
 	}
 
 	void NVGView::drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy) {

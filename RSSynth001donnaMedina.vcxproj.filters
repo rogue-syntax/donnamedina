@@ -495,6 +495,9 @@
     <ClInclude Include="source\lfoShape.h">
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>
+    <ClInclude Include="source\hqDecimator.h">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClInclude>
     <ClInclude Include="source\Env.h">
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>

@@ -750,6 +750,7 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 	// the tagged blocks after bypass override them.
 	floatParams[MASTER_VOL] = DEFAULT_MASTER_VOL;
 	floatParams[POLY_COUNT] = polyToNormalized (POLY_DEFAULT);
+	floatParams[HQ_MODE] = 0.0;
 	uint32 version = 1;
 	auto finish = [&] () {
 		applyNewParamDefaults (version, [this] (int pid, double v) { floatParams[pid] = v; });
@@ -764,7 +765,7 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 			finish ();
 			return kResultFalse;  // truncated: keep what was read so far
 		}
-		if (i < GPARAMS && i != MASTER_VOL && i != POLY_COUNT && std::isfinite (v))
+		if (i < GPARAMS && !isGlobalParam (int (i)) && std::isfinite (v))
 			floatParams[i] = v;
 	}
 
@@ -785,6 +786,8 @@ tresult PLUGIN_API BaseProcessor::setState (IBStream* state){
 			floatParams[MASTER_VOL] = (std::min) (1.0, (std::max) (0.0, v));
 		else if (tag == POLY_STATE_TAG)
 			floatParams[POLY_COUNT] = (std::min) (1.0, (std::max) (0.0, v));
+		else if (tag == HQ_STATE_TAG)
+			floatParams[HQ_MODE] = v >= 0.5 ? 1.0 : 0.0;
 		else if (tag == STATE_VERSION_TAG && v >= 1.0 && v < 1.0e6)
 			version = static_cast<uint32> (v);
 	}
@@ -832,6 +835,8 @@ tresult PLUGIN_API BaseProcessor::getState (IBStream* state)
 	streamer.writeDouble (floatParams[MASTER_VOL]);
 	streamer.writeInt32u (POLY_STATE_TAG);
 	streamer.writeDouble (floatParams[POLY_COUNT]);
+	streamer.writeInt32u (HQ_STATE_TAG);
+	streamer.writeDouble (floatParams[HQ_MODE]);
 	streamer.writeInt32u (STATE_VERSION_TAG);
 	streamer.writeDouble (double (STATE_VERSION));
 

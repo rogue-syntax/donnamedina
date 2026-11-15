@@ -210,7 +210,7 @@ tresult BaseController::performEdit (ParamID tag, ParamValue valueNormalized)
 
 
 
-		if (tag != MASTER_VOL && tag != POLY_COUNT)
+		if (!isGlobalParam(int(tag)))
 			presetDirty = true;  // preset bar: the sound was edited since it was loaded
 		// B-62: this return had ended up inside the comment above (c940a82), so no GUI edit reached the host
 		return EditController::performEdit(tag, valueNormalized);
@@ -611,6 +611,7 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 	auto applyMasterVol = [this] (ParamValue v) { setParamNormalized (MASTER_VOL, v); };
 	// POLY_COUNT likewise, from the "POLY" block after it (2026-11-15)
 	auto applyPoly = [this] (ParamValue v) { setParamNormalized (POLY_COUNT, v); };
+	auto applyHq = [this] (ParamValue v) { setParamNormalized (HQ_MODE, v); };
 	// parameters newer than the state's version get their defaults (constants.h)
 	auto applyNewDefaults = [this] (uint32 version) {
 		applyNewParamDefaults (version, [this] (int pid, double v) { setParamNormalized (pid, v); });
@@ -618,6 +619,7 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 	auto truncated = [&] () {
 		applyMasterVol (DEFAULT_MASTER_VOL);
 		applyPoly (polyToNormalized (POLY_DEFAULT));
+		applyHq (0.0);
 		applyNewDefaults (1);
 		return kResultFalse;
 	};
@@ -626,7 +628,7 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 		ParamValue value;
 		if (streamer.readDouble (value) == false)
 			return truncated ();
-		if (i == MASTER_VOL || i == POLY_COUNT)
+		if (isGlobalParam (int (i)))
 			continue;
 
 		if (nvgViewReady) {
@@ -664,7 +666,7 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 
 	{
 		// tagged blocks after bypass, in any order: master volume, polyphony, state version
-		double masterVol = DEFAULT_MASTER_VOL, poly = polyToNormalized (POLY_DEFAULT);
+		double masterVol = DEFAULT_MASTER_VOL, poly = polyToNormalized (POLY_DEFAULT), hq = 0.0;
 		uint32 version = 1;
 		for (int k = 0; k < 32; k++) {
 			uint32 tag = 0;
@@ -677,11 +679,14 @@ tresult PLUGIN_API BaseController::setComponentState (IBStream* state)
 				masterVol = (std::min) (1.0, (std::max) (0.0, v));
 			else if (tag == POLY_STATE_TAG)
 				poly = (std::min) (1.0, (std::max) (0.0, v));
+			else if (tag == HQ_STATE_TAG)
+				hq = v >= 0.5 ? 1.0 : 0.0;
 			else if (tag == STATE_VERSION_TAG && v >= 1.0 && v < 1.0e6)
 				version = static_cast<uint32> (v);
 		}
 		applyMasterVol (masterVol);
 		applyPoly (poly);
+		applyHq (hq);
 		applyNewDefaults (version);
 	}
 		

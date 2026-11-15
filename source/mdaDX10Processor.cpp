@@ -3,6 +3,7 @@
 #include "mdaDX10Controller.h"
 #include <math.h>
 #include "lfoShape.h"
+#include "hqDecimator.h"
 
 #include "regReader.h"
 #include <locale>
@@ -97,6 +98,7 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 		floatParams[i] = programParams[0][i];
 	}
 	generators[0].POLYCOUNT = polyFromNormalized(floatParams[POLY_COUNT]);
+	hqWanted = floatParams[HQ_MODE] >= 0.5;
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);
@@ -740,6 +742,7 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 		recalculators[EXPR_VEL] = &DX10Processor::recalcExprVel;
 		recalculators[EXPR_TARGET] = &DX10Processor::recalcExprTarget;
 		recalculators[DRIFT_AMOUNT] = &DX10Processor::recalcDrift;
+		recalculators[HQ_MODE] = &DX10Processor::recalcHq;
 		recalculators[LFO_2_PHASE] = &DX10Processor::recalcLfo2Phase;
 		recalculators[LFO_3_PHASE] = &DX10Processor::recalcLfo3Phase;
 
@@ -932,8 +935,10 @@ tresult PLUGIN_API DX10Processor::setActive (TBool state){
 		//setCurrentProgram(0);
 		//this interferes with loading saved states!
 	}
-	return BaseProcessor::setActive (state);
-
+	const tresult r = BaseProcessor::setActive (state);
+	if (state)
+		applyEngineRate ();  // the host's rate is known now (B-63); HQ doubles it
+	return r;
 }
 
 //-----------------------------------------------------------------------------
@@ -953,11 +958,13 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 		if (newParams) {
 			const ParamValue keepVol = floatParams[MASTER_VOL];  // global, not part of presets
 			const ParamValue keepPoly = floatParams[POLY_COUNT];  // global too
+			const ParamValue keepHq = floatParams[HQ_MODE];
 			for (int32 i = 0; i < GPARAMS; i++) {
 				floatParams[i] = newParams[i];
 			}	
 			floatParams[MASTER_VOL] = keepVol;
 			floatParams[POLY_COUNT] = keepPoly;
+			floatParams[HQ_MODE] = keepHq;
 			generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 			recalcExprAmount(floatParams[EXPR_AMOUNT]);
 			recalcExprVel(floatParams[EXPR_VEL]);
@@ -994,6 +1001,7 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 
 	const ParamValue keepVol = floatParams[MASTER_VOL];  // global, not part of presets
 	const ParamValue keepPoly = floatParams[POLY_COUNT];  // global too
+	const ParamValue keepHq = floatParams[HQ_MODE];
 	for (int32 i = 0; i < GPARAMS; i++) {
 		//setParameter(i, programParams[val][i], 0);
 		floatParams[i] = programParams[val][i];
@@ -1001,6 +1009,7 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 	}
 	floatParams[MASTER_VOL] = keepVol;
 	floatParams[POLY_COUNT] = keepPoly;
+	floatParams[HQ_MODE] = keepHq;
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);
@@ -1267,12 +1276,28 @@ void DX10Processor::doProcessing(ProcessData& data) {
 	// Check for active voices or just process the chunk
 	//if (activevoices > 0) {
 		// Process all samples in this chunk
+		if (hqWanted != hqActive)
+			applyEngineRate();  // HQ switched: rebuild the voices for the new rate
 		for (int32 i = 0; i < sampleFrames; i++) {
 			// Generate audio for all active generators
-			generators[0].mainProcessing();
-			generators[0].sampleClock++;  // playheads
+			float gl, gr;
+			if (hqActive) {  // HQ: two voice samples at twice the rate, filtered down to one
+				generators[0].mainProcessing();
+				generators[0].sampleClock++;
+				const float l0 = generators[0].o1, r0 = generators[0].o2;
+				generators[0].mainProcessing();
+				generators[0].sampleClock++;
+				gl = hqLeft.process(l0, generators[0].o1);
+				gr = hqRight.process(r0, generators[0].o2);
+			}
+			else {
+				generators[0].mainProcessing();
+				generators[0].sampleClock++;  // playheads
+				gl = generators[0].o1;
+				gr = generators[0].o2;
+			}
 			masterGain += (masterTarg - masterGain) * masterGainCoef;
-			const float l = generators[0].o1 * masterGain, r = generators[0].o2 * masterGain;
+			const float l = gl * masterGain, r = gr * masterGain;
 			*out1++ = l;
 			*out2++ = r;
 			if (scopeOn) {
@@ -1873,6 +1898,37 @@ int DX10Processor::recalcToggleGenView(double value) {
 	return 0;
 };
 
+// HQ: the request is taken up at the start of the next chunk (applyEngineRate, audio thread) or at
+// activation, never while another thread renders.
+int DX10Processor::recalcHq(double value) {
+	hqWanted = value >= 0.5;
+	return 0;
+}
+
+// The rate the voices run at (the host's, or twice that in HQ) and everything derived from it. B-63:
+// the envelope coefficients used the 44.1 kHz default the SDK reports in initialize(), whatever the
+// host's rate; they are now recomputed here, at activation and on an HQ switch. Rebuilds the voices
+// (sounding notes stop).
+void DX10Processor::applyEngineRate() {
+	const double host = getSampleRate() > 0.0 ? getSampleRate() : 44100.0;
+	hqActive = hqWanted;
+	const double gen = host * (hqActive ? 2.0 : 1.0);
+	DXGenerator& g = generators[0];
+	g.sampleRateDouble = gen;
+	g.sampleRate = static_cast<float>(gen);
+	g.ifs = static_cast<float>(1.0 / gen);
+	g.halfSecSamples = static_cast<float>(gen / 2.0);
+	g.recalculate(g.sampleRate);
+	g.notes.clear();
+	g.createVoice();
+	sampleRate = static_cast<float>(gen);
+	ifs = static_cast<float>(1.0 / gen);
+	for (int i = ENV_1_ATTACK; i <= ENV_3_DELAY; i++)  // envelope coefficients use ifs
+		(this->*recalculators[i])(floatParams[i]);
+	hqLeft.reset();
+	hqRight.reset();
+}
+
 int DX10Processor::recalcDrift(double value) {
 	generators[0].driftAmount = static_cast<float>(value < 0.0 ? 0.0 : (value > 1.0 ? 1.0 : value));
 	return 0;
@@ -2059,11 +2115,13 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 					if (newParams) {
 						const ParamValue keepVol = floatParams[MASTER_VOL];  // global, not part of presets
 						const ParamValue keepPoly = floatParams[POLY_COUNT];  // global too
+						const ParamValue keepHq = floatParams[HQ_MODE];
 						for (int32 i = 0; i < GPARAMS; i++) {
 							floatParams[i] = newParams[i];
 						}
 						floatParams[MASTER_VOL] = keepVol;
 						floatParams[POLY_COUNT] = keepPoly;
+						floatParams[HQ_MODE] = keepHq;
 						generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 						recalcExprAmount(floatParams[EXPR_AMOUNT]);
 						recalcExprVel(floatParams[EXPR_VEL]);
@@ -2118,6 +2176,7 @@ tresult DX10Processor::setState(IBStream* state) {
 	// B-08: apply whatever was read even if the state was truncated, then report the result.
 	const tresult readResult = BaseProcessor::setState(state);
 	recalcPolyCount(floatParams[POLY_COUNT]);
+	recalcHq(floatParams[HQ_MODE]);
 	recalcSnapTime(floatParams[SNAP_TIME]);
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);

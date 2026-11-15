@@ -63,6 +63,8 @@ So step-type params have **two sources of truth**: the normalized param (`floatP
 
 - Drift (2026-11-15): `DRIFT_AMOUNT` (108), 0..1, default off. `DXGenerator::processNoteOn` (every note start and retrigger restart) picks per-voice offsets from a triangular -1..1 random (xorshift32 in the generator, no allocation): pitch factor 2^(amount * 15 cents * r / 1200) applied to both oscillator frequencies (the FM ratio stays), filter cutoff amount * 0.06 * r (knob units), pan amount * 0.3 * r. The generator's seed is fixed, so a render repeats exactly (every instance draws the same sequence). Part of the preset (version 2). Off is bit-identical (`tests/note_off` "Drift").
 
+- HQ (2026-11-15): `HQ_MODE` (109), global like POLY_COUNT (`isGlobalParam`, tagged block `HQ_STATE_TAG`). `DX10Processor::applyEngineRate` runs the generator at twice the host rate (rates, envelope coefficients, voices rebuilt; sounding notes stop), and `doProcessing` renders two voice samples per output sample through `HqDecimator` (hqDecimator.h, 63-tap Blackman windowed sinc, cutoff 0.46 of the host rate, latency 15.5 host samples, not reported to the host). A switch is taken up at the start of the next chunk on the audio thread. Cost (`note_off_test perf` with `PERF_HQ=1`, 44.1 kHz): 61 -> 117 ns per voice-sample, 32 held voices 8.6 % -> 16.6 % of one core. Effect (`note_off_test alias <pitch>`): with the default patch the normal render has extra (aliased) energy above 5 kHz of -104 dB at C4, -75 dB at C6, -60 dB at C7, -50 dB at G7 relative to the total, which HQ removes; heavier FM patches alias more (not measured).
+
 ## The "view ready" gate (the most important cross-cutting pattern)
 
 `BaseController::nvgViewReady`:

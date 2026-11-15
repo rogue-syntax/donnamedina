@@ -16,6 +16,7 @@
 
 #pragma once
 
+#include "hqDecimator.h"
 #include "mdaBaseProcessor.h"
 #include <math.h>
 
@@ -214,6 +215,10 @@ public:
 	int recalcExprVel(double value);
 	int recalcExprTarget(double value);
 	int recalcDrift(double value);
+	int recalcHq(double value);
+	void applyEngineRate();
+	bool hqWanted = false, hqActive = false;
+	HqDecimator hqLeft, hqRight;
 	int recalcLfo2Phase(double value);
 	int recalcLfo3Phase(double value);
 	int recalcStepCtrlTarg(double value);

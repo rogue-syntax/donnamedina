@@ -470,6 +470,16 @@ inline double polyToNormalized (int n) {
 }
 const unsigned int POLY_STATE_TAG = 0x594C4F50u;  // "POLY" (little endian)
 
+// HQ mode (2026-11-15): the voices run at twice the host rate and are filtered back down
+// (hqDecimator.h), which reduces FM aliasing on high notes at about twice the voice CPU. Global like
+// POLY_COUNT (not in presets, tagged block "HQ  "). Switching cuts the sounding notes (the voices are
+// rebuilt for the new rate at the start of the next audio chunk).
+const int HQ_MODE = 109;
+const unsigned int HQ_STATE_TAG = 0x20205148u;  // "HQ  " (little endian)
+
+// Global parameters: kept across preset changes, saved in their own tagged state blocks.
+inline bool isGlobalParam (int pid) { return pid == 146 /* MASTER_VOL */ || pid == POLY_COUNT || pid == HQ_MODE; }
+
 // Snap (2026-11-15): the retrigger/steal fade (a sounding voice fades out before it restarts or is
 // taken) was a fixed 21 ms. SNAP_TIME sets it, 2..80 ms on a log curve (ms = 2 * 40^v); part of the
 // preset. Short = a hard, clicky re-attack; long = smooth repeats.

@@ -150,6 +150,7 @@ bool parseState(const void* data, size_t size, State& out) {
 				break;
 			if (tag == uint32_t(MASTER_VOL_STATE_TAG)) { s.hasMasterVol = true; s.masterVol = v; }
 			else if (tag == uint32_t(POLY_STATE_TAG)) { s.hasPoly = true; s.poly = v; }
+			else if (tag == uint32_t(HQ_STATE_TAG)) { s.hasHq = true; s.hq = v; }
 			else if (tag == uint32_t(STATE_VERSION_TAG) && v >= 1.0 && v < 1.0e6) s.version = uint32_t(v);
 		}
 	}
@@ -175,6 +176,10 @@ std::vector<char> writeState(const State& s) {
 	if (s.hasPoly) {
 		putU32(b, uint32_t(POLY_STATE_TAG));
 		putF64(b, s.poly);
+	}
+	if (s.hasHq) {
+		putU32(b, uint32_t(HQ_STATE_TAG));
+		putF64(b, s.hq);
 	}
 	if (s.version > 0) {
 		putU32(b, uint32_t(STATE_VERSION_TAG));
