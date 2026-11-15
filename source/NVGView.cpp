@@ -1445,6 +1445,7 @@ no viewindex at 153!*/
 			}
 
 			drawModulation();
+			drawStepTargetBadges();
 			drawSelctedStepTarg();
 			drawCtrlValueOutput();
 			drawBeatModOn();
@@ -1764,6 +1765,56 @@ no viewindex at 153!*/
 		const double from = bipolar ? 0.5 : 0.0;
 		knobArc(cx, cy, r, from, v, nvgRGBA(60, 210, 255, 70), 6.0f);
 		knobArc(cx, cy, r, from, v, nvgRGBA(205, 248, 255, 235), 2.2f);
+	}
+
+	// Step-target badges (2026-11-15): the art prints the letters A..H around the STEP CTRL TARGET dial
+	// and under the control each one drives (A OCT, B INT, C MOD OCT, D MOD INT, E MOD BEAT, F/G/H the
+	// LFO rates). Every letter gets a faint ring; the selected target's two letters get a filled amber
+	// badge (letter redrawn dark), so the dial and its control read as a pair. Positions are the art's
+	// letter centres (measured in a screenshot at art offset -35,-15), kept as art coordinates.
+	void NVGView::drawStepTargetBadges() {
+		if (!baseController)
+			return;
+		using ::editorLayout::artX;
+		using ::editorLayout::artY;
+		struct P { float x, y; };
+		static const P kCol[8] = {{293.0f, 277.3f}, {344.5f, 277.0f}, {671.5f, 277.0f}, {722.5f, 277.0f},
+		                          {773.5f, 277.0f}, {500.0f, 378.0f}, {648.0f, 378.0f}, {795.5f, 378.0f}};
+		static const P kDial[8] = {{698.0f, 511.3f}, {689.5f, 497.0f}, {690.5f, 481.0f}, {704.5f, 470.0f},
+		                           {722.5f, 470.0f}, {735.0f, 480.8f}, {736.0f, 497.0f}, {727.5f, 511.0f}};
+		static const char* const kLetter[8] = {"A", "B", "C", "D", "E", "F", "G", "H"};
+		// DX10Controller::onStepCtrlTarg: index = int(v * 100 / 12.5); 8 (v = 1) is LFO 3 again
+		int sel = static_cast<int>(baseController->getParamNormalized(STEP_CTRL_TARG) * 100.0 / 12.5);
+		sel = sel < 0 ? 0 : (sel > 7 ? 7 : sel);
+		const NVGcolor kAmber = nvgRGBA(255, 175, 40, 255);
+		nvgFontFace(vg, "lucon");
+		nvgFontSize(vg, 8.0f);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		for (int k = 0; k < 8; k++) {
+			for (int w = 0; w < 2; w++) {
+				const P& p = w == 0 ? kCol[k] : kDial[k];
+				const float x = artX(p.x), y = artY(p.y);
+				if (k == sel) {
+					nvgBeginPath(vg);
+					nvgCircle(vg, x, y, 13.0f);
+					nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 4.0f, 13.0f, nvgRGBA(255, 175, 40, 110), nvgRGBA(255, 175, 40, 0)));
+					nvgFill(vg);
+					nvgBeginPath(vg);
+					nvgCircle(vg, x, y, 6.0f);
+					nvgFillColor(vg, kAmber);
+					nvgFill(vg);
+					nvgFillColor(vg, nvgRGBA(20, 10, 0, 255));
+					nvgText(vg, x, y + 0.5f, kLetter[k], NULL);
+				}
+				else {
+					nvgBeginPath(vg);
+					nvgCircle(vg, x, y, 5.5f);
+					nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 90));
+					nvgStrokeWidth(vg, 1.0f);
+					nvgStroke(vg);
+				}
+			}
+		}
 	}
 
 	// Modulation overlay (2026-11-15), drawn after the controls, outside each knob's circle (the

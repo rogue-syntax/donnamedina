@@ -36,7 +36,7 @@ Order within a section is a rough priority (impact for effort).
 - [x] Knob value arcs on the outline (from the centre for bipolar knobs) (docs/04-gui.md).
 - [x] Glow when active: each envelope/LFO display glows in its source colour with the newest voice's level while
       the source is routed (docs/04-gui.md). Step buttons already flash when pressed by host or GUI; left as is.
-- [ ] Match the A–H step-target letters with coloured badges on the controls they drive.
+- [x] A–H step-target badges: the selected target's dial letter and control letter lit as a pair (docs/04-gui.md).
 
 ## 3. Sound and engine
 - [ ] **Snap / retrigger-time knob**: expose the fixed 21 ms self-cut fade (≈2 ms punchy … ≈80 ms smooth).

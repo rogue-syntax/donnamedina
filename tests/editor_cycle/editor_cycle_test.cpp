@@ -240,6 +240,11 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 	}
 	// EDITOR_SHOT_LFO_HOLD=1: hold LFO 1's rate knob (beginEdit) and speed it up from ~0.5 Hz to
 	// ~12 Hz: the shot shows the wave packed into the old 8 s window (no playhead dots).
+	// EDITOR_SHOT_STEP_TARG=<0..7>: select that step target (A..H) for the badge shot
+	if (const char* stv = std::getenv("EDITOR_SHOT_STEP_TARG")) {
+		ctrl->setParamNormalized(STEP_CTRL_TARG, std::atoi(stv) / 7.0);
+		pumpFor(300);
+	}
 	if (std::getenv("EDITOR_SHOT_LFO_HOLD")) {
 		ctrl->setParamNormalized(LFO_1_BPM, 0.0);
 		ctrl->setParamNormalized(LFO_1_DELAY, 0.0);

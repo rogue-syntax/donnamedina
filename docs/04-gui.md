@@ -12,6 +12,9 @@ Read, not run. Only the editor lifecycle has been traced so far.
 - `#moreInfo` (about window) now covers the logo. Its click/hover outline `CBMoreInfoButton::pathOutline` defaults to fixed art coordinates in the SDK (`cbuttons.h`); `setupMoreInfoBtn` now derives it from the view rect. (Between b0a0434 and this change the outline was 35/15 px off the moved button.)
 - `tests/editor_cycle`: `EDITOR_SHOT=<file.bmp>` opens the editor on screen once and saves a screenshot (the registration overlay is turned off for it, as the test has no processor).
 
+## Step-target badges (2026-11-15)
+- The art prints A..H around the STEP CTRL TARGET dial and under the control each drives (A OCT, B INT, C MOD OCT, D MOD INT, E MOD BEAT, F/G/H the LFO rates). `NVGView::drawStepTargetBadges` (after the modulation overlay) rings every letter faintly and gives the selected target's two letters a filled amber badge with a glow (letter redrawn dark), next to the existing white outline/blink on the target control. Selection = `int(STEP_CTRL_TARG * 8)`, clamped to 7 (as `DX10Controller::onStepCtrlTarg`, whose index 8 repeats LFO 3). Letter centres were measured in a screenshot and are kept as art coordinates. `EDITOR_SHOT_STEP_TARG=<0..7>` selects one for a screenshot.
+
 ## Knob value arcs (2026-11-15)
 - `NVGView::drawValueArc` (called by drawKnob/drawKnob2 before their blink outline): the outline is the track; from the minimum, or from the centre for bipolar knobs (modulation amounts, TUNE/FINE, MOD TUNE/FINE, PAN), to the value it is drawn bright with a glow. Stepped selector knobs (max > 1: sources, LFO type) get none. Modulation rings sit outside the outline (next section).
 
