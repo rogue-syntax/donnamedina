@@ -1762,7 +1762,7 @@ no viewindex at 153!*/
 		const int pid = static_cast<int>(knob->getTag());
 		static const int kBase[] = {WIDTH_, TUNE_, FINE_, OCT_, INT_, MOD_GAIN_, MOD_WIDTH_, MOD_TUNE_, MOD_FINE_,
 			MOD_OCT_, MOD_INT_, MOD_BEAT_, GAIN_, FILTER_, PAN_LR};
-		bool bipolar = pid == TUNE_ || pid == FINE_ || pid == MOD_TUNE_ || pid == MOD_FINE_ || pid == PAN_LR;
+		bool bipolar = pid == TUNE_ || pid == FINE_ || pid == MOD_TUNE_ || pid == MOD_FINE_ || pid == PAN_LR || pid == EXPR_AMOUNT;
 		for (int b : kBase)
 			if (pid == b + 1)
 				bipolar = true;  // modulation amounts: centre = none
@@ -2737,7 +2737,9 @@ no viewindex at 153!*/
 		using namespace ::editorLayout::play;
 		drawInset(kPanel.x, kPanel.y, kPanel.w, kPanel.h, kColDimFrame);
 		drawColumnSectionLabel(kPanel.x + 5.0f, kPanel.y + 3.0f, "PLAY");
-		static const char* const kLabels[4] = {"SNAP", "", "", ""};
+		const char* kLabels[4] = {"SNAP", "", "EXPR", ""};
+		if (baseController)
+			kLabels[3] = exprTargetName(exprTargetFromNormalized(baseController->getParamNormalized(EXPR_TARGET)));
 		nvgFontSize(vg, 9.0f);
 		nvgFontFace(vg, "lucon");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
@@ -2745,6 +2747,9 @@ no viewindex at 153!*/
 		for (int i = 0; i < 4; i++)
 			if (kLabels[i][0])
 				nvgText(vg, slotCenterX(i), kLabelY, kLabels[i], NULL);
+		// the VEL toggle (#exprVel, 864,460 10x10) is labelled to its right
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+		nvgText(vg, 878.0f, 465.5f, "VEL", NULL);
 	}
 
 	void NVGView::drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy) {

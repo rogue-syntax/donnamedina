@@ -482,6 +482,34 @@ inline double snapMs (double v) {
 inline double snapToNormalized (double ms) { return std::log (ms / 2.0) / std::log (40.0); }
 const double SNAP_DEFAULT_MS = 21.0;
 
+// Expression (2026-11-15): one bipolar knob that offsets the sound's brightness. EXPR_AMOUNT (centre =
+// none) moves the destination(s) EXPR_TARGET picks; with EXPR_VEL on, each note's velocity scales it
+// (the knob is then the velocity depth; left = harder notes darker). Offsets are in knob units at
+// full amount (kExprDepth). Part of the preset.
+const int EXPR_AMOUNT = 149;
+const int EXPR_VEL = 158;
+const int EXPR_TARGET = 159;
+enum ExprTarget { kExprBright = 0, kExprFilter, kExprFmDepth, kExprWidth, kExprTargetCount };
+inline const char* exprTargetName (int t) {
+	static const char* const k[kExprTargetCount] = {"BRIGHT", "FILTER", "FM DEPTH", "WIDTH"};
+	return (t >= 0 && t < kExprTargetCount) ? k[t] : "";
+}
+inline int exprTargetFromNormalized (double v) {
+	int t = static_cast<int> (v * (kExprTargetCount - 1) + 0.5);
+	return t < 0 ? 0 : (t >= kExprTargetCount ? kExprTargetCount - 1 : t);
+}
+// depth per destination at full amount, knob units: filter cutoff, FM depth (MOD GAIN), osc widths
+inline void exprDepths (int target, float& filter, float& fm, float& width) {
+	filter = fm = width = 0.0f;
+	switch (target) {
+	case kExprBright: filter = 0.35f; fm = 0.35f; break;
+	case kExprFilter: filter = 0.5f; break;
+	case kExprFmDepth: fm = 0.5f; break;
+	case kExprWidth: width = 0.4f; break;
+	default: break;
+	}
+}
+
 // State version (2026-11-15). Parameters added after the first release would load as 0 from older
 // states and presets (their slot in the saved array was unused). getState now ends with a tagged
 // version block; when a state's version is older than the one a parameter arrived in, that
@@ -493,6 +521,9 @@ struct NewParamDefault { int pid; double normalized; unsigned int since; };
 inline const NewParamDefault* newParamDefaults (int& count) {
 	static const NewParamDefault k[] = {
 		{SNAP_TIME, snapToNormalized (SNAP_DEFAULT_MS), 2},
+		{EXPR_AMOUNT, 0.5, 2},
+		{EXPR_VEL, 0.0, 2},
+		{EXPR_TARGET, 0.0, 2},
 	};
 	count = static_cast<int> (sizeof (k) / sizeof (k[0]));
 	return k;

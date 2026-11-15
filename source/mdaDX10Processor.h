@@ -210,6 +210,9 @@ public:
 	int recalcLfo1Phase(double value);
 	int recalcPolyCount(double value);
 	int recalcSnapTime(double value);
+	int recalcExprAmount(double value);
+	int recalcExprVel(double value);
+	int recalcExprTarget(double value);
 	int recalcLfo2Phase(double value);
 	int recalcLfo3Phase(double value);
 	int recalcStepCtrlTarg(double value);

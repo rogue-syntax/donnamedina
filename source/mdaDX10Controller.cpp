@@ -335,6 +335,9 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[MASTER_VOL] = &DX10Controller::onEnvBipolar;  // readout (envName -> "VOLUME")
 	onCtrlChange[POLY_COUNT] = &DX10Controller::onEnvBipolar;  // readout "POLYPHONY / n VOICES"
 	onCtrlChange[SNAP_TIME] = &DX10Controller::onEnvBipolar;   // readout "SNAP / 21.0 MS"
+	onCtrlChange[EXPR_AMOUNT] = &DX10Controller::onEnvBipolar; // readout "EXPRESSION / +40 % BRIGHT"
+	onCtrlChange[EXPR_TARGET] = &DX10Controller::onEnvBipolar; // readout "EXPR TARGET / FILTER"
+	onCtrlChange[EXPR_VEL] = &DX10Controller::onToggleButton;  // button glow, readout ON/OFF
 
 	onCtrlChange[WIDTH_] = &DX10Controller::onEnv;
 	onCtrlChange[TUNE_] = &DX10Controller::onEnv;
@@ -534,6 +537,10 @@ std::string DX10Controller::readoutValue(int pid, double normalized) {
 	const int syncPid = paramDisplay::syncParamFor(pid);
 	if (syncPid >= 0)
 		ctx.lfoSynced = getParamNormalized(syncPid) >= 1.0;  // processor: syncBpm = (int)value
+	if (pid == EXPR_AMOUNT) {
+		ctx.exprTarget = exprTargetFromNormalized(getParamNormalized(EXPR_TARGET));
+		ctx.exprVel = getParamNormalized(EXPR_VEL) >= 0.5;
+	}
 	if (pid >= LFO_1_PHASE && pid <= LFO_3_PHASE)
 		ctx.lfoType = lfoShape::typeFromNormalized(getParamNormalized(LFO_1_TYPE + 5 * (pid - LFO_1_PHASE)));
 	std::string s = paramDisplay::value(pid, normalized, ctx);
@@ -889,6 +896,14 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		parameters.addParameter (new MasterVolParameter (MASTER_VOL));
 		parameters.addParameter (new PolyParameter (POLY_COUNT));
 		parameters.addParameter (new SnapParameter (SNAP_TIME));
+		parameters.addParameter (USTRING ("EXPRESSION"), USTRING ("%"), 0, 0.5, ParameterInfo::kCanAutomate, EXPR_AMOUNT);
+		{
+			auto* t = new StringListParameter (USTRING ("EXPR TARGET"), EXPR_TARGET);
+			for (int i = 0; i < kExprTargetCount; i++)
+				t->appendString (USTRING (exprTargetName (i)));
+			parameters.addParameter (t);
+		}
+		parameters.addParameter (USTRING ("EXPR VELOCITY"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, EXPR_VEL);
 		
 		/*
 		for (int x = 0; x < PARTPARAMS; x++) {

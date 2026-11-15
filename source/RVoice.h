@@ -94,6 +94,8 @@ public:
 	unsigned long long startClock = 0;
 	unsigned long long releaseClock = 0;
 	unsigned int serial = 0;
+	// Expression offsets for this voice, knob units (DXGenerator::singleVoiceProcessing)
+	float exprFilter = 0.0f, exprFm = 0.0f, exprWidth = 0.0f;
 	
 	//float* envBank[7][2];
 	float* envBank[7];

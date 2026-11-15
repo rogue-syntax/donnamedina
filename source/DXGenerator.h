@@ -602,6 +602,13 @@ public:
 	bool portamentoMode = false;
 	// Snap: the retrigger/steal fade time (SNAP_TIME, DX10Processor::recalcSnapTime)
 	float retrigFadeMs = 21.0f;
+	// Expression (EXPR_AMOUNT/VEL/TARGET, DX10Processor::recalcExpr*): amount -1..1, velocity mode,
+	// per-destination depths for the target (exprDepths)
+	float exprAmount = 0.0f;
+	bool exprVel = false;
+	int exprTarget = 0;
+	float exprDepthFilter = 0.35f, exprDepthFm = 0.35f, exprDepthWidth = 0.0f;
+	void setExprTarget(int t) { exprTarget = t; exprDepths(t, exprDepthFilter, exprDepthFm, exprDepthWidth); }
 	int32 lastNoteIdx = 0;
 	bool pushNote;
 	int32 notes3[10];

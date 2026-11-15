@@ -20,6 +20,9 @@ struct Context {
 	bool lfoSynced = false;
 	// LFO_n_PHASE: that LFO's waveform (lfoShape::Wave), or -1.
 	int lfoType = -1;
+	// EXPR_AMOUNT: the target and whether velocity scales it
+	int exprTarget = -1;
+	bool exprVel = false;
 };
 
 // Readable parameter name ("OSC TUNE", "AMP ATTACK", ...); "" for ids without one.

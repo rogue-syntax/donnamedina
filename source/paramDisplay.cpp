@@ -207,6 +207,9 @@ const char* label (int pid)
 		case MASTER_VOL: return "VOLUME";
 		case POLY_COUNT: return "POLYPHONY";
 		case SNAP_TIME: return "SNAP";
+		case EXPR_AMOUNT: return "EXPRESSION";
+		case EXPR_TARGET: return "EXPR TARGET";
+		case EXPR_VEL: return "EXPR VELOCITY";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
 		case WIDTH_RESET: return "OSC WIDTH RESET";
 		case TUNE_RESET: return "OSC TUNE RESET";
@@ -370,6 +373,17 @@ std::string value (int pid, double v, const Context& ctx)
 	}
 	if (pid == SNAP_TIME)
 		return fmt ("%.1f MS", snapMs (v));
+	if (pid == EXPR_TARGET)
+		return exprTargetName (exprTargetFromNormalized (v));
+	if (pid == EXPR_AMOUNT) {
+		const double a = (2.0 * v - 1.0) * 100.0;
+		std::string s = std::fabs (a) < 0.5 ? std::string ("OFF") : fmt ("%+.0f %%", a);
+		if (ctx.exprTarget >= 0 && std::fabs (a) >= 0.5)
+			s += std::string (" ") + exprTargetName (ctx.exprTarget);
+		if (ctx.exprVel && std::fabs (a) >= 0.5)
+			s += " x VEL";
+		return s;
+	}
 	if (pid == POLY_COUNT) {
 		const int n = polyFromNormalized (v);
 		return fmt (n == 1 ? "%.0f VOICE" : "%.0f VOICES", static_cast<double> (n));

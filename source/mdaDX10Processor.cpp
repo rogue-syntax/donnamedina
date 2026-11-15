@@ -98,6 +98,9 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 	}
 	generators[0].POLYCOUNT = polyFromNormalized(floatParams[POLY_COUNT]);
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
+	recalcExprAmount(floatParams[EXPR_AMOUNT]);
+	recalcExprVel(floatParams[EXPR_VEL]);
+	recalcExprTarget(floatParams[EXPR_TARGET]);
 
 	rampedParams[MAINENV1_RAMPINDEX].level = mainEnv1Cenv;
 	quarterSecond = sampleRate / 8;
@@ -732,6 +735,9 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 		recalculators[LFO_1_PHASE] = &DX10Processor::recalcLfo1Phase;
 		recalculators[POLY_COUNT] = &DX10Processor::recalcPolyCount;
 		recalculators[SNAP_TIME] = &DX10Processor::recalcSnapTime;
+		recalculators[EXPR_AMOUNT] = &DX10Processor::recalcExprAmount;
+		recalculators[EXPR_VEL] = &DX10Processor::recalcExprVel;
+		recalculators[EXPR_TARGET] = &DX10Processor::recalcExprTarget;
 		recalculators[LFO_2_PHASE] = &DX10Processor::recalcLfo2Phase;
 		recalculators[LFO_3_PHASE] = &DX10Processor::recalcLfo3Phase;
 
@@ -951,6 +957,9 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 			floatParams[MASTER_VOL] = keepVol;
 			floatParams[POLY_COUNT] = keepPoly;
 			generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
+			recalcExprAmount(floatParams[EXPR_AMOUNT]);
+			recalcExprVel(floatParams[EXPR_VEL]);
+			recalcExprTarget(floatParams[EXPR_TARGET]);
 		}
 
 	} else if (index == BaseController::kModWheelParam){ // mod wheel
@@ -990,6 +999,9 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 	floatParams[MASTER_VOL] = keepVol;
 	floatParams[POLY_COUNT] = keepPoly;
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
+	recalcExprAmount(floatParams[EXPR_AMOUNT]);
+	recalcExprVel(floatParams[EXPR_VEL]);
+	recalcExprTarget(floatParams[EXPR_TARGET]);
 
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);
@@ -1857,6 +1869,19 @@ int DX10Processor::recalcToggleGenView(double value) {
 	return 0;
 };
 
+int DX10Processor::recalcExprAmount(double value) {
+	generators[0].exprAmount = static_cast<float>(2.0 * value - 1.0);
+	return 0;
+}
+int DX10Processor::recalcExprVel(double value) {
+	generators[0].exprVel = value >= 0.5;
+	return 0;
+}
+int DX10Processor::recalcExprTarget(double value) {
+	generators[0].setExprTarget(exprTargetFromNormalized(value));
+	return 0;
+}
+
 int DX10Processor::recalcSnapTime(double value) {
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(value));
 	return 0;
@@ -2031,6 +2056,9 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 						floatParams[MASTER_VOL] = keepVol;
 						floatParams[POLY_COUNT] = keepPoly;
 						generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
+						recalcExprAmount(floatParams[EXPR_AMOUNT]);
+						recalcExprVel(floatParams[EXPR_VEL]);
+						recalcExprTarget(floatParams[EXPR_TARGET]);
 					}
 
 				}
@@ -2081,6 +2109,9 @@ tresult DX10Processor::setState(IBStream* state) {
 	const tresult readResult = BaseProcessor::setState(state);
 	recalcPolyCount(floatParams[POLY_COUNT]);
 	recalcSnapTime(floatParams[SNAP_TIME]);
+	recalcExprAmount(floatParams[EXPR_AMOUNT]);
+	recalcExprVel(floatParams[EXPR_VEL]);
+	recalcExprTarget(floatParams[EXPR_TARGET]);
 	//////////////////////////////////////////////
 	for (int i = 0; i < PARTPARAMS; i++) {
 		generators[0].recalc2(i);

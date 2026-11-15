@@ -1913,6 +1913,73 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- Expression (2026-11-15): EXPR_AMOUNT / EXPR_TARGET / EXPR_VEL ----
+	{
+		std::printf("\nExpression\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		auto renderExpr = [&](std::vector<std::pair<double, std::pair<ParamID, double>>> extra, std::vector<float>& outL,
+		                      std::vector<NoteEvent> ev = {}) {
+			Options o;
+			o.params = {{0.0, {FILTER_, 0.3}}};
+			for (auto& e : extra) o.params.push_back(e);
+			o.captureL = &outL;
+			if (ev.empty()) ev = {{at(0.05), true, 48}};
+			render({"expr", 1.0, 0.5}, ev, 0.5, o);
+		};
+		std::vector<float> base, centre;
+		renderExpr({}, base);
+		renderExpr({{0.0, {EXPR_AMOUNT, 0.5}}, {0.0, {EXPR_TARGET, 0.0}}}, centre);
+		size_t diff = 0;
+		for (size_t i = 0; i < base.size() && i < centre.size(); i++)
+			if (base[i] != centre[i]) diff++;
+		std::snprintf(buf, sizeof(buf), "%zu samples differ", diff);
+		check("centre = no change (bit exact)", diff == 0 && base.size() == centre.size(), buf);
+		// the voice's filter coefficient g = tan(pi fc / fs) at the end: higher = brighter (this patch is
+		// close to a sine, so the output's own brightness hardly shows a low-pass)
+		auto filterG = [&](double amount) {
+			double g = 0.0;
+			Options o;
+			o.params = {{0.0, {FILTER_, 0.3}}, {0.0, {EXPR_AMOUNT, amount}}, {0.0, {EXPR_TARGET, 1.0 / 3}}};
+			o.inspect = [&](rs::DX10Processor& p) { g = p.generators[0].RVoicesMap[48].m_Filter1.g; };
+			render({"expr", 1.0, 0.5}, {{at(0.05), true, 48}}, 0.3, o);
+			return g;
+		};
+		const double gDown = filterG(0.1), gOff = filterG(0.5), gUp = filterG(0.9);
+		std::snprintf(buf, sizeof(buf), "filter g down %.4f < off %.4f < up %.4f", gDown, gOff, gUp);
+		check("filter target: amount moves the cutoff", gDown < gOff && gOff < gUp, buf);
+
+		// velocity mode: each voice's offset follows its own velocity
+		float soft = -1.0f, hard = -1.0f;
+		{
+			Options o;
+			o.params = {{0.0, {EXPR_AMOUNT, 1.0}}, {0.0, {EXPR_TARGET, 1.0 / 3}}, {0.0, {EXPR_VEL, 1.0}}};
+			o.inspect = [&](rs::DX10Processor& p) {
+				soft = p.generators[0].RVoicesMap[48].exprFilter;
+				hard = p.generators[0].RVoicesMap[55].exprFilter;
+			};
+			NoteEvent a{at(0.05), true, 48};
+			a.velocity = 0.25f;
+			NoteEvent b{at(0.05), true, 55};
+			b.velocity = 1.0f;
+			render({"expr", 1.0, 0.5}, {a, b}, 0.2, o);
+		}
+		const float wantSoft = 0.5f * (float(int(0.25f * 127)) / 127.0f), wantHard = 0.5f;
+		std::snprintf(buf, sizeof(buf), "soft %.4f (want %.4f), hard %.4f (want %.4f)", soft, wantSoft, hard, wantHard);
+		check("velocity mode: offset x note velocity", std::fabs(soft - wantSoft) < 1e-3 && std::fabs(hard - wantHard) < 1e-3, buf);
+
+		paramDisplay::Context c;
+		c.exprTarget = kExprBright;
+		c.exprVel = true;
+		const std::string t1 = paramDisplay::value(EXPR_AMOUNT, 0.7, c), t2 = paramDisplay::value(EXPR_AMOUNT, 0.5, c),
+		                  t3 = paramDisplay::value(EXPR_TARGET, 1.0, c);
+		std::snprintf(buf, sizeof(buf), "'%s' '%s' '%s'", t1.c_str(), t2.c_str(), t3.c_str());
+		check("readout", t1 == "+40 % BRIGHT x VEL" && t2 == "OFF" && t3 == "WIDTH", buf);
+	}
+
 	// ---- B-62: GUI edits reach the host (performEdit -> IComponentHandler) (2026-11-15) ----
 	{
 		std::printf("\nB-62 GUI edits reach the host\n");
