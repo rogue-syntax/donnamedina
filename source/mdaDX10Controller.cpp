@@ -736,6 +736,8 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 						LogScaleParameter<ParamValue>* param = new LogScaleParameter<ParamValue>(USTRING((char*)namer.c_str()), pidIdx, filterLogScale, (USTRING("Hz")));
 						// NOTE: for LogScaleParameter, need to manually set default value (10kHz for filter fc)
 						param->setNormalized(param->toNormalized(DEFAULT_FILTER_FC));
+						// B-57: also the host's default (reset); the constructor leaves it at 0 (80 Hz)
+						param->getInfo().defaultNormalizedValue = param->toNormalized(DEFAULT_FILTER_FC);
 						param->setPrecision(2);
 						parameters.addParameter(param);
 					}

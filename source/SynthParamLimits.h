@@ -114,7 +114,7 @@ enum{None,AmpMod,Vibrato};
 #define MIN_FILTER_FC 80.0
 #define MAX_FILTER_FC 18000.0
 #define DEFAULT_FILTER_FC 10000.0
-#define FILTER_RAW_MAP 0.75
+#define FILTER_RAW_MAP 0.5 // B-57: same curve as DXGenerator::filterLogScale2 (0.5 -> 1800 Hz)
 #define FILTER_COOKED_MAP 1800.0
 
 #define MIN_FILTER_Q 1.0

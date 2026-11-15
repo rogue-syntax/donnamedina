@@ -19,7 +19,7 @@ Read, not run. Only the editor lifecycle has been traced so far.
   - TUNE / MOD TUNE: frequency ratio `f * 2 * v` (x0 .. x1 .. x2, i.e. down to 0 Hz and up one octave), shown as ratio and semitones. The `* 72` semitone formula in `recalcTune` only feeds `carPitchMultiplier`, which no voice reads.
   - FINE: `tuneC += (v - 0.5) / 100`, about ±17 cents at centre tune.
   - OCT: step - 3, clamped by the engine to -2..+2 (list "1".."5"). MOD OCT: step - 6 (list "1".."12" -> -5..+6). INTERVAL / MOD INTERVAL: +1..+12 semitones (lists start at "1"; no unison position). MOD BEAT: step/4 cycles per beat of detune.
-  - CUTOFF: the engine's log scale (`DXGenerator` `filterLogScale2`: 80 Hz .. 1.8 kHz at 0.5 .. 18 kHz). The controller's own scale differs (B-57). RESONANCE: Q 0.50 .. 4.58 (B-41).
+  - CUTOFF: the engine's log scale (`DXGenerator` `filterLogScale2`: 80 Hz .. 1.8 kHz at 0.5 .. 18 kHz). The controller's parameter uses the same curve since B-57, so host text matches. RESONANCE: Q 0.50 .. 4.58 (B-41).
   - Env amounts: ±100 % plus the source name; for stepped targets also the range at full source (`amount * 13` semitones etc., truncated as the engine does).
   - Envelope attack/decay/release: time to cover 95 % (3 time constants of the one-pole curves `exp(k*v - k)` s, k = 8/6/5); decay above 0.991 = HOLD. LFO rate: 0.08..20 Hz, or the tempo division when BPM sync is on (`quants[]`: 1/1, 1/2., 1/2, 1/4., 1/4, 1/8, 1/8T, 1/16, 1/16T, 1/32, 1/64). LFO fade-in: 0.03..1 s, OFF below. LFO phase: ±180 deg (bipolar; the per-wave meaning in `recalcLfoNPhase` was not checked).
   - GAIN: % and dB. PAN: L/R 0..100, CENTER.

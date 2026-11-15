@@ -1519,6 +1519,39 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- B-57: the host's cutoff text uses the engine's curve (2026-11-15) ----
+	{
+		std::printf("\nB-57 cutoff scale (host text vs engine)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		static HostApplication shost57;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&shost57);
+		Parameter* fp = ctrl->getParameterObject(FILTER_);
+		check("FILTER_ parameter exists", fp != nullptr, "");
+		if (fp) {
+			const double vs[] = {0.0, 0.1, 0.25, 0.5, 0.75, 0.9, 1.0};
+			for (double v : vs) {
+				const double host = fp->toPlain(v), eng = paramDisplay::filterCutoffHz(v);
+				std::snprintf(buf, sizeof(buf), "host %.1f Hz, engine %.1f Hz", host, eng);
+				char nm[64];
+				std::snprintf(nm, sizeof(nm), "cutoff at %.2f matches", v);
+				check(nm, std::fabs(host - eng) <= eng * 0.001, buf);
+			}
+			const double def = fp->getInfo().defaultNormalizedValue;
+			std::snprintf(buf, sizeof(buf), "default %.4f -> engine %.0f Hz", def, paramDisplay::filterCutoffHz(def));
+			check("default is 10 kHz in the engine", std::fabs(paramDisplay::filterCutoffHz(def) - 10000.0) < 10.0, buf);
+			const double n1k = fp->toNormalized(1000.0);
+			std::snprintf(buf, sizeof(buf), "1000 Hz -> %.4f -> engine %.1f Hz", n1k, paramDisplay::filterCutoffHz(n1k));
+			check("typed 1000 Hz plays 1000 Hz", std::fabs(paramDisplay::filterCutoffHz(n1k) - 1000.0) < 1.0, buf);
+		}
+		ctrl->terminate();
+		ctrl->release();
+	}
+
 	// ---- Scope info: voice count and output peak (2026-11-14) ----
 	{
 		std::printf("\nScope info (voice count, output peak)\n");
