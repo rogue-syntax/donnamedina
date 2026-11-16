@@ -522,6 +522,82 @@ int retrigProbe(int argc, char** argv) {
 	return 0;
 }
 
+// Mono (POLY_COUNT 1) steal click probe: each preset plays a phrase of different notes (overlapping
+// and detached) once with 1 voice and once with 32. The new notes are identical in both renders, so
+// the difference is the stolen voice's fade-out (minus the note it would have kept playing). A jump
+// in that difference at the steal is the click. Run: note_off_test.exe mono [filter]
+static void renderPresetPoly(int preset, int poly, double filter, const std::vector<NoteEvent>& ev, double seconds,
+                             std::vector<float>& L, std::vector<float>& R) {
+	const Settings s{"patch", 0.0, 0.0};
+	Options o;
+	o.keepPatchEnvelopes = true;
+	o.params = {{0.0, {rs::BaseController::kPresetParam, (preset + 0.5) / rs::DX10Processor::kNumPrograms}},
+	            {0.01, {POLY_COUNT, polyToNormalized(poly)}}};
+	if (filter >= 0.0) o.params.push_back({0.02, {FILTER_, filter}});
+	static HostApplication chost;
+	auto* ctrl = new rs::DX10Controller();
+	ctrl->initialize(&chost);
+	o.peer = ctrl;
+	o.onCreated = [ctrl](rs::DX10Processor& p) { ctrl->connect(&p); };
+	// The preset's switch values come back from the controller through the message timer (wall
+	// clock): let it run during the first 0.2 s so both renders have the whole preset by the notes.
+	o.perBlock = [](rs::DX10Processor&, double t) { if (t < 0.2) { Sleep(20); pumpMessages(); } };
+	o.captureL = &L;
+	o.captureR = &R;
+	render(s, ev, seconds, o);
+	ctrl->disconnect(nullptr);
+}
+
+struct StealClick { float jump; float level; };  // largest difference in the first 16 samples; old note's level
+
+// One steal per render pair: note `from` (held, or released 50 ms earlier), then note `to`. Up to the
+// steal both renders are identical; after it they differ only by the old note's fade-out.
+static StealClick monoStealClick(int preset, double filter, int16 from, int16 to, bool held, bool dump) {
+	const double tOn = 0.6 + 0.0013 * to;  // vary the position inside the block
+	std::vector<NoteEvent> ev = {{at(0.3), true, from}, {at(held ? 0.9 : tOn - 0.05), false, from},
+	                             {at(tOn), true, to}, {at(1.0), false, to}};
+	std::vector<float> L1, R1, L2, R2;
+	renderPresetPoly(preset, 1, filter, ev, 1.3, L1, R1);
+	renderPresetPoly(preset, 32, filter, ev, 1.3, L2, R2);
+	const int on = static_cast<int>(ev[2].sample);
+	StealClick c{0.0f, 0.0f};
+	for (int i = on - 64; i < on; i++)
+		c.level = std::max(c.level, std::max(std::fabs(L2[i]), std::fabs(R2[i])));
+	// A continuous fade (>= 2 ms, 21 ms by default) changes the old note by a few percent in 16
+	// samples; a change of its sound at the steal shows at once.
+	for (int i = on; i < on + 16; i++)
+		c.jump = std::max(c.jump, std::max(std::fabs(L1[i] - L2[i]), std::fabs(R1[i] - R2[i])));
+	if (dump) {
+		std::printf("  %d -> %d (%s): level %.4f, change %.4f\n", from, to, held ? "held" : "released", c.level, c.jump);
+		for (int i = on - 2; i <= on + 6; i++)
+			std::printf("     %+4d  poly1 % .4f  poly32 % .4f\n", i - on, L1[i], L2[i]);
+	}
+	return c;
+}
+
+static float monoStealWorst(int preset, double filter, bool dump) {
+	static const int16 pairs[][2] = {{55, 60}, {60, 52}, {57, 64}, {48, 55}};
+	float worst = 0.0f;
+	for (auto& pr : pairs)
+		for (int held = 0; held < 2; held++) {
+			const StealClick c = monoStealClick(preset, filter, pr[0], pr[1], held != 0, dump);
+			if (c.level > 1e-3f)
+				worst = std::max(worst, c.jump / c.level);
+		}
+	return worst;
+}
+
+int monoProbe(int argc, char** argv) {
+	const double filter = argc > 2 ? std::atof(argv[2]) : -1.0;  // < 0: the preset's own filter
+	const char* only = std::getenv("MONO_DUMP");
+	for (int p = 0; p < rs::DX10Processor::kNumPrograms; p++) {
+		if (only && std::atoi(only) != p) continue;
+		std::printf("preset %d: worst change in the first 16 samples after a steal: %.1f %% of the old note's level\n",
+		            p, 100.0f * monoStealWorst(p, filter, only != nullptr));
+	}
+	return 0;
+}
+
 // Golden-audio check (optimization safety net): renders every factory preset through the real
 // processor + controller path with a fixed note/automation pattern. `golden save` writes the output
 // to bin\golden.f32; `golden` compares a new render against it and reports the difference.
@@ -778,6 +854,7 @@ int main(int argc, char** argv) {
 	if (argc > 1 && std::strcmp(argv[1], "lfo") == 0) return lfoProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "alias") == 0) return aliasProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
+	if (argc > 1 && std::strcmp(argv[1], "mono") == 0) return monoProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "perf") == 0) return perfProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "golden") == 0) return goldenProbe(argc, argv);
 	const Settings settings[] = {
@@ -1886,6 +1963,16 @@ int main(int argc, char** argv) {
 			          pp->getInfo().stepCount == POLY_MAX - 1 && polyFromNormalized(def) == POLY_DEFAULT, buf);
 			ctrl->terminate();
 			ctrl->release();
+		}
+		{  // B-64: a steal (every new note with 1 voice) fades the old note out; its sound must not jump
+			float worst = 0.0f;
+			int worstP = -1;
+			for (int p = 0; p < rs::DX10Processor::kNumPrograms; p++) {
+				const float w = monoStealWorst(p, -1.0, false);
+				if (w > worst) { worst = w; worstP = p; }
+			}
+			std::snprintf(buf, sizeof(buf), "worst %.1f %% of the old note in 16 samples (preset %d)", 100.0f * worst, worstP);
+			check("B-64: 1 voice, new note: no jump in the old note", worst < 0.06f, buf);
 		}
 	}
 

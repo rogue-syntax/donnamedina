@@ -39,7 +39,7 @@ Oscillators: `CQBLimitedOscillator` (quasi-bandlimited). `m_uWaveform` enum is `
 2. Is the note already in `notes`? (`pushNote`)
    - **No (new pitch):** if `notes.size() >= POLYCOUNT`: pick the voice with the lowest amp `cenv`, `retriggerVoice(that, killIt=true)` (fade it out over ~21 ms), then `notes.push_back(note)` and `processNoteOn` (start immediately). Else just push and `processNoteOn`.
    - **Yes (same pitch already in the list, even if long finished):** `retriggerVoice(v, killIt=false)`: `rampingDown = true`, compute a linear ramp-down step for the amp env (`env = cenv; envInc = -(1000*env)/21/sampleRate`, i.e. reaches 0 in ~21 ms).
-3. While `rampingDown`: `interpolateVoice` steps `env += envInc`; **when `env < 0.0003`** it sets `rampingDown=false` and, if `killIt == false`, calls `processNoteOn` to (re)start the note from the stored `note`/`vel`. If `killIt == true` the voice just fades (`deadVoiceProcessing`) and then stays silent.
+3. While `rampingDown`: `interpolateVoice` steps `env += envInc`; **when `env < 0.0003`** it sets `rampingDown=false` and, if `killIt == false`, calls `processNoteOn` to (re)start the note from the stored `note`/`vel`. If `killIt == true` (stolen) the voice just fades and then stays silent; both fades render through `singleVoiceProcessing` (B-64: the steal fade used the stripped-down `deadVoiceProcessing`, which clicked).
 
 `processNoteOn` (`:431`) copies waveform/oct/mod settings, re-inits all envelope fields (`env1 = velocity`, `cenv1 = 0.0003`; envs 2/3 `env=1, cenv=0`; `catt/cdec` copied from the global `EnvLfoCtrls[n]`), resets LFO phase/delay, caches the "step" control values (`ctrlValues[...]`) into the voice, sets the filter cutoff.
 

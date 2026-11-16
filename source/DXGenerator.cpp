@@ -754,12 +754,11 @@ void DXGenerator::interpolateVoice(RVoice& voiceObj) {
 		//voiceObj.o = voiceObj.o / 2;
 		//do per env / lfo
 		//not necc here?
-		if (voiceObj.killIt == false) {
-			singleVoiceProcessing(voiceObj);
-		}
-		else {
-			deadVoiceProcessing(voiceObj);
-		}
+		// B-64: a stolen voice (killIt) fades through the full voice path too. deadVoiceProcessing
+		// rendered only the carrier (no modulator), with a differently updated filter and no
+		// modulation, so the stolen note's sound jumped at the steal: a click on every new note
+		// with POLY_COUNT 1 (and on every steal at the voice limit).
+		singleVoiceProcessing(voiceObj);
 		
 	}
 }
