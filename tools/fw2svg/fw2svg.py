@@ -4,6 +4,13 @@ import fwparse, os
 SHIFT = os.environ.get('FW_SHIFT', '1') == '1'  # odd-width strokes on pixel centres (measured: better)
 PREMUL = os.environ.get('FW_PREMUL') == '1'  # tiles are straight alpha (measured: un-premultiplying is worse)
 
+TEXT_MODE = os.environ.get('FW_TEXT', 'live')  # live = SVG <text>; bitmap = Fireworks' cached rendering
+FONT_FALLBACK = {'DejaVuSansMono': "'DejaVu Sans Mono',Consolas,monospace", 'LucidaConsole': "'Lucida Console',monospace",
+                 'Courier': "'Courier New',Courier,monospace", 'Corbel': "Corbel,'Segoe UI',sans-serif"}
+# Fireworks drew "Courier" with the Windows bitmap font (coure.fon), much larger than Courier New at the same size:
+# its 10 pt digits are 9 px tall with a 9 px advance, i.e. Courier New at 15 px (measured on the cached bitmaps).
+FONT_SCALE = {'Courier': 1.5}
+
 def argb(v):
     v &= 0xffffffff
     return (v >> 24) & 255, (v >> 16) & 255, (v >> 8) & 255, v & 255
@@ -200,12 +207,56 @@ class Conv:
         return '<path d="%s" fill="url(#%s)"/>' % (d, pid)
 
     def text(self, txt):
+        if TEXT_MODE != 'bitmap':
+            t = self.live_text(txt)
+            if t is not None:
+                return t
         img = txt.get('IMG')
         if img and img.get('WPX'):
             self.stat('text (cached bitmap)')
             return self.image(img, self.opacity(txt))
         self.stat('text missing')
         return ''
+
+    def live_text(self, txt):
+        """Real SVG text: one <tspan> per style run, anchored at the Fireworks baseline point (LFA, TOA)."""
+        runs = [r for r in txt.kids('TFS') if r.get('TRN')]
+        if not runs or any(c in r.get('TRN') for r in runs for c in '\r\n'):
+            return None  # multi-line text: keep the cached bitmap
+        anchor = {0: 'start', 1: 'middle', 2: 'end'}.get(txt.get('JST', 0))
+        if anchor is None:
+            return None  # justified
+        spans = []
+        for r in runs:
+            col, a = css(r.get('FCL', txt.get('PAT').get('FCL') if txt.get('PAT') else -16777216))
+            fam = r.get('FON') or 'sans-serif'
+            st = ['font-family:%s' % FONT_FALLBACK.get(fam, "'%s'" % fam),
+                  'font-size:%gpx' % (r.get('PTS', 10.0) * FONT_SCALE.get(fam, 1.0)), 'fill:%s' % col]
+            if a < 0.999:
+                st.append('fill-opacity:%.3f' % a)
+            if r.get('BOL'):
+                st.append('font-weight:bold')
+            if r.get('ITL'):
+                st.append('font-style:italic')
+            if r.get('UND'):
+                st.append('text-decoration:underline')
+            k = r.get('KRN', 0.0)
+            if k:
+                st.append('letter-spacing:%gem' % (k / 10.0))  # Fireworks range kerning: tenths of an em (fitted)
+            s = r.get('TRN').replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+            spans.append('<tspan style="%s">%s</tspan>' % (';'.join(st), s))
+        attrs = 'x="%g" y="%g"' % (txt.get('LFA'), txt.get('TOA'))
+        if anchor != 'start':
+            attrs += ' text-anchor="%s"' % anchor
+        op = self.opacity(txt)
+        if op < 0.999:
+            attrs += ' opacity="%.3f"' % op
+        m = txt.get('MTX')
+        if m:
+            g = dict((c.tag, c.val) for c in m.kids())
+            attrs += ' transform="matrix(%g %g %g %g %g %g)"' % (g['M00'], g['M01'], g['M10'], g['M11'], g['M20'], g['M21'])
+        self.stat('text')
+        return '<text %s xml:space="preserve">%s</text>' % (attrs, ''.join(spans))
 
     def element(self, e):
         if e.get('VIS') is False:
@@ -256,7 +307,7 @@ def convert(src, dst, layer_rev=True, elem_rev=True):
         body.append('<g id="%s">%s</g>' % (name.replace(' ', '_'), c.elements(cel.get('ELM'))))
     svg = ('<svg xmlns="http://www.w3.org/2000/svg" width="%d" height="%d" viewBox="0 0 %d %d">\n<defs>%s</defs>\n%s\n</svg>\n'
            % (W, H, W, H, '\n'.join(c.defs), '\n'.join(body)))
-    open(dst, 'w', encoding='utf-8').write(svg)
+    open(dst, 'w', encoding='utf-8', newline='\n').write(svg)
     return c.stats
 
 

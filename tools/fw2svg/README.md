@@ -23,11 +23,19 @@ draws them since the -35,-15 move; the strip right of x 1113 is empty, the code 
   `TSZi`), texture amount `FPLv/FTBi` in tenths of a percent, offset `TOX/TOY`. `OPAi` opacity in
   tenths of a percent.
 - Bitmaps: `IMGv` `XLC/YLC`, `WPX/HPX`, 128x128 tiles (`TILv/TIDi`) stored in the `mkBT` chunks
-  (8-byte id header, zlib, ARGB, straight alpha). Text elements carry a cached rendering as an `IMGv`,
-  which is used as is.
+  (8-byte id header, zlib, ARGB, straight alpha).
+- Text: `TXTv` with style runs `TFSv` (`TRNs` text, `FONs` font, `PTSf` size in px, `BOLb`, `ITLb`, `FCLi`
+  colour, `KRNf` tracking in tenths of an em), alignment `JSTi` (0 left, 1 centre, 2 right, 3 justified),
+  baseline anchor `LFA/TOA` (left edge, centre or right edge by `JST`), optional `MTXv` matrix
+  (`M00 M01 M10 M11 M20 M21`), plus a cached rendering as an `IMGv`.
+  Text is written as real SVG `<text>` (sharp at any scale; needs the fonts installed: Corbel, Courier New,
+  Lucida Console; DejaVu Sans Mono falls back to Consolas). "Courier" was the Windows bitmap font, drawn at
+  1.5x Courier New's size. Justified or multi-line text keeps the cached bitmap; `FW_TEXT=bitmap` uses the
+  cached bitmaps for all text.
 - `EFDv` is Fireworks' list of available effects, not effects applied to elements.
 
 ## Fidelity (against the flattened image in the same file)
-Mean difference 0.97/255, 0.40 % of pixels off by more than 40. Known differences: the heavier
-"Crosshatch 3" texture is slightly less saturated, anti-aliasing of the knob tick rings and some
-gradient edges. Text and the knob tick wells are bitmaps in the source, so they do not get sharper at 2x.
+Mean difference 1.81/255, 1.22 % of pixels off by more than 40 (0.97 and 0.40 % with `FW_TEXT=bitmap`; the
+rest is the browser's text anti-aliasing against Fireworks'). Known differences: the heavier "Crosshatch 3"
+texture is slightly less saturated, anti-aliasing of the knob tick rings and some gradient edges. The
+knob tick wells are bitmaps in the source, so they do not get sharper at 2x.
