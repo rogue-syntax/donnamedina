@@ -1,25 +1,31 @@
 #pragma once
 // Editor geometry shared by the controller, NVGViewController and NVGView.
 //
-// The editor window is kEditorWidth x kEditorHeight. The painted panel art (resources/bkg1.png and
-// dm_about_window.png, both 1148x542) is drawn at (kArtOffsetX, kArtOffsetY), so the art can be moved
-// without re-exporting it. The control positions in vstgui.uidesc are in window coordinates and were
-// shifted by the same offset when it was introduced (2026-11-13: -35,-15, window widened to 1248).
-// Coordinates written for the art (hard-coded positions in NVGView) are converted with artX()/artY().
+// The editor window is kEditorWidth x kEditorHeight. The original panel art is 1148x542; it was
+// moved by (kArtOffsetX, kArtOffsetY) = (-35, -15) when the window was widened to 1248 (2026-11-13).
+// Positions measured on the original art (hard-coded in NVGView) are converted to window
+// coordinates with artX()/artY(); the control positions in vstgui.uidesc are window coordinates.
 //
-// If the background art is re-exported at the window size with the panels already moved, set the
-// offsets to 0 and kArtWidth/kArtHeight to the new image size. Keep the offsets multiples of 5 so the
-// art's 5 px grid lines up with the procedural grid drawn around it (NVGView::drawBkg).
+// Images:
+// - the panel image (resources/bkg1.png) was re-exported at the window size with the panels already
+//   moved (2026-11-16, from fwrksrc/svg): drawn at kPanelImg* (0,0 1248x542);
+// - the about image (dm_about_window.png) is still the original art: drawn at kAboutImg*.
+// Keep image offsets multiples of 5 so the art's 5 px grid lines up with the procedural grid drawn
+// around it (NVGView::drawBkg).
 
 namespace editorLayout {
 
 constexpr int kEditorWidth = 1248;
 constexpr int kEditorHeight = 542;
 
-constexpr int kArtWidth = 1148;
+constexpr int kArtWidth = 1148;  // original art size
 constexpr int kArtHeight = 542;
-constexpr int kArtOffsetX = -35;
+constexpr int kArtOffsetX = -35;  // original art -> window
 constexpr int kArtOffsetY = -15;
+
+struct ImageRect { int x, y, w, h; };
+constexpr ImageRect kPanelImg {0, 0, 1248, 542};                              // bkg1.png
+constexpr ImageRect kAboutImg {kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight};  // dm_about_window.png
 
 // Convert a position in the original 1148x542 art to window coordinates.
 constexpr float artX (float x) { return x + kArtOffsetX; }

@@ -737,6 +737,9 @@ no viewindex at 153!*/
 		else if ((*viewListIter).get()->customRSViewName == "dmAboutWindow") {
 			setupPNG(viewListIter, DM_ABOUT_WINDOW);
 		}
+		else if ((*viewListIter).get()->customRSViewName == "dmTitle") {
+			setupPNG(viewListIter, DM_TITLE);
+		}
 
 	}
 
@@ -805,26 +808,18 @@ no viewindex at 153!*/
 
 		if ( images[intKey] < 1 ) {
 			//SharedPointer<IPlatformBitmap> cbit;
+			// The PNG bytes go to NanoVG directly. They used to be copied into a fixed 205433-byte
+			// array first, which a larger image (the 1248x542 panel art re-encodes bigger) overflowed.
 			cbuf = IPlatformBitmap::createMemoryPNGRepresentation((*theView).get()->getBackground()->getPlatformBitmap());
-			const size_t charSize = cbuf.size();
-			
-			//charBuffer = new unsigned char[charSize];
-			for (size_t i = 0; i < cbuf.size(); i++) {
-				charBuffer[i] = (unsigned char)cbuf[i];
-			}
-
-			images[intKey] = nvgCreateImageMem(vg, 0, charBuffer, (int)charSize);
+			if (!cbuf.empty())
+				images[intKey] = nvgCreateImageMem(vg, 0, reinterpret_cast<unsigned char*>(cbuf.data()), (int)cbuf.size());
 		}
 		
 	}
 
 	void NVGView::resetBKG() {
-		const size_t charSize = cbuf.size();
-		//charBuffer = new unsigned char[charSize];
-		for (size_t i = 0; i < cbuf.size(); i++) {
-			charBuffer[i] = (unsigned char)cbuf[i];
-		}
-		images[0] = nvgCreateImageMem(vg, 0, charBuffer, (int)charSize);
+		if (!cbuf.empty())
+			images[0] = nvgCreateImageMem(vg, 0, reinterpret_cast<unsigned char*>(cbuf.data()), (int)cbuf.size());
 	}
 
 	void NVGView::setupDisplayActive(CView* cvp) {
@@ -2694,12 +2689,12 @@ no viewindex at 153!*/
 		nvgFill(vg);
 	}
 
-	void NVGView::drawGrid() {
+	void NVGView::drawGrid(const ::editorLayout::ImageRect& img) {
 		using namespace ::editorLayout;
-		// Only outside the art: the art has transparent windows that the envelope/LFO displays
+		// Only outside the image: the art has transparent windows that the envelope/LFO displays
 		// (drawn before the background) show through, so the grid must not cover them.
-		const float ax0 = kArtOffsetX, ay0 = kArtOffsetY;
-		const float ax1 = kArtOffsetX + kArtWidth, ay1 = kArtOffsetY + kArtHeight;
+		const float ax0 = img.x, ay0 = img.y;
+		const float ax1 = img.x + img.w, ay1 = img.y + img.h;
 		const float W = kEditorWidth, H = kEditorHeight;
 		const float my0 = ay0 > 0 ? ay0 : 0, my1 = ay1 < H ? ay1 : H;
 		fillGrid(0, 0, W, ay0);                    // above
@@ -2710,13 +2705,13 @@ no viewindex at 153!*/
 
 	void NVGView::drawBkg(RData& reIn) {
 		using namespace ::editorLayout;
-		drawGrid();
+		drawGrid(kPanelImg);
 
-		// The panel art is drawn at its offset (editorLayout.h); the grid fills the rest.
+		// The panel image is drawn at kPanelImg (editorLayout.h); the grid fills the rest, if any.
 		NVGpaint imgPaint;
-		imgPaint = nvgImagePattern(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight, 0.0f, images[MAIN_ROW_BKG], 1.0);
+		imgPaint = nvgImagePattern(vg, kPanelImg.x, kPanelImg.y, kPanelImg.w, kPanelImg.h, 0.0f, images[MAIN_ROW_BKG], 1.0);
 		nvgBeginPath(vg);
-		nvgRect(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight);
+		nvgRect(vg, kPanelImg.x, kPanelImg.y, kPanelImg.w, kPanelImg.h);
 		nvgFillPaint(vg, imgPaint);
 		nvgFill(vg);
 
@@ -2776,12 +2771,12 @@ no viewindex at 153!*/
 			nvgText(vg, px + pw / 3.0f * (i + 0.5f), 506.0f, choLabels[i], NULL);
 	}
 
-	void NVGView::drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy) {
-		using namespace ::editorLayout;
-		// src is in art coordinates; place the art so that src lands at (dx, dy).
-		NVGpaint p = nvgImagePattern(vg, dx - src.x, dy - src.y, kArtWidth, kArtHeight, 0.0f, images[MAIN_ROW_BKG], 1.0f);
+	void NVGView::drawImageAt(int image, float x, float y, float w, float h) {
+		if (images[image] < 1)
+			return;
+		NVGpaint p = nvgImagePattern(vg, x, y, w, h, 0.0f, images[image], 1.0f);
 		nvgBeginPath(vg);
-		nvgRect(vg, dx, dy, src.w, src.h);
+		nvgRect(vg, x, y, w, h);
 		nvgFillPaint(vg, p);
 		nvgFill(vg);
 	}
@@ -3157,7 +3152,7 @@ no viewindex at 153!*/
 
 		// 1. Cover the art's old column (title, pan, control, build info, logo) with grid.
 		const float blankX = artX(kBlankArtX0);
-		fillGrid(blankX, 0, (kArtOffsetX + kArtWidth) - blankX, kEditorHeight);
+		fillGrid(blankX, 0, (kPanelImg.x + kPanelImg.w) - blankX, kEditorHeight);
 
 		// 2. One continuous frame: chamfered top-right and bottom-left corners, like the art's boxes.
 		const float x0 = kX0, x1 = kX1, y0 = kTitle.y0, y1 = kFx.y1, c = 10.0f;
@@ -3192,8 +3187,10 @@ no viewindex at 153!*/
 		const float lx = x0 + 9;  // label / content left edge
 		const float rx = x1 - 9;  // content right edge
 
-		// 3. Title (from the art)
-		drawArtCrop(kTitleArt, floorf(kCenterX - kTitleArt.w * 0.5f), floorf(kTitle.y0 + (kTitle.h() - kTitleArt.h) * 0.5f));
+		// 3. Title (dm_title.png: cut from the original art, which had it at kTitleArt; the 1248 panel
+		// image no longer has the old right column)
+		drawImageAt(DM_TITLE, floorf(kCenterX - kTitleArt.w * 0.5f), floorf(kTitle.y0 + (kTitle.h() - kTitleArt.h) * 0.5f),
+		            kTitleArt.w, kTitleArt.h);
 
 		// 4. Preset bar: < name > SAVE RND (drawPresetBar; PresetBarView handles the mouse)
 		drawInset(lx, kPreset.y0 + 3, rx - lx, kPreset.h() - 6, kColDimFrame);
@@ -3360,11 +3357,11 @@ no viewindex at 153!*/
 			using namespace ::editorLayout;
 			// The about art is the same size as the panel art; fill the space around it with the grid
 			// so controls added outside the art do not show through.
-			drawGrid();
+			drawGrid(kAboutImg);
 			NVGpaint imgPaint;
-			imgPaint = nvgImagePattern(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight, 0.0f, images[DM_ABOUT_WINDOW], 1.0);
+			imgPaint = nvgImagePattern(vg, kAboutImg.x, kAboutImg.y, kAboutImg.w, kAboutImg.h, 0.0f, images[DM_ABOUT_WINDOW], 1.0);
 			nvgBeginPath(vg);
-			nvgRect(vg, kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight);
+			nvgRect(vg, kAboutImg.x, kAboutImg.y, kAboutImg.w, kAboutImg.h);
 			nvgFillPaint(vg, imgPaint);
 			nvgFill(vg);
 			nvgClosePath(vg);

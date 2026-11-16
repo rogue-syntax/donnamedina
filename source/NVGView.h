@@ -545,7 +545,6 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		//BaseController* baseController;
 		bool regKeyLegit = true;
 		PNGBitmapBuffer cbuf;
-		unsigned char charBuffer[205433] = { 0 };
 		char* charBuffy;
 		bool* isCreatedPtr = nullptr;
 		void resetBKG();
@@ -1044,10 +1043,11 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		const int MAIN_ROW_BKG = 10;
 		const int DM_ABOUT_WINDOW = 11;
 		const int GRID_TILE = 12;   // 5x5 repeating tile of the art's background grid (drawBkg)
+		const int DM_TITLE = 13;    // "DONNA MEDINA" title, cut from the original art (dm_title.png, 143x63)
 
 		// Fills the editor outside the art with the art's background grid (the area the wider
 		// window adds around the 1148x542 art, see editorLayout.h).
-		void drawGrid();
+		void drawGrid(const ::editorLayout::ImageRect& img);
 		// Fills a rectangle with the art's grid (aligned to the window origin like the art).
 		void fillGrid(float x, float y, float w, float h);
 
@@ -1069,7 +1069,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		std::chrono::steady_clock::time_point voiceViewTime;
 		bool voiceViewTimeValid = false;
 		void drawColumnSectionLabel(float x, float y, const char* text);
-		void drawArtCrop(const ::editorLayout::column::Rect& src, float dx, float dy);
+		void drawImageAt(int image, float x, float y, float w, float h);
 		void drawKnobWell(const ::editorLayout::column::Rect& knob, int ticks);
 		void drawInset(float x, float y, float w, float h, NVGcolor border);
 

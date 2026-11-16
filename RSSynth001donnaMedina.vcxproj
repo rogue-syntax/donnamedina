@@ -398,6 +398,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <Image Include="resources\BKG1.png" />
     <Image Include="resources\decay_overlay.png" />
     <Image Include="resources\dm_about_window.png" />
+    <Image Include="resources\dm_title.png" />
     <Image Include="resources\dx100algos1.png" />
     <Image Include="resources\fine_tuning_icon.png" />
     <Image Include="resources\groupframe.png" />
