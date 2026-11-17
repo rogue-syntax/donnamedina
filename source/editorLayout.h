@@ -41,6 +41,13 @@ constexpr int kGridStep = 5;
 constexpr ImageRect kDisplayWin[6] {{15, 303, 138, 51}, {166, 303, 135, 51}, {314, 303, 135, 51},
                                     {462, 303, 135, 51}, {610, 303, 135, 51}, {758, 303, 138, 51}};
 
+// STEP CTRL section (2026-11-17): drawn kStepDY lower than in bkg1.png and the SVG. NVGView::drawBkg
+// draws the art rectangle kStepArt (step buttons, STEP CTRL frame, STEP CTRL TARGET label) shifted;
+// the vstgui.uidesc origins of the step buttons, #stepCtrlTarg and the chorus knobs include the
+// offset, and drawBlockFx offsets the step button outlines (blockMap row 2).
+constexpr int kStepDY = 10;
+constexpr ImageRect kStepArt {0, 455, 745, 65};
+
 // Right column (window coordinates), drawn by NVGView::drawRightColumn over the grid.
 namespace column {
 constexpr float kX0 = 928.0f;
@@ -48,15 +55,19 @@ constexpr float kX1 = 1240.0f;
 constexpr float kCenterX = (kX0 + kX1) * 0.5f;
 
 struct Band { float y0, y1; constexpr float h () const { return y1 - y0; } };
+// Everything below the title moved down kDY (2026-11-17) so the DELAY labels share a row with the
+// STEP CTRL TARGET and CHORUS labels. The vstgui.uidesc origins of the column controls (presetBar,
+// polyCount, master/play/delay knobs, HQ/VEL toggles) include it too.
+constexpr float kDY = 16.0f;
 constexpr Band kTitle {3.0f, 71.0f};
-constexpr Band kPreset {77.0f, 105.0f};
-constexpr Band kReadout {111.0f, 175.0f};
-constexpr Band kScope {181.0f, 305.0f};   // waveform over the sounding voices (voices band merged in)
-constexpr Band kMaster {311.0f, 379.0f};
+constexpr Band kPreset {77.0f + kDY, 105.0f + kDY};
+constexpr Band kReadout {111.0f + kDY, 175.0f + kDY};
+constexpr Band kScope {181.0f + kDY, 305.0f + kDY};   // waveform over the sounding voices (voices band merged in)
+constexpr Band kMaster {311.0f + kDY, 379.0f + kDY};
 // Below the master row (2026-11-15; the logo band was here): PLAY and FX rows of four knob slots
 // (slotCenterX), the knob tops at y0 + kRowKnobDY (30 px knobs), labels at y0 + kRowLabelDY.
-constexpr Band kPlay {385.0f, 449.0f};
-constexpr Band kFx {455.0f, 518.0f};
+constexpr Band kPlay {385.0f + kDY, 449.0f + kDY};
+constexpr Band kFx {455.0f + kDY, 518.0f + kDY};
 constexpr float kRowKnobDY = 17.0f, kRowLabelDY = 50.0f;
 constexpr float kSlotX0 = 937.0f, kSlotW = 73.5f;
 constexpr float slotCenterX (int i) { return kSlotX0 + kSlotW * (i + 0.5f); }
@@ -67,10 +78,10 @@ constexpr Rect kTitleArt {967.0f, 29.0f, 143.0f, 63.0f};
 
 // Master row knobs, four equal slots (must match the origins/sizes of #masterVol, #panLR, #panLREnv,
 // #panLREnvSrc in vstgui.uidesc).
-constexpr Rect kVolKnob {954.0f, 328.0f, 40.0f, 40.0f};
-constexpr Rect kPanKnob {1027.0f, 328.0f, 40.0f, 40.0f};
-constexpr Rect kPanAmtKnob {1106.0f, 333.0f, 30.0f, 30.0f};
-constexpr Rect kPanSrcKnob {1179.0f, 333.0f, 30.0f, 30.0f};
+constexpr Rect kVolKnob {954.0f, 328.0f + kDY, 40.0f, 40.0f};
+constexpr Rect kPanKnob {1027.0f, 328.0f + kDY, 40.0f, 40.0f};
+constexpr Rect kPanAmtKnob {1106.0f, 333.0f + kDY, 30.0f, 30.0f};
+constexpr Rect kPanSrcKnob {1179.0f, 333.0f + kDY, 30.0f, 30.0f};
 // #moreInfo (opens the about window) sits on the title (the logo it used to cover is gone).
 constexpr Rect kMoreInfo {1012.0f, 6.0f, 143.0f, 63.0f};
 } // namespace column

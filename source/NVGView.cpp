@@ -2831,7 +2831,8 @@ no viewindex at 153!*/
 	//     strips), with a small spark where the front meets a trace. The border is not part of the pass.
 	// Additive blending throughout; drawn by drawBkg over the art and under the controls.
 	namespace {
-		const float kBlockFxDur = 0.9f;  // energy pass, seconds
+		const float kBlockFxDur = 0.9f;   // energy pass, seconds
+		const float kBlockFxGain = 0.5f;  // energy pass opacity (halved 2026-11-17: subtler)
 
 		float smooth01(float a, float b, float x) {
 			float t = (x - a) / (b - a);
@@ -2839,15 +2840,22 @@ no viewindex at 153!*/
 			return t * t * (3.0f - 2.0f * t);
 		}
 
+		// the STEP CTRL buttons (row 2) are drawn editorLayout::kStepDY below their place in the art
+		float blockDY(const blockMap::Block& b) {
+			return b.row == 2 ? static_cast<float>(::editorLayout::kStepDY) : 0.0f;
+		}
+
 		void blockPath(NVGcontext* vg, const blockMap::Block& b) {
+			const float dy = blockDY(b);
 			nvgBeginPath(vg);
-			nvgMoveTo(vg, b.p[0].x, b.p[0].y);
+			nvgMoveTo(vg, b.p[0].x, b.p[0].y + dy);
 			for (int i = 1; i < b.n; i++)
-				nvgLineTo(vg, b.p[i].x, b.p[i].y);
+				nvgLineTo(vg, b.p[i].x, b.p[i].y + dy);
 			nvgClosePath(vg);
 		}
 
 		bool inBlock(const blockMap::Block& b, float x, float y) {
+			y -= blockDY(b);
 			bool c = false;
 			for (int i = 0, j = b.n - 1; i < b.n; j = i++) {
 				const float xi = b.p[i].x, yi = b.p[i].y, xj = b.p[j].x, yj = b.p[j].y;
@@ -2866,6 +2874,8 @@ no viewindex at 153!*/
 				y0 = std::min(y0, b.p[i].y);
 				y1 = std::max(y1, b.p[i].y);
 			}
+			y0 += blockDY(b);
+			y1 += blockDY(b);
 		}
 	}
 
@@ -2901,7 +2911,7 @@ no viewindex at 153!*/
 				hit = blockHover;
 		}
 		if (hit != blockHover) {
-			if (hit >= 0) {
+			if (hit >= 0 && blockMap::kBlocks[hit].row < 2) {  // the step buttons have no traces: glow and lift only
 				blockFxOn[hit] = true;
 				blockFxT[hit] = 0.0f;
 			}
@@ -2917,7 +2927,7 @@ no viewindex at 153!*/
 					blockFxOn[i] = false;
 			}
 		}
-		if (blockFxFreeze >= 0.0f && blockHover >= 0) {
+		if (blockFxFreeze >= 0.0f && blockHover >= 0 && blockMap::kBlocks[blockHover].row < 2) {
 			blockAmt[blockHover] = 1.0f;
 			blockFxOn[blockHover] = true;
 			blockFxT[blockHover] = blockFxFreeze * kBlockFxDur;
@@ -2960,8 +2970,10 @@ no viewindex at 153!*/
 			// area: a light cyan lift, stronger at the top (not over an ENV/LFO display window)
 			if (amt > 0.004f) {
 				blockPath(vg, b);
-				const int win = bi - (blockMap::kBlockCount - 6);
-				if (b.row == 1 && win >= 0 && win < 6) {
+				int win = 0;  // index of the block among the ENV/LFO blocks = its display window
+				for (int k = 0; k < bi; k++)
+					win += blockMap::kBlocks[k].row == 1 ? 1 : 0;
+				if (b.row == 1 && win < 6) {
 					const ImageRect& r = kDisplayWin[win];
 					nvgRect(vg, static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.w), static_cast<float>(r.h));
 					nvgPathWinding(vg, NVG_HOLE);
@@ -3012,7 +3024,7 @@ no viewindex at 153!*/
 				yb = std::min(yb, by1 + 2.0f);
 				if (yb <= ya)
 					continue;
-				a *= env;
+				a *= env * kBlockFxGain;
 				nvgScissor(vg, bx0 - 6.0f, ya, bx1 - bx0 + 12.0f, yb - ya);
 				trace.innerColor = nvgRGBAf(0.55f, 0.93f, 1.0f, a);
 				blockPath(vg, b);
@@ -3036,7 +3048,7 @@ no viewindex at 153!*/
 			auto spark = [&](float x, float y, float s) {
 				nvgBeginPath(vg);
 				nvgCircle(vg, x, y, 6.0f);
-				nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0.5f, 6.0f, nvgRGBAf(0.7f, 0.96f, 1.0f, 0.5f * s * env), nvgRGBAf(0.2f, 0.7f, 1.0f, 0.0f)));
+				nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0.5f, 6.0f, nvgRGBAf(0.7f, 0.96f, 1.0f, 0.5f * s * env * kBlockFxGain), nvgRGBAf(0.2f, 0.7f, 1.0f, 0.0f)));
 				nvgFill(vg);
 			};
 			const unsigned char* m = &traceMask[static_cast<size_t>(row) * W];
@@ -3077,6 +3089,14 @@ no viewindex at 153!*/
 		imgPaint = nvgImagePattern(vg, kPanelImg.x, kPanelImg.y, kPanelImg.w, kPanelImg.h, 0.0f, images[MAIN_ROW_BKG], 1.0);
 		nvgBeginPath(vg);
 		nvgRect(vg, kPanelImg.x, kPanelImg.y, kPanelImg.w, kPanelImg.h);
+		nvgRect(vg, kStepArt.x, kStepArt.y, kStepArt.w, kStepArt.h);
+		nvgPathWinding(vg, NVG_HOLE);
+		nvgFillPaint(vg, imgPaint);
+		nvgFill(vg);
+		// the STEP CTRL section of the art, kStepDY lower (kStepDY is a multiple of the 5 px grid)
+		imgPaint = nvgImagePattern(vg, kPanelImg.x, kPanelImg.y + kStepDY, kPanelImg.w, kPanelImg.h, 0.0f, images[MAIN_ROW_BKG], 1.0);
+		nvgBeginPath(vg);
+		nvgRect(vg, kStepArt.x, kStepArt.y + kStepDY, kStepArt.w, kStepArt.h);
 		nvgFillPaint(vg, imgPaint);
 		nvgFill(vg);
 
@@ -3107,10 +3127,10 @@ no viewindex at 153!*/
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 4; i++)
 			nvgText(vg, slotCenterX(i), kPlay.y0 + kRowLabelDY, labels[i], NULL);
-		// the HQ (#hqMode, 1150,388) and VEL (#exprVel, 1194,388) toggles are labelled to their right
+		// the HQ (#hqMode, 1150,404) and VEL (#exprVel, 1194,404) toggles are labelled to their right
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-		nvgText(vg, 1164.0f, 393.5f, "HQ", NULL);
-		nvgText(vg, 1208.0f, 393.5f, "VEL", NULL);
+		nvgText(vg, 1164.0f, 393.5f + kDY, "HQ", NULL);
+		nvgText(vg, 1208.0f, 393.5f + kDY, "VEL", NULL);
 
 		// FX row: the ping-pong delay (the chorus sits in the panel next to STEP CTRL TARGET)
 		drawColumnSectionLabel(lx, kFx.y0 + 2, "DELAY");
@@ -3125,9 +3145,9 @@ no viewindex at 153!*/
 			nvgText(vg, slotCenterX(i), kFx.y0 + kRowLabelDY, fxLabels[i], NULL);
 
 		// CHORUS, right of STEP CTRL TARGET, no frame (2026-11-17): the knobs (#choRate/#choDepth/#choMix,
-		// origins 760/810/860,478) sit under LFO 3's knobs; the label bottoms line up with the bottom of
-		// the art's STEP CTRL TARGET label (y 517).
-		drawColumnSectionLabel(747.0f, 459.0f, "CHORUS");
+		// origins 760/810/860,488) sit under LFO 3's knobs; the label bottoms line up with the bottom of
+		// the art's STEP CTRL TARGET label (y 517 + kStepDY), and with the DELAY labels (kFx).
+		drawColumnSectionLabel(747.0f, 469.0f, "CHORUS");
 		static const char* const choLabels[3] = {"RATE", "DEPTH", "MIX"};
 		static const float choX[3] = {775.0f, 825.0f, 875.0f};
 		nvgFontSize(vg, 9.0f);
@@ -3135,7 +3155,7 @@ no viewindex at 153!*/
 		nvgFillColor(vg, kColLabel);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 3; i++)
-			nvgText(vg, choX[i], 511.0f, choLabels[i], NULL);
+			nvgText(vg, choX[i], 521.0f, choLabels[i], NULL);
 	}
 
 	void NVGView::drawImageAt(int image, float x, float y, float w, float h) {

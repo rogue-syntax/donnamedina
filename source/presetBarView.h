@@ -11,14 +11,14 @@ namespace presetBar {
 
 enum Zone { kNone = -1, kPrev = 0, kName, kNext, kSave, kRnd, kZoneCount };
 
-// Zone rectangles in window coordinates (inside the PRESET inset: x 937..1231, y 80..102).
-constexpr editorLayout::column::Rect kBar {937.0f, 80.0f, 294.0f, 22.0f};
+// Zone rectangles in window coordinates (inside the PRESET inset: x 937..1231, y 80..102 + column::kDY).
+constexpr editorLayout::column::Rect kBar {937.0f, 80.0f + editorLayout::column::kDY, 294.0f, 22.0f};
 constexpr editorLayout::column::Rect kZones[kZoneCount] = {
-	{937.0f, 80.0f, 22.0f, 22.0f},    // <
-	{961.0f, 80.0f, 172.0f, 22.0f},   // name (opens the preset menu)
-	{1135.0f, 80.0f, 22.0f, 22.0f},   // >
-	{1161.0f, 80.0f, 36.0f, 22.0f},   // SAVE
-	{1199.0f, 80.0f, 32.0f, 22.0f},   // RND
+	{937.0f, 80.0f + editorLayout::column::kDY, 22.0f, 22.0f},    // <
+	{961.0f, 80.0f + editorLayout::column::kDY, 172.0f, 22.0f},   // name (opens the preset menu)
+	{1135.0f, 80.0f + editorLayout::column::kDY, 22.0f, 22.0f},   // >
+	{1161.0f, 80.0f + editorLayout::column::kDY, 36.0f, 22.0f},   // SAVE
+	{1199.0f, 80.0f + editorLayout::column::kDY, 32.0f, 22.0f},   // RND
 };
 
 inline int zoneAt(float x, float y) {
@@ -36,7 +36,7 @@ inline int zoneAt(float x, float y) {
 // an invisible view too (custom view "polyCount"): drag up/down or the mouse wheel changes the limit,
 // a click without dragging opens a menu of common values. NVGView draws the plate (drawScopeInfo).
 namespace polyZone {
-constexpr editorLayout::column::Rect kRect {937.0f, 201.0f, 132.0f, 13.0f};
+constexpr editorLayout::column::Rect kRect {937.0f, 201.0f + editorLayout::column::kDY, 132.0f, 13.0f};
 }
 
 namespace Steinberg { namespace Vst { namespace rs {

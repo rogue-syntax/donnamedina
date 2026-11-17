@@ -5,7 +5,9 @@
 Reads the Affinity export of the panel (viewBox scaled to the 1248x542 window) and writes a header with
   - kBlocks: the outline (stroke centre line) of each control block, found as the closed paths stroked
     with the frame cyan #04bae8: the 16 tall blocks of the MAIN OSC / MOD OSC / GLOBAL row (195 px) and
-    the 6 ENV/LFO blocks (100 px), named left to right;
+    the 6 ENV/LFO blocks (100 px) and the 12 STEP CTRL buttons (44x35, row 2), named left to right.
+    The outlines are as in the art; the editor draws the STEP CTRL section editorLayout::kStepDY lower
+    and offsets row 2 itself;
   - kTrace: the pixels of the faint PCB traces, from the embedded bitmaps placed with <use> (the main
     osc sheet and the mod block strip, repeated per block), in window coordinates, without the pixels
     hidden by solid shapes drawn above them (knob wells etc.).
@@ -24,6 +26,7 @@ TOP_NAMES = ['OSC', 'WIDTH', 'TUNE', 'FINE', 'OCT', 'INT',
              'MOD OSC/TYPE', 'MOD GAIN', 'MOD WIDTH', 'MOD TUNE', 'MOD FINE', 'MOD OCT', 'MOD INT', 'MOD BEAT',
              'GLOBAL GAIN', 'GLOBAL FILTER']
 ENV_NAMES = ['AMP ENV', 'ENV TWO', 'ENV THREE', 'LFO ONE', 'LFO TWO', 'LFO THREE']
+STEP_NAMES = ['STEP %d' % i for i in range(12)]
 
 
 # ---- geometry ---------------------------------------------------------------------------------
@@ -225,7 +228,7 @@ def clean(pts):
             k += 1
     return out
 
-top, env = [], []
+top, env, step = [], [], []
 for kind, st, subs in items:
     if kind != 'shape' or st.get('stroke', '').lower() != '#04bae8' or st.get('op', 1.0) < 0.5:
         continue
@@ -238,9 +241,12 @@ for kind, st, subs in items:
             top.append(clean(pts))
         elif 130 < w < 150 and 95 < h < 105:
             env.append(clean(pts))
-top.sort(key=lambda p: min(q[0] for q in p)); env.sort(key=lambda p: min(q[0] for q in p))
-assert len(top) == len(TOP_NAMES) and len(env) == len(ENV_NAMES), (len(top), len(env))
-blocks = [(n, 0, p) for n, p in zip(TOP_NAMES, top)] + [(n, 1, p) for n, p in zip(ENV_NAMES, env)]
+        elif 40 < w < 50 and 30 < h < 40 and max(ys) < 500:
+            step.append(clean(pts))
+top.sort(key=lambda p: min(q[0] for q in p)); env.sort(key=lambda p: min(q[0] for q in p)); step.sort(key=lambda p: min(q[0] for q in p))
+assert len(top) == len(TOP_NAMES) and len(env) == len(ENV_NAMES) and len(step) == len(STEP_NAMES), (len(top), len(env), len(step))
+blocks = [(n, 0, p) for n, p in zip(TOP_NAMES, top)] + [(n, 1, p) for n, p in zip(ENV_NAMES, env)] + \
+         [(n, 2, p) for n, p in zip(STEP_NAMES, step)]
 
 
 # ---- trace pixels -------------------------------------------------------------------------------
@@ -288,7 +294,8 @@ L.append('namespace blockMap {')
 L.append('')
 L.append('struct Pt { float x, y; };')
 L.append('constexpr int kMaxPts = %d;' % max(len(p) for _, _, p in blocks))
-L.append('// row 0: MAIN OSC / MOD OSC / GLOBAL blocks, row 1: ENV/LFO blocks. Outline = stroke centre line.')
+L.append('// row 0: MAIN OSC / MOD OSC / GLOBAL blocks, row 1: ENV/LFO blocks, row 2: STEP CTRL buttons (as in')
+L.append('// the art: the editor draws them editorLayout::kStepDY lower). Outline = stroke centre line.')
 L.append('struct Block { const char* name; int row; int n; Pt p[kMaxPts]; };')
 L.append('constexpr int kBlockCount = %d;' % len(blocks))
 L.append('constexpr Block kBlocks[kBlockCount] = {')
