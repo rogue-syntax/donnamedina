@@ -1421,6 +1421,9 @@ no viewindex at 153!*/
 			nvgBeginFrame(vg, ::editorLayout::kEditorWidth, ::editorLayout::kEditorHeight, 1);
 			frameBegun = true;
 
+			// grid and dark display windows, under the envelopes and the art
+			drawPanelBase();
+
 			//dravw envs
 			nvgLineJoin(vg, NVG_ROUND);
 			nvgLineCap(vg, NVG_ROUND);
@@ -2817,11 +2820,20 @@ no viewindex at 153!*/
 		fillGrid(ax1, my0, W - ax1, my1 - my0);    // right
 	}
 
+	void NVGView::drawPanelBase() {
+		using namespace ::editorLayout;
+		fillGrid(0, 0, static_cast<float>(kEditorWidth), static_cast<float>(kEditorHeight));
+		for (const ImageRect& r : kDisplayWin) {
+			nvgBeginPath(vg);
+			nvgRect(vg, static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.w), static_cast<float>(r.h));
+			nvgFillColor(vg, nvgRGBA(0, 0, 0, 255));
+			nvgFill(vg);
+		}
+	}
+
 	void NVGView::drawBkg(RData& reIn) {
 		using namespace ::editorLayout;
-		drawGrid(kPanelImg);
-
-		// The panel image is drawn at kPanelImg (editorLayout.h); the grid fills the rest, if any.
+		// The panel image is drawn at kPanelImg (editorLayout.h), over the grid of drawPanelBase.
 		NVGpaint imgPaint;
 		imgPaint = nvgImagePattern(vg, kPanelImg.x, kPanelImg.y, kPanelImg.w, kPanelImg.h, 0.0f, images[MAIN_ROW_BKG], 1.0);
 		nvgBeginPath(vg);
@@ -3263,10 +3275,6 @@ no viewindex at 153!*/
 	void NVGView::drawRightColumn() {
 		using namespace ::editorLayout;
 		using namespace ::editorLayout::column;
-
-		// 1. Cover the art's old column (title, pan, control, build info, logo) with grid.
-		const float blankX = artX(kBlankArtX0);
-		fillGrid(blankX, 0, (kPanelImg.x + kPanelImg.w) - blankX, kEditorHeight);
 
 		// 2026-11-16: no frame, separators or title for now; the content floats on the grid while the
 		// final placement (and the logo) is worked out. kX0/kX1 still set the content edges.

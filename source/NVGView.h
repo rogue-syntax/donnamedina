@@ -1056,6 +1056,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		void drawGrid(const ::editorLayout::ImageRect& img);
 		// Fills a rectangle with the art's grid (aligned to the window origin like the art).
 		void fillGrid(float x, float y, float w, float h);
+		void drawPanelBase();  // grid over the window + dark display windows, first in the frame
 
 		// Right column (editorLayout::column): covers the art's old column with grid and draws the
 		// new framed column (title, preset, readout, scope, master, voices, logo). Called from drawBkg,

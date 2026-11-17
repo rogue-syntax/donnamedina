@@ -31,14 +31,18 @@ constexpr ImageRect kAboutImg {kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight};
 constexpr float artX (float x) { return x + kArtOffsetX; }
 constexpr float artY (float y) { return y + kArtOffsetY; }
 
-// Background grid of the art: 5 px cells, line colour on multiples of 5.
+// Background grid: 5 px cells, line colour on multiples of 5. Drawn live over the whole window
+// under bkg1.png, which is transparent outside the panels (2026-11-16), so it shows wherever the
+// art leaves space (NVGView::drawPanelBase).
 constexpr int kGridStep = 5;
 
-// Right column (window coordinates), drawn by NVGView::drawRightColumn. The art's own right column
-// (title, pan, control, build info, logo boxes) is covered with grid from kBlankArtX0 (art x) rightwards;
-// the title and logo are redrawn from the art at the positions below.
+// Transparent display windows of bkg1.png (window coordinates): the three envelopes and the three
+// LFOs, drawn before the art. drawPanelBase fills them dark so the grid stays out of the displays.
+constexpr ImageRect kDisplayWin[6] {{15, 303, 138, 51}, {166, 303, 135, 51}, {314, 303, 135, 51},
+                                    {462, 303, 135, 51}, {610, 303, 135, 51}, {758, 303, 138, 51}};
+
+// Right column (window coordinates), drawn by NVGView::drawRightColumn over the grid.
 namespace column {
-constexpr float kBlankArtX0 = 950.0f;
 constexpr float kX0 = 928.0f;
 constexpr float kX1 = 1240.0f;
 constexpr float kCenterX = (kX0 + kX1) * 0.5f;
