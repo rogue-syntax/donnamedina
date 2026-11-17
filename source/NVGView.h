@@ -765,7 +765,6 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float blockAmt[32] = {};        // hover amount per block (eased 0..1)
 		float blockFxT[32] = {};        // time into the energy pass per block (s)
 		bool blockFxOn[32] = {};
-		std::vector<unsigned char> traceMask;  // alpha of the trace pixels, kEditorWidth x kEditorHeight
 		// test hooks (editor_cycle EDITOR_SHOT_BLOCK): force the hovered block, freeze the pass (0..1)
 		int blockHoverForce = -1;
 		float blockFxFreeze = -1.0f;

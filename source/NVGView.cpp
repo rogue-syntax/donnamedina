@@ -2828,7 +2828,7 @@ no viewindex at 153!*/
 	//   - border glow and a light cyan lift of its area, eased in/out (blockAmt);
 	//   - on entering, one pass of energy (0.9 s): a bright front with a fading tail runs down the
 	//     block, lighting the traces it crosses (a tinted copy of the trace mask, scissored to thin
-	//     strips), with a small spark where the front meets a trace. The border is not part of the pass.
+	//     strips). No sparks, and the border is not part of the pass (2026-11-17).
 	// Additive blending throughout; drawn by drawBkg over the art and under the controls.
 	namespace {
 		const float kBlockFxDur = 0.9f;   // energy pass, seconds
@@ -2939,7 +2939,6 @@ no viewindex at 153!*/
 		const int W = kEditorWidth, H = kEditorHeight;
 		if (images[TRACE_MASK] < 1) {
 			// The traces are painted at alpha <= ~100; the mask is scaled so a trace is fully lit.
-			traceMask.assign(static_cast<size_t>(W) * H, 0);
 			std::vector<unsigned char> rgba(static_cast<size_t>(W) * H * 4, 0);
 			for (int i = 0; i < blockMap::kTraceCount; i++) {
 				const blockMap::TracePx& t = blockMap::kTrace[i];
@@ -2947,7 +2946,6 @@ no viewindex at 153!*/
 					continue;
 				const size_t k = static_cast<size_t>(t.y) * W + t.x;
 				const unsigned char a = static_cast<unsigned char>(std::min(255, t.a * 255 / 90));
-				traceMask[k] = a;
 				rgba[k * 4 + 0] = rgba[k * 4 + 1] = rgba[k * 4 + 2] = 255;
 				rgba[k * 4 + 3] = a;
 			}
@@ -3040,33 +3038,6 @@ no viewindex at 153!*/
 				}
 			}
 			nvgResetScissor(vg);
-
-			// sparks where the front crosses a trace (run centres in the mask row)
-			const int row = static_cast<int>(front);
-			if (row < 0 || row >= H || front > by1)
-				continue;
-			auto spark = [&](float x, float y, float s) {
-				nvgBeginPath(vg);
-				nvgCircle(vg, x, y, 6.0f);
-				nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0.5f, 6.0f, nvgRGBAf(0.7f, 0.96f, 1.0f, 0.5f * s * env * kBlockFxGain), nvgRGBAf(0.2f, 0.7f, 1.0f, 0.0f)));
-				nvgFill(vg);
-			};
-			const unsigned char* m = &traceMask[static_cast<size_t>(row) * W];
-			int x = std::max(0, static_cast<int>(bx0));
-			const int xe = std::min(W - 1, static_cast<int>(bx1));
-			while (x <= xe) {
-				if (m[x] < 60) {
-					x++;
-					continue;
-				}
-				int r = x;
-				while (r + 1 <= xe && m[r + 1] >= 60)
-					r++;
-				const float cx = 0.5f * (x + r) + 0.5f;
-				if (r - x < 6 && inBlock(b, cx, front))
-					spark(cx, front + 1.0f, 1.0f);
-				x = r + 1;
-			}
 		}
 		nvgRestore(vg);
 	}
