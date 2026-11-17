@@ -1819,8 +1819,9 @@ no viewindex at 153!*/
 		using ::editorLayout::artY;
 		// letters under the controls (art coordinates of the original letters)
 		struct P { float x, y; };
+		// (F/G/H moved 37 px right on 2026-11-16: to the upper right of each LFO's rate knob)
 		static const P kCol[8] = {{293.0f, 277.3f}, {344.5f, 277.0f}, {671.5f, 277.0f}, {722.5f, 277.0f},
-		                          {773.5f, 277.0f}, {500.0f, 378.0f}, {648.0f, 378.0f}, {795.5f, 378.0f}};
+		                          {773.5f, 277.0f}, {537.0f, 378.0f}, {685.0f, 378.0f}, {832.5f, 378.0f}};
 		int sel = static_cast<int>(baseController->getParamNormalized(STEP_CTRL_TARG) * 100.0 / 12.5);
 		sel = sel < 0 ? 0 : (sel > 7 ? 7 : sel);  // 8 (v = 1) is LFO 3 again
 		if (sel != stepDialSel) {
@@ -3267,43 +3268,11 @@ no viewindex at 153!*/
 		const float blankX = artX(kBlankArtX0);
 		fillGrid(blankX, 0, (kPanelImg.x + kPanelImg.w) - blankX, kEditorHeight);
 
-		// 2. One continuous frame: chamfered top-right and bottom-left corners, like the art's boxes.
-		const float x0 = kX0, x1 = kX1, y0 = kTitle.y0, y1 = kFx.y1, c = 10.0f;
-		nvgBeginPath(vg);
-		nvgMoveTo(vg, x0, y0);
-		nvgLineTo(vg, x1 - c, y0);
-		nvgLineTo(vg, x1, y0 + c);
-		nvgLineTo(vg, x1, y1);
-		nvgLineTo(vg, x0 + c, y1);
-		nvgLineTo(vg, x0, y1 - c);
-		nvgClosePath(vg);
-		NVGpaint fill = nvgLinearGradient(vg, 0, y0, 0, y1, nvgRGBA(32, 4, 14, 235), nvgRGBA(16, 8, 30, 235));
-		nvgFillPaint(vg, fill);
-		nvgFill(vg);
-		nvgStrokeColor(vg, kColFrame);
-		nvgStrokeWidth(vg, 2.0f);
-		nvgStroke(vg);
-
-		// separators between the bands
-		const Band bands[] = {kTitle, kPreset, kReadout, kScope, kMaster, kPlay, kFx};
-		const int nBands = int(sizeof(bands) / sizeof(bands[0]));
-		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 110));
-		nvgStrokeWidth(vg, 1.0f);
-		for (int i = 0; i + 1 < nBands; i++) {
-			const float y = floorf((bands[i].y1 + bands[i + 1].y0) * 0.5f) + 0.5f;
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, x0 + 6, y);
-			nvgLineTo(vg, x1 - 6, y);
-			nvgStroke(vg);
-		}
-
+		// 2026-11-16: no frame, separators or title for now; the content floats on the grid while the
+		// final placement (and the logo) is worked out. kX0/kX1 still set the content edges.
+		const float x0 = kX0, x1 = kX1;
 		const float lx = x0 + 9;  // label / content left edge
 		const float rx = x1 - 9;  // content right edge
-
-		// 3. Title (dm_title.png: cut from the original art, which had it at kTitleArt; the 1248 panel
-		// image no longer has the old right column)
-		drawImageAt(DM_TITLE, floorf(kCenterX - kTitleArt.w * 0.5f), floorf(kTitle.y0 + (kTitle.h() - kTitleArt.h) * 0.5f),
-		            kTitleArt.w, kTitleArt.h);
 
 		// 4. Preset bar: < name > SAVE RND (drawPresetBar; PresetBarView handles the mouse)
 		drawInset(lx, kPreset.y0 + 3, rx - lx, kPreset.h() - 6, kColDimFrame);
