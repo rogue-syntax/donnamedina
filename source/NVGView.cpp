@@ -2911,6 +2911,8 @@ no viewindex at 153!*/
 				hit = blockHover;
 		}
 		if (hit != blockHover) {
+			if (blockHover >= 0)
+				blockFxOn[blockHover] = false;  // leaving a block ends its pass: only the hovered block shows one
 			if (hit >= 0 && blockMap::kBlocks[hit].row < 2) {  // the step buttons have no traces: glow and lift only
 				blockFxOn[hit] = true;
 				blockFxT[hit] = 0.0f;
