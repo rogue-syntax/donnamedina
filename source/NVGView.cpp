@@ -2877,11 +2877,27 @@ no viewindex at 153!*/
 			y0 += blockDY(b);
 			y1 += blockDY(b);
 		}
+
+		// The sections of the right column's frame (row 3, editorLayout::column::kFrame*): glow and lift
+		// only, like the step buttons. Indices after the generated blocks.
+		namespace ec = ::editorLayout::column;
+		const blockMap::Block kColBlocks[] = {
+			{"MASTER", 3, 5, {{ec::kFrameL, ec::kFrameT + 6.0f}, {ec::kFrameL + 6.0f, ec::kFrameT}, {ec::kFrameR, ec::kFrameT}, {ec::kFrameR, ec::kPlayLine}, {ec::kFrameL, ec::kPlayLine}}},
+			{"PLAY", 3, 4, {{ec::kFrameL, ec::kPlayLine}, {ec::kFrameR, ec::kPlayLine}, {ec::kFrameR, ec::kFxLine}, {ec::kFrameL, ec::kFxLine}}},
+			{"DELAY", 3, 5, {{ec::kFrameL, ec::kFxLine}, {ec::kFrameR, ec::kFxLine}, {ec::kFrameR, ec::kFrameB - 12.0f}, {ec::kFrameR - 12.0f, ec::kFrameB}, {ec::kFrameL, ec::kFrameB}}},
+			{"CHORUS", 3, 5, {{ec::kChorusL, ec::kChorusT + 9.0f}, {ec::kChorusL + 9.0f, ec::kChorusT}, {ec::kFrameL, ec::kChorusT}, {ec::kFrameL, ec::kFrameB}, {ec::kChorusL, ec::kFrameB}}},
+		};
+		constexpr int kAllBlocks = blockMap::kBlockCount + static_cast<int>(sizeof(kColBlocks) / sizeof(kColBlocks[0]));
+
+		const blockMap::Block& blockRef(int i) {
+			return i < blockMap::kBlockCount ? blockMap::kBlocks[i] : kColBlocks[i - blockMap::kBlockCount];
+		}
 	}
+	static_assert(kAllBlocks <= NVGView::kMaxBlocks, "NVGView block state arrays too small");
 
 	int NVGView::blockAt(float x, float y) {
-		for (int i = 0; i < blockMap::kBlockCount; i++)
-			if (inBlock(blockMap::kBlocks[i], x, y))
+		for (int i = 0; i < kAllBlocks; i++)
+			if (inBlock(blockRef(i), x, y))
 				return i;
 		return -1;
 	}
@@ -2896,7 +2912,7 @@ no viewindex at 153!*/
 		using namespace ::editorLayout;
 		int hit = -1;
 		if (blockHoverForce >= 0) {
-			hit = blockHoverForce < blockMap::kBlockCount ? blockHoverForce : -1;
+			hit = blockHoverForce < kAllBlocks ? blockHoverForce : -1;
 		}
 		else if (blockMouseValid) {
 			// The frame reports moves but not always the exit from the window: ask where the mouse is.
@@ -2913,13 +2929,13 @@ no viewindex at 153!*/
 		if (hit != blockHover) {
 			if (blockHover >= 0)
 				blockFxOn[blockHover] = false;  // leaving a block ends its pass: only the hovered block shows one
-			if (hit >= 0 && blockMap::kBlocks[hit].row < 2) {  // the step buttons have no traces: glow and lift only
+			if (hit >= 0 && blockRef(hit).row < 2) {  // step buttons and column sections have no traces: glow and lift only
 				blockFxOn[hit] = true;
 				blockFxT[hit] = 0.0f;
 			}
 			blockHover = hit;
 		}
-		for (int i = 0; i < blockMap::kBlockCount; i++) {
+		for (int i = 0; i < kAllBlocks; i++) {
 			const float target = i == blockHover ? 1.0f : 0.0f;
 			const float tau = target > blockAmt[i] ? 0.06f : 0.22f;
 			blockAmt[i] += (target - blockAmt[i]) * (1.0f - std::exp(-frameDt / tau));
@@ -2929,7 +2945,7 @@ no viewindex at 153!*/
 					blockFxOn[i] = false;
 			}
 		}
-		if (blockFxFreeze >= 0.0f && blockHover >= 0 && blockMap::kBlocks[blockHover].row < 2) {
+		if (blockFxFreeze >= 0.0f && blockHover >= 0 && blockRef(blockHover).row < 2) {
 			blockAmt[blockHover] = 1.0f;
 			blockFxOn[blockHover] = true;
 			blockFxT[blockHover] = blockFxFreeze * kBlockFxDur;
@@ -2958,12 +2974,12 @@ no viewindex at 153!*/
 		nvgSave(vg);
 		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
 		nvgLineJoin(vg, NVG_ROUND);
-		for (int bi = 0; bi < blockMap::kBlockCount; bi++) {
+		for (int bi = 0; bi < kAllBlocks; bi++) {
 			const float amt = blockAmt[bi];
 			const bool fx = blockFxOn[bi];
 			if (amt < 0.004f && !fx)
 				continue;
-			const blockMap::Block& b = blockMap::kBlocks[bi];
+			const blockMap::Block& b = blockRef(bi);
 			float bx0, by0, bx1, by1;
 			blockBounds(b, bx0, by0, bx1, by1);
 
@@ -2972,7 +2988,7 @@ no viewindex at 153!*/
 				blockPath(vg, b);
 				int win = 0;  // index of the block among the ENV/LFO blocks = its display window
 				for (int k = 0; k < bi; k++)
-					win += blockMap::kBlocks[k].row == 1 ? 1 : 0;
+					win += blockRef(k).row == 1 ? 1 : 0;
 				if (b.row == 1 && win < 6) {
 					const ImageRect& r = kDisplayWin[win];
 					nvgRect(vg, static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.w), static_cast<float>(r.h));
@@ -3073,8 +3089,8 @@ no viewindex at 153!*/
 		nvgFillPaint(vg, imgPaint);
 		nvgFill(vg);
 
-		drawBlockFx();  // block hover effect, over the art and under the controls
 		drawRightColumn();
+		drawBlockFx();  // block hover effect, over the art and the column frame, under the controls
 	}
 
 	// ---- right column ------------------------------------------------------------------------
@@ -3083,6 +3099,57 @@ no viewindex at 153!*/
 		const NVGcolor kColLabel = nvgRGBA(0, 204, 255, 255);   // label text cyan of the art
 		const NVGcolor kColMagenta = nvgRGBA(93, 32, 93, 255);  // CONTROL box magenta of the art
 		const NVGcolor kColDimFrame = nvgRGBA(4, 186, 232, 120);
+		const NVGcolor kColDivider = nvgRGBA(160, 44, 170, 255);  // section dividers of the frame (drawColumnFrame)
+	}
+
+	// The frame of the lower right (2026-11-17, after the user's mock-up): one outline in the art's
+	// frame cyan around MASTER, PLAY and DELAY that steps left at kChorusT to take in CHORUS, with the
+	// art's chamfered corners and a faint dark fill; magenta dividers: the CHORUS | DELAY separator
+	// (the frame's left edge continued down) and the PLAY and DELAY lines, each with a tab over its
+	// section label (top line, then a slant down to the line, like the art's header tabs).
+	void NVGView::drawColumnFrame() {
+		using namespace ::editorLayout::column;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, kFrameL, kFrameT + 6.0f);
+		nvgLineTo(vg, kFrameL + 6.0f, kFrameT);
+		nvgLineTo(vg, kFrameR, kFrameT);
+		nvgLineTo(vg, kFrameR, kFrameB - 12.0f);
+		nvgLineTo(vg, kFrameR - 12.0f, kFrameB);
+		nvgLineTo(vg, kChorusL, kFrameB);
+		nvgLineTo(vg, kChorusL, kChorusT + 9.0f);
+		nvgLineTo(vg, kChorusL + 9.0f, kChorusT);
+		nvgLineTo(vg, kFrameL, kChorusT);
+		nvgClosePath(vg);
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, kFrameT, 0, kFrameB, nvgRGBA(10, 40, 62, 120), nvgRGBA(2, 10, 20, 150)));
+		nvgFill(vg);
+		nvgLineJoin(vg, NVG_MITER);
+		nvgStrokeColor(vg, kColFrame);
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
+
+		// dividers (magenta)
+		nvgFontSize(vg, 11.0f);
+		nvgFontFace(vg, "lucon");
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+		const float lx = kX0 + 9.0f;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, kFrameL, kChorusT + 1.0f);
+		nvgLineTo(vg, kFrameL, kFrameB - 1.0f);
+		auto line = [&](float y, const char* label) {
+			float bnd[4];
+			const float end = lx + nvgTextBounds(vg, lx, 0, label, NULL, bnd);
+			const float h = 14.0f;
+			nvgMoveTo(vg, kFrameL + 1.0f, y);
+			nvgLineTo(vg, kFrameR - 1.0f, y);
+			nvgMoveTo(vg, kFrameL + 1.0f, y - h);
+			nvgLineTo(vg, end + 5.0f, y - h);
+			nvgLineTo(vg, end + 5.0f + h, y);
+		};
+		line(kPlayLine, "PLAY");
+		line(kFxLine, "DELAY");
+		nvgStrokeColor(vg, kColDivider);
+		nvgStrokeWidth(vg, 1.5f);
+		nvgStroke(vg);
 	}
 
 	// PLAY and FX rows in the right column (2026-11-15): section labels, knob wells and labels; the
@@ -3100,10 +3167,10 @@ no viewindex at 153!*/
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 4; i++)
 			nvgText(vg, slotCenterX(i), kPlay.y0 + kRowLabelDY, labels[i], NULL);
-		// the HQ (#hqMode, 1150,404) and VEL (#exprVel, 1194,404) toggles are labelled to their right
+		// the HQ (#hqMode, 1140,400) and VEL (#exprVel, 1184,400), above the PLAY divider, toggles are labelled to their right
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-		nvgText(vg, 1164.0f, 393.5f + kDY, "HQ", NULL);
-		nvgText(vg, 1208.0f, 393.5f + kDY, "VEL", NULL);
+		nvgText(vg, 1164.0f + kDX, 389.5f + kDY, "HQ", NULL);
+		nvgText(vg, 1208.0f + kDX, 389.5f + kDY, "VEL", NULL);
 
 		// FX row: the ping-pong delay (the chorus sits in the panel next to STEP CTRL TARGET)
 		drawColumnSectionLabel(lx, kFx.y0 + 2, "DELAY");
@@ -3516,19 +3583,37 @@ no viewindex at 153!*/
 		const float lx = x0 + 9;  // label / content left edge
 		const float rx = x1 - 9;  // content right edge
 
+		// a bracket right of a box (2026-11-17)
+		auto bracket = [&](float y0, float y1, NVGcolor c) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, kBracketX - 4.0f, y0);
+			nvgLineTo(vg, kBracketX, y0 + 4.0f);
+			nvgLineTo(vg, kBracketX, y1 - 4.0f);
+			nvgLineTo(vg, kBracketX - 4.0f, y1);
+			nvgStrokeColor(vg, c);
+			nvgStrokeWidth(vg, 1.5f);
+			nvgStroke(vg);
+		};
+
 		// 4. Preset bar: < name > SAVE RND (drawPresetBar; PresetBarView handles the mouse)
 		drawInset(lx, kPreset.y0 + 3, rx - lx, kPreset.h() - 6, kColDimFrame);
+		bracket(kPreset.y0 + 3, kPreset.y1 - 3, kColFrame);
 		drawPresetBar();
 
 		// 5. Readout: parameter name and value slots (text drawn by drawCtrlValueOutput)
 		drawColumnSectionLabel(lx, kReadout.y0 + 2, "CONTROL");
 		drawInset(lx, kReadout.y0 + 17, rx - lx, 20, kColMagenta);
 		drawInset(lx, kReadout.y0 + 41, rx - lx, 20, kColMagenta);
+		bracket(kReadout.y0 + 17, kReadout.y0 + 61, kColDivider);
 
 		// 6. Scope: the latest output frame from the processor, over the sounding voices (drawScope)
 		drawColumnSectionLabel(lx, kScope.y0 + 2, "SCOPE");
 		drawInset(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21, kColDimFrame);
+		bracket(kScope.y0 + 17, kScope.y1 - 4, kColFrame);
 		drawScope(lx, kScope.y0 + 17, rx - lx, kScope.h() - 21);
+
+		// 7a. Frame around MASTER / PLAY / DELAY and CHORUS, with the section dividers
+		drawColumnFrame();
 
 		// 7. Master: volume and pan knobs (a divider between volume and the pan group)
 		drawColumnSectionLabel(lx, kMaster.y0 + 2, "MASTER");

@@ -50,8 +50,11 @@ constexpr ImageRect kStepArt {0, 455, 745, 65};
 
 // Right column (window coordinates), drawn by NVGView::drawRightColumn over the grid.
 namespace column {
-constexpr float kX0 = 928.0f;
-constexpr float kX1 = 1240.0f;
+// The column content moved 10 px left (2026-11-17, kDX) to make room for the frame's right edge and
+// the brackets right of the boxes; the uidesc origins of the column controls include it.
+constexpr float kDX = -10.0f;
+constexpr float kX0 = 928.0f + kDX;
+constexpr float kX1 = 1240.0f + kDX;
 constexpr float kCenterX = (kX0 + kX1) * 0.5f;
 
 struct Band { float y0, y1; constexpr float h () const { return y1 - y0; } };
@@ -69,7 +72,7 @@ constexpr Band kMaster {311.0f + kDY, 379.0f + kDY};
 constexpr Band kPlay {385.0f + kDY, 449.0f + kDY};
 constexpr Band kFx {455.0f + kDY, 518.0f + kDY};
 constexpr float kRowKnobDY = 17.0f, kRowLabelDY = 50.0f;
-constexpr float kSlotX0 = 937.0f, kSlotW = 73.5f;
+constexpr float kSlotX0 = 937.0f + kDX, kSlotW = 73.5f;
 constexpr float slotCenterX (int i) { return kSlotX0 + kSlotW * (i + 0.5f); }
 
 // Source rectangles in the art (art coordinates) for the redrawn title and logo.
@@ -78,10 +81,23 @@ constexpr Rect kTitleArt {967.0f, 29.0f, 143.0f, 63.0f};
 
 // Master row knobs, four equal slots (must match the origins/sizes of #masterVol, #panLR, #panLREnv,
 // #panLREnvSrc in vstgui.uidesc).
-constexpr Rect kVolKnob {954.0f, 328.0f + kDY, 40.0f, 40.0f};
-constexpr Rect kPanKnob {1027.0f, 328.0f + kDY, 40.0f, 40.0f};
-constexpr Rect kPanAmtKnob {1106.0f, 333.0f + kDY, 30.0f, 30.0f};
-constexpr Rect kPanSrcKnob {1179.0f, 333.0f + kDY, 30.0f, 30.0f};
+constexpr Rect kVolKnob {954.0f + kDX, 328.0f + kDY, 40.0f, 40.0f};
+constexpr Rect kPanKnob {1027.0f + kDX, 328.0f + kDY, 40.0f, 40.0f};
+constexpr Rect kPanAmtKnob {1106.0f + kDX, 333.0f + kDY, 30.0f, 30.0f};
+constexpr Rect kPanSrcKnob {1179.0f + kDX, 333.0f + kDY, 30.0f, 30.0f};
+// Frame around MASTER, PLAY and DELAY (2026-11-17), stepping left at kChorusT to take in the CHORUS
+// knobs of the main area (NVGView::drawColumnFrame). Its left edge continues down from kChorusT as
+// the CHORUS | DELAY separator; PLAY and DELAY start at the divider lines kPlayLine / kFxLine. The
+// four sections are hover blocks too (NVGView::drawBlockFx).
+constexpr float kFrameL = kX0 - 4.0f;           // 914
+constexpr float kFrameR = kX1 + 5.0f;           // 1235
+constexpr float kFrameT = kMaster.y0 - 4.0f;    // 323
+constexpr float kFrameB = 536.0f;
+constexpr float kChorusL = 739.0f, kChorusT = 458.0f;
+constexpr float kPlayLine = kPlay.y0 + 12.0f;   // 413
+constexpr float kFxLine = kFx.y0 + 12.0f;       // 483
+// Brackets right of the preset bar, the CONTROL slots and the scope.
+constexpr float kBracketX = kX1 - 2.0f;        // 1228 (the boxes end at kX1 - 9)
 // #moreInfo (opens the about window) sits on the title (the logo it used to cover is gone).
 constexpr Rect kMoreInfo {1012.0f, 6.0f, 143.0f, 63.0f};
 } // namespace column

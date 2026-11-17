@@ -762,9 +762,10 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		CPoint blockMouse {-1, -1};     // last mouse position on the frame
 		bool blockMouseValid = false;
 		int blockHover = -1;            // block under the mouse, -1 none
-		float blockAmt[32] = {};        // hover amount per block (eased 0..1)
-		float blockFxT[32] = {};        // time into the energy pass per block (s)
-		bool blockFxOn[32] = {};
+		static constexpr int kMaxBlocks = 64;  // >= blockMap::kBlockCount + the column sections (checked)
+		float blockAmt[kMaxBlocks] = {};        // hover amount per block (eased 0..1)
+		float blockFxT[kMaxBlocks] = {};        // time into the energy pass per block (s)
+		bool blockFxOn[kMaxBlocks] = {};
 		// test hooks (editor_cycle EDITOR_SHOT_BLOCK): force the hovered block, freeze the pass (0..1)
 		int blockHoverForce = -1;
 		float blockFxFreeze = -1.0f;
@@ -1081,6 +1082,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		// new framed column (title, preset, readout, scope, master, voices, logo). Called from drawBkg,
 		// so it is under the controls.
 		void drawRightColumn();
+		void drawColumnFrame();  // frame and dividers around MASTER / PLAY / DELAY / CHORUS
 		void drawScope(float x, float y, float w, float h);
 		void drawScopeVoices(float ix, float iy, float iw, float ih);
 		void drawScopeInfo(float ix, float iy, float iw, float ih);
