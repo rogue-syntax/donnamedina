@@ -4,6 +4,7 @@
 //or needs threading
 #include "REvent.h"
 #include "NVGView.h"
+#include "blockMap.h"
 #include "presetBarView.h"
 #include "lfoShape.h"
 #include "fxStrip.h"
@@ -2820,6 +2821,254 @@ no viewindex at 153!*/
 		fillGrid(ax1, my0, W - ax1, my1 - my0);    // right
 	}
 
+	// ---- block hover effect (2026-11-17) ------------------------------------------------------
+	// The blocks are the framed control strips of the art (MAIN OSC / MOD OSC / GLOBAL row and the
+	// ENV/LFO blocks); their outlines and the PCB trace pixels come from the panel SVG
+	// (tools/blockmap/blockmap.py -> blockMap.h). The block under the mouse:
+	//   - border glow and a light cyan lift of its area, eased in/out (blockAmt);
+	//   - on entering, one pass of energy (0.9 s): a bright front with a fading tail runs down the
+	//     block, lighting the traces it crosses (a tinted copy of the trace mask, scissored to thin
+	//     strips) and the block's sides, with a small spark where the front meets a trace or a side.
+	// Additive blending throughout; drawn by drawBkg over the art and under the controls.
+	namespace {
+		const float kBlockFxDur = 0.9f;  // energy pass, seconds
+
+		float smooth01(float a, float b, float x) {
+			float t = (x - a) / (b - a);
+			t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+			return t * t * (3.0f - 2.0f * t);
+		}
+
+		void blockPath(NVGcontext* vg, const blockMap::Block& b) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, b.p[0].x, b.p[0].y);
+			for (int i = 1; i < b.n; i++)
+				nvgLineTo(vg, b.p[i].x, b.p[i].y);
+			nvgClosePath(vg);
+		}
+
+		bool inBlock(const blockMap::Block& b, float x, float y) {
+			bool c = false;
+			for (int i = 0, j = b.n - 1; i < b.n; j = i++) {
+				const float xi = b.p[i].x, yi = b.p[i].y, xj = b.p[j].x, yj = b.p[j].y;
+				if ((yi > y) != (yj > y) && x < (xj - xi) * (y - yi) / (yj - yi) + xi)
+					c = !c;
+			}
+			return c;
+		}
+
+		void blockBounds(const blockMap::Block& b, float& x0, float& y0, float& x1, float& y1) {
+			x0 = x1 = b.p[0].x;
+			y0 = y1 = b.p[0].y;
+			for (int i = 1; i < b.n; i++) {
+				x0 = std::min(x0, b.p[i].x);
+				x1 = std::max(x1, b.p[i].x);
+				y0 = std::min(y0, b.p[i].y);
+				y1 = std::max(y1, b.p[i].y);
+			}
+		}
+	}
+
+	int NVGView::blockAt(float x, float y) {
+		for (int i = 0; i < blockMap::kBlockCount; i++)
+			if (inBlock(blockMap::kBlocks[i], x, y))
+				return i;
+		return -1;
+	}
+
+	CMouseEventResult NVGView::onMouseMoved(CFrame* frame, const CPoint& where, const CButtonState& buttons) {
+		blockMouse = where;
+		blockMouseValid = true;
+		return kMouseEventNotHandled;
+	}
+
+	void NVGView::updateBlockHover() {
+		using namespace ::editorLayout;
+		int hit = -1;
+		if (blockHoverForce >= 0) {
+			hit = blockHoverForce < blockMap::kBlockCount ? blockHoverForce : -1;
+		}
+		else if (blockMouseValid) {
+			// The frame reports moves but not always the exit from the window: ask where the mouse is.
+			CFrame* f = getFrame();
+			CPoint p;
+			if (f && f->getCurrentMouseLocation(p) && (p.x < 0 || p.y < 0 || p.x >= kEditorWidth || p.y >= kEditorHeight))
+				blockMouseValid = false;
+			else
+				hit = blockAt(static_cast<float>(blockMouse.x), static_cast<float>(blockMouse.y));
+			// while a knob is dragged, stay on the block the drag started in
+			if (f && blockHover >= 0 && (f->getCurrentMouseButtons().getButtonState() & kLButton))
+				hit = blockHover;
+		}
+		if (hit != blockHover) {
+			if (hit >= 0) {
+				blockFxOn[hit] = true;
+				blockFxT[hit] = 0.0f;
+			}
+			blockHover = hit;
+		}
+		for (int i = 0; i < blockMap::kBlockCount; i++) {
+			const float target = i == blockHover ? 1.0f : 0.0f;
+			const float tau = target > blockAmt[i] ? 0.06f : 0.22f;
+			blockAmt[i] += (target - blockAmt[i]) * (1.0f - std::exp(-frameDt / tau));
+			if (blockFxOn[i]) {
+				blockFxT[i] += frameDt;
+				if (blockFxT[i] >= kBlockFxDur)
+					blockFxOn[i] = false;
+			}
+		}
+		if (blockFxFreeze >= 0.0f && blockHover >= 0) {
+			blockAmt[blockHover] = 1.0f;
+			blockFxOn[blockHover] = true;
+			blockFxT[blockHover] = blockFxFreeze * kBlockFxDur;
+		}
+	}
+
+	void NVGView::drawBlockFx() {
+		using namespace ::editorLayout;
+		const int W = kEditorWidth, H = kEditorHeight;
+		if (images[TRACE_MASK] < 1) {
+			// The traces are painted at alpha <= ~100; the mask is scaled so a trace is fully lit.
+			traceMask.assign(static_cast<size_t>(W) * H, 0);
+			std::vector<unsigned char> rgba(static_cast<size_t>(W) * H * 4, 0);
+			for (int i = 0; i < blockMap::kTraceCount; i++) {
+				const blockMap::TracePx& t = blockMap::kTrace[i];
+				if (t.x >= W || t.y >= H)
+					continue;
+				const size_t k = static_cast<size_t>(t.y) * W + t.x;
+				const unsigned char a = static_cast<unsigned char>(std::min(255, t.a * 255 / 90));
+				traceMask[k] = a;
+				rgba[k * 4 + 0] = rgba[k * 4 + 1] = rgba[k * 4 + 2] = 255;
+				rgba[k * 4 + 3] = a;
+			}
+			images[TRACE_MASK] = nvgCreateImageRGBA(vg, W, H, NVG_IMAGE_NEAREST, rgba.data());
+		}
+		updateBlockHover();
+
+		nvgSave(vg);
+		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+		nvgLineJoin(vg, NVG_ROUND);
+		for (int bi = 0; bi < blockMap::kBlockCount; bi++) {
+			const float amt = blockAmt[bi];
+			const bool fx = blockFxOn[bi];
+			if (amt < 0.004f && !fx)
+				continue;
+			const blockMap::Block& b = blockMap::kBlocks[bi];
+			float bx0, by0, bx1, by1;
+			blockBounds(b, bx0, by0, bx1, by1);
+
+			// area: a light cyan lift, stronger at the top (not over an ENV/LFO display window)
+			if (amt > 0.004f) {
+				blockPath(vg, b);
+				const int win = bi - (blockMap::kBlockCount - 6);
+				if (b.row == 1 && win >= 0 && win < 6) {
+					const ImageRect& r = kDisplayWin[win];
+					nvgRect(vg, static_cast<float>(r.x), static_cast<float>(r.y), static_cast<float>(r.w), static_cast<float>(r.h));
+					nvgPathWinding(vg, NVG_HOLE);
+				}
+				nvgFillPaint(vg, nvgLinearGradient(vg, 0, by0, 0, by1, nvgRGBA(60, 170, 220, static_cast<unsigned char>(34 * amt)),
+				                                   nvgRGBA(60, 170, 220, static_cast<unsigned char>(12 * amt))));
+				nvgFill(vg);
+				// border glow: wide soft passes under a bright core
+				blockPath(vg, b);
+				nvgStrokeColor(vg, nvgRGBA(4, 186, 232, static_cast<unsigned char>(22 * amt)));
+				nvgStrokeWidth(vg, 9.0f);
+				nvgStroke(vg);
+				nvgStrokeColor(vg, nvgRGBA(30, 200, 245, static_cast<unsigned char>(45 * amt)));
+				nvgStrokeWidth(vg, 5.0f);
+				nvgStroke(vg);
+				nvgStrokeColor(vg, nvgRGBA(150, 238, 255, static_cast<unsigned char>(140 * amt)));
+				nvgStrokeWidth(vg, 2.0f);
+				nvgStroke(vg);
+			}
+
+			if (!fx)
+				continue;
+			// energy pass: the front runs from the top to past the bottom (ease in/out), fading in and out
+			const float u = blockFxT[bi] / kBlockFxDur;
+			const float env = smooth01(0.0f, 0.12f, u) * (1.0f - smooth01(0.55f, 1.0f, u));
+			if (env < 0.003f)
+				continue;
+			const float tail = b.row == 0 ? 38.0f : 24.0f;
+			const float pu = std::min(1.0f, u / 0.85f);
+			const float ease = pu * pu * (3.0f - 2.0f * pu);
+			const float front = by0 - 2.0f + (by1 - by0 + tail * 0.5f) * ease;
+			NVGpaint trace = nvgImagePattern(vg, 0, 0, static_cast<float>(W), static_cast<float>(H), 0.0f, images[TRACE_MASK], 1.0f);
+			const int kStrips = 10;
+			for (int s = -1; s < kStrips; s++) {
+				// s = -1: the head (2 px, brightest); then the tail strips upwards, fading
+				float ya, yb, a;
+				if (s < 0) {
+					ya = front;
+					yb = front + 2.0f;
+					a = 1.0f;
+				}
+				else {
+					ya = front - tail * (s + 1) / kStrips;
+					yb = front - tail * s / kStrips;
+					a = std::pow(1.0f - static_cast<float>(s) / kStrips, 1.6f) * 0.8f;
+				}
+				ya = std::max(ya, by0 - 2.0f);
+				yb = std::min(yb, by1 + 2.0f);
+				if (yb <= ya)
+					continue;
+				a *= env;
+				nvgScissor(vg, bx0 - 6.0f, ya, bx1 - bx0 + 12.0f, yb - ya);
+				trace.innerColor = nvgRGBAf(0.55f, 0.93f, 1.0f, a);
+				blockPath(vg, b);
+				nvgFillPaint(vg, trace);
+				nvgFill(vg);
+				// halo: the mask again 1 px left and right, dimmer, so a lit trace reads as a glow
+				for (int dx = -1; dx <= 1; dx += 2) {
+					NVGpaint halo = nvgImagePattern(vg, static_cast<float>(dx), 0, static_cast<float>(W), static_cast<float>(H), 0.0f, images[TRACE_MASK], 1.0f);
+					halo.innerColor = nvgRGBAf(0.2f, 0.75f, 1.0f, a * 0.4f);
+					blockPath(vg, b);
+					nvgFillPaint(vg, halo);
+					nvgFill(vg);
+				}
+				blockPath(vg, b);
+				nvgStrokeColor(vg, nvgRGBAf(0.55f, 0.93f, 1.0f, a * 0.85f));
+				nvgStrokeWidth(vg, 1.8f);
+				nvgStroke(vg);
+			}
+			nvgResetScissor(vg);
+
+			// sparks where the front crosses a trace (run centres in the mask row) or a side of the block
+			const int row = static_cast<int>(front);
+			if (row < 0 || row >= H || front > by1)
+				continue;
+			auto spark = [&](float x, float y, float s) {
+				nvgBeginPath(vg);
+				nvgCircle(vg, x, y, 6.0f);
+				nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 0.5f, 6.0f, nvgRGBAf(0.7f, 0.96f, 1.0f, 0.5f * s * env), nvgRGBAf(0.2f, 0.7f, 1.0f, 0.0f)));
+				nvgFill(vg);
+			};
+			const unsigned char* m = &traceMask[static_cast<size_t>(row) * W];
+			int x = std::max(0, static_cast<int>(bx0));
+			const int xe = std::min(W - 1, static_cast<int>(bx1));
+			while (x <= xe) {
+				if (m[x] < 60) {
+					x++;
+					continue;
+				}
+				int r = x;
+				while (r + 1 <= xe && m[r + 1] >= 60)
+					r++;
+				const float cx = 0.5f * (x + r) + 0.5f;
+				if (r - x < 6 && inBlock(b, cx, front))
+					spark(cx, front + 1.0f, 1.0f);
+				x = r + 1;
+			}
+			for (int i = 0, j = b.n - 1; i < b.n; j = i++) {
+				const blockMap::Pt& p = b.p[i];
+				const blockMap::Pt& q = b.p[j];
+				if ((p.y > front) != (q.y > front) && std::fabs(p.y - q.y) > 0.5f)
+					spark(p.x + (q.x - p.x) * (front - p.y) / (q.y - p.y), front, 0.8f);
+			}
+		}
+		nvgRestore(vg);
+	}
+
 	void NVGView::drawPanelBase() {
 		using namespace ::editorLayout;
 		fillGrid(0, 0, static_cast<float>(kEditorWidth), static_cast<float>(kEditorHeight));
@@ -2841,6 +3090,7 @@ no viewindex at 153!*/
 		nvgFillPaint(vg, imgPaint);
 		nvgFill(vg);
 
+		drawBlockFx();  // block hover effect, over the art and under the controls
 		drawRightColumn();
 	}
 
@@ -2884,17 +3134,18 @@ no viewindex at 153!*/
 		for (int i = 0; i < 4; i++)
 			nvgText(vg, slotCenterX(i), kFx.y0 + kRowLabelDY, fxLabels[i], NULL);
 
-		// CHORUS panel in the main area, right of STEP CTRL TARGET (742,456 176x74, three slots)
-		const float px = 742.0f, py = 456.0f, pw = 176.0f, ph = 74.0f;
-		drawInset(px, py, pw, ph, kColDimFrame);
-		drawColumnSectionLabel(px + 5.0f, py + 3.0f, "CHORUS");
+		// CHORUS, right of STEP CTRL TARGET, no frame (2026-11-17): the knobs (#choRate/#choDepth/#choMix,
+		// origins 760/810/860,478) sit under LFO 3's knobs; the label bottoms line up with the bottom of
+		// the art's STEP CTRL TARGET label (y 517).
+		drawColumnSectionLabel(747.0f, 459.0f, "CHORUS");
 		static const char* const choLabels[3] = {"RATE", "DEPTH", "MIX"};
+		static const float choX[3] = {775.0f, 825.0f, 875.0f};
 		nvgFontSize(vg, 9.0f);
 		nvgFontFace(vg, "lucon");
 		nvgFillColor(vg, kColLabel);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 3; i++)
-			nvgText(vg, px + pw / 3.0f * (i + 0.5f), 506.0f, choLabels[i], NULL);
+			nvgText(vg, choX[i], 511.0f, choLabels[i], NULL);
 	}
 
 	void NVGView::drawImageAt(int image, float x, float y, float w, float h) {

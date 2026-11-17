@@ -245,6 +245,17 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		ctrl->setParamNormalized(STEP_CTRL_TARG, std::atoi(stv) / 7.0);
 		pumpFor(300);
 	}
+	// EDITOR_SHOT_BLOCK=<block>[,<phase 0..1>]: hover that block (blockMap::kBlocks index) for the
+	// block effect shot; with a phase, the energy pass is frozen there, else it runs and ends.
+	if (const char* bv = std::getenv("EDITOR_SHOT_BLOCK")) {
+		rs::NVGView* nv = ctrl->nvgViewController ? ctrl->nvgViewController->nvgView : nullptr;
+		if (nv) {
+			nv->blockHoverForce = std::atoi(bv);
+			if (const char* comma = std::strchr(bv, ','))
+				nv->blockFxFreeze = static_cast<float>(std::atof(comma + 1));
+		}
+		pumpFor(400);
+	}
 	if (std::getenv("EDITOR_SHOT_LFO_HOLD")) {
 		ctrl->setParamNormalized(LFO_1_BPM, 0.0);
 		ctrl->setParamNormalized(LFO_1_DELAY, 0.0);

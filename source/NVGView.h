@@ -383,6 +383,9 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		void onMouseExited(CView* view, CFrame* frame) override;
 		using COpenGLView::onMouseEntered;  // keep CView's (CPoint&, CButtonState&) overloads visible
 		using COpenGLView::onMouseExited;
+		// Every mouse move on the frame (also over controls): the position for the block hover effect.
+		CMouseEventResult onMouseMoved(CFrame* frame, const CPoint& where, const CButtonState& buttons) override;
+		using COpenGLView::onMouseMoved;
 		int hoverPid = -1;
 		bool mouseObserverRegistered = false;
 		bool clearReadoutOnFirstFrame = false;
@@ -750,6 +753,22 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float stepDialAng = -1000.0f;  // pointer angle (radians), glides to the selected letter
 		int stepDialSel = -1;          // last selection, for the flash on a change
 		float stepDialFlash = 0.0f;    // 1 right after a change, fades out
+		// Block hover effect (2026-11-17): the control block under the mouse (blockMap.h, outlines from
+		// the panel SVG) lights its border and its area; entering a block runs one quick pass of energy
+		// down its PCB traces and sides. Drawn by drawBkg over the art, under the controls.
+		void drawBlockFx();
+		void updateBlockHover();
+		static int blockAt(float x, float y);
+		CPoint blockMouse {-1, -1};     // last mouse position on the frame
+		bool blockMouseValid = false;
+		int blockHover = -1;            // block under the mouse, -1 none
+		float blockAmt[32] = {};        // hover amount per block (eased 0..1)
+		float blockFxT[32] = {};        // time into the energy pass per block (s)
+		bool blockFxOn[32] = {};
+		std::vector<unsigned char> traceMask;  // alpha of the trace pixels, kEditorWidth x kEditorHeight
+		// test hooks (editor_cycle EDITOR_SHOT_BLOCK): force the hovered block, freeze the pass (0..1)
+		int blockHoverForce = -1;
+		float blockFxFreeze = -1.0f;
 		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)
@@ -1050,6 +1069,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		const int DM_ABOUT_WINDOW = 11;
 		const int GRID_TILE = 12;   // 5x5 repeating tile of the art's background grid (drawBkg)
 		const int DM_TITLE = 13;    // "DONNA MEDINA" title, cut from the original art (dm_title.png, 143x63)
+		const int TRACE_MASK = 14;  // white PCB traces (alpha from blockMap::kTrace), window sized (drawBlockFx)
 
 		// Fills the editor outside the art with the art's background grid (the area the wider
 		// window adds around the 1148x542 art, see editorLayout.h).
