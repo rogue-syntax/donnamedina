@@ -2828,7 +2828,7 @@ no viewindex at 153!*/
 	//   - border glow and a light cyan lift of its area, eased in/out (blockAmt);
 	//   - on entering, one pass of energy (0.9 s): a bright front with a fading tail runs down the
 	//     block, lighting the traces it crosses (a tinted copy of the trace mask, scissored to thin
-	//     strips) and the block's sides, with a small spark where the front meets a trace or a side.
+	//     strips), with a small spark where the front meets a trace. The border is not part of the pass.
 	// Additive blending throughout; drawn by drawBkg over the art and under the controls.
 	namespace {
 		const float kBlockFxDur = 0.9f;  // energy pass, seconds
@@ -3026,14 +3026,10 @@ no viewindex at 153!*/
 					nvgFillPaint(vg, halo);
 					nvgFill(vg);
 				}
-				blockPath(vg, b);
-				nvgStrokeColor(vg, nvgRGBAf(0.55f, 0.93f, 1.0f, a * 0.85f));
-				nvgStrokeWidth(vg, 1.8f);
-				nvgStroke(vg);
 			}
 			nvgResetScissor(vg);
 
-			// sparks where the front crosses a trace (run centres in the mask row) or a side of the block
+			// sparks where the front crosses a trace (run centres in the mask row)
 			const int row = static_cast<int>(front);
 			if (row < 0 || row >= H || front > by1)
 				continue;
@@ -3058,12 +3054,6 @@ no viewindex at 153!*/
 				if (r - x < 6 && inBlock(b, cx, front))
 					spark(cx, front + 1.0f, 1.0f);
 				x = r + 1;
-			}
-			for (int i = 0, j = b.n - 1; i < b.n; j = i++) {
-				const blockMap::Pt& p = b.p[i];
-				const blockMap::Pt& q = b.p[j];
-				if ((p.y > front) != (q.y > front) && std::fabs(p.y - q.y) > 0.5f)
-					spark(p.x + (q.x - p.x) * (front - p.y) / (q.y - p.y), front, 0.8f);
 			}
 		}
 		nvgRestore(vg);
