@@ -1770,53 +1770,164 @@ no viewindex at 153!*/
 		knobArc(cx, cy, r, from, v, nvgRGBA(205, 248, 255, 235), 2.2f);
 	}
 
-	// Step-target badges (2026-11-15): the art prints the letters A..H around the STEP CTRL TARGET dial
-	// and under the control each one drives (A OCT, B INT, C MOD OCT, D MOD INT, E MOD BEAT, F/G/H the
-	// LFO rates). Every letter gets a faint ring; the selected target's two letters get a filled amber
-	// badge (letter redrawn dark), so the dial and its control read as a pair. Positions are the art's
-	// letter centres (measured in a screenshot at art offset -35,-15), kept as art coordinates.
+	// STEP CTRL TARGET (2026-11-16: drawn live, the art no longer has the dial ring or the letters).
+	// The step buttons 0..11 drive one control, picked with the dial: A OCT, B INT, C MOD OCT, D MOD
+	// INT, E MOD BEAT, F/G/H the LFO rates. The dial draws its own knob (drawKnob skips this control):
+	// a track with the eight letter badges, each at the middle of its value range (the controller
+	// picks index = int(v * 8), DX10Controller::onStepCtrlTarg), and a pointer that glides to the
+	// selected letter. The same letters sit under the controls they select; the selected pair is an
+	// amber badge with a glow, which flashes when the selection changes.
+	void NVGView::drawStepTargetBadge(float x, float y, int k, bool on) {
+		static const char* const kLetter[8] = {"A", "B", "C", "D", "E", "F", "G", "H"};
+		const float r = 6.0f;
+		if (on) {
+			const float g = 13.0f + 7.0f * stepDialFlash;
+			nvgBeginPath(vg);
+			nvgCircle(vg, x, y, g);
+			nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 4.0f, g, nvgRGBA(255, 175, 40, static_cast<unsigned char>(110 + 120 * stepDialFlash)),
+			                                   nvgRGBA(255, 175, 40, 0)));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgCircle(vg, x, y, r);
+			nvgFillPaint(vg, nvgRadialGradient(vg, x - 1.5f, y - 2.0f, 1.0f, r + 1.0f, nvgRGBA(255, 214, 120, 255), nvgRGBA(240, 150, 20, 255)));
+			nvgFill(vg);
+			nvgStrokeColor(vg, nvgRGBA(255, 232, 180, 255));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+			nvgFillColor(vg, nvgRGBA(30, 14, 0, 255));
+		}
+		else {
+			nvgBeginPath(vg);
+			nvgCircle(vg, x, y, r);
+			nvgFillColor(vg, nvgRGBA(5, 10, 22, 235));
+			nvgFill(vg);
+			nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 150));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+			nvgFillColor(vg, nvgRGBA(120, 220, 255, 220));
+		}
+		nvgFontFace(vg, "lucon");
+		nvgFontSize(vg, 8.0f);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		nvgText(vg, x, y + 0.5f, kLetter[k], NULL);
+	}
+
 	void NVGView::drawStepTargetBadges() {
 		if (!baseController)
 			return;
 		using ::editorLayout::artX;
 		using ::editorLayout::artY;
+		// letters under the controls (art coordinates of the original letters)
 		struct P { float x, y; };
 		static const P kCol[8] = {{293.0f, 277.3f}, {344.5f, 277.0f}, {671.5f, 277.0f}, {722.5f, 277.0f},
 		                          {773.5f, 277.0f}, {500.0f, 378.0f}, {648.0f, 378.0f}, {795.5f, 378.0f}};
-		static const P kDial[8] = {{698.0f, 511.3f}, {689.5f, 497.0f}, {690.5f, 481.0f}, {704.5f, 470.0f},
-		                           {722.5f, 470.0f}, {735.0f, 480.8f}, {736.0f, 497.0f}, {727.5f, 511.0f}};
-		static const char* const kLetter[8] = {"A", "B", "C", "D", "E", "F", "G", "H"};
-		// DX10Controller::onStepCtrlTarg: index = int(v * 100 / 12.5); 8 (v = 1) is LFO 3 again
 		int sel = static_cast<int>(baseController->getParamNormalized(STEP_CTRL_TARG) * 100.0 / 12.5);
-		sel = sel < 0 ? 0 : (sel > 7 ? 7 : sel);
-		const NVGcolor kAmber = nvgRGBA(255, 175, 40, 255);
-		nvgFontFace(vg, "lucon");
-		nvgFontSize(vg, 8.0f);
-		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		sel = sel < 0 ? 0 : (sel > 7 ? 7 : sel);  // 8 (v = 1) is LFO 3 again
+		if (sel != stepDialSel) {
+			if (stepDialSel >= 0)
+				stepDialFlash = 1.0f;
+			stepDialSel = sel;
+		}
+		stepDialFlash = std::max(0.0f, stepDialFlash - frameDt / 0.45f);
+
+		for (int k = 0; k < 8; k++)
+			drawStepTargetBadge(artX(kCol[k].x), artY(kCol[k].y), k, k == sel);
+
+		// the dial, around the knob control
+		CControl* c = controlMap[STEP_CTRL_TARG];
+		if (!c)
+			return;
+		const CRect rc = c->getViewSize();
+		const float cx = static_cast<float>(rc.getCenter().x), cy = static_cast<float>(rc.getCenter().y);
+		const float rBody = 11.5f, rBezel = 15.0f, rLetters = 26.0f;
+		auto angOf = [](float i) { return (135.0f + 270.0f * (i + 0.5f) / 8.0f) * NVG_PI / 180.0f; };
+		const float target = angOf(static_cast<float>(sel));
+		if (stepDialAng < -100.0f)
+			stepDialAng = target;
+		stepDialAng += (target - stepDialAng) * (1.0f - std::exp(-frameDt / 0.07f));
+
+		// track joining the letters, lit from A up to the pointer
+		nvgBeginPath(vg);
+		nvgArc(vg, cx, cy, rLetters, angOf(0.0f), angOf(7.0f), NVG_CW);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 110));
+		nvgStrokeWidth(vg, 1.5f);
+		nvgStroke(vg);
+		if (stepDialAng > angOf(0.0f) + 0.01f) {
+			nvgBeginPath(vg);
+			nvgArc(vg, cx, cy, rLetters, angOf(0.0f), stepDialAng, NVG_CW);
+			nvgStrokeColor(vg, nvgRGBA(255, 175, 40, 150));
+			nvgStrokeWidth(vg, 1.5f);
+			nvgStroke(vg);
+		}
+
+		// bezel: soft shadow, dark ring, cyan edge, a tick towards each letter
+		nvgBeginPath(vg);
+		nvgCircle(vg, cx, cy, rBezel + 3.0f);
+		nvgFillPaint(vg, nvgRadialGradient(vg, cx, cy, rBezel, rBezel + 3.0f, nvgRGBA(0, 0, 0, 170), nvgRGBA(0, 0, 0, 0)));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgCircle(vg, cx, cy, rBezel);
+		nvgFillColor(vg, nvgRGBA(6, 14, 28, 255));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 255));
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
 		for (int k = 0; k < 8; k++) {
-			for (int w = 0; w < 2; w++) {
-				const P& p = w == 0 ? kCol[k] : kDial[k];
-				const float x = artX(p.x), y = artY(p.y);
-				if (k == sel) {
-					nvgBeginPath(vg);
-					nvgCircle(vg, x, y, 13.0f);
-					nvgFillPaint(vg, nvgRadialGradient(vg, x, y, 4.0f, 13.0f, nvgRGBA(255, 175, 40, 110), nvgRGBA(255, 175, 40, 0)));
-					nvgFill(vg);
-					nvgBeginPath(vg);
-					nvgCircle(vg, x, y, 6.0f);
-					nvgFillColor(vg, kAmber);
-					nvgFill(vg);
-					nvgFillColor(vg, nvgRGBA(20, 10, 0, 255));
-					nvgText(vg, x, y + 0.5f, kLetter[k], NULL);
-				}
-				else {
-					nvgBeginPath(vg);
-					nvgCircle(vg, x, y, 5.5f);
-					nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 90));
-					nvgStrokeWidth(vg, 1.0f);
-					nvgStroke(vg);
-				}
-			}
+			const float a = angOf(static_cast<float>(k));
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, cx + std::cos(a) * (rBezel + 1.5f), cy + std::sin(a) * (rBezel + 1.5f));
+			nvgLineTo(vg, cx + std::cos(a) * (rLetters - 6.5f), cy + std::sin(a) * (rLetters - 6.5f));
+			nvgStrokeColor(vg, k == sel ? nvgRGBA(255, 190, 70, 255) : nvgRGBA(4, 186, 232, 120));
+			nvgStrokeWidth(vg, k == sel ? 1.6f : 1.0f);
+			nvgStroke(vg);
+		}
+
+		// body: like drawKnob (gradient disc, rim, highlight)
+		nvgBeginPath(vg);
+		nvgCircle(vg, cx, cy, rBody);
+		nvgFillPaint(vg, nvgRadialGradient(vg, cx - rBody * 0.3f, cy - rBody * 0.35f, rBody * 0.1f, rBody * 1.1f,
+		                                   nvgRGBA(30, 58, 86, 255), nvgRGBA(5, 8, 16, 255)));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, 200));
+		nvgStrokeWidth(vg, 1.2f);
+		nvgStroke(vg);
+		nvgBeginPath(vg);
+		nvgArc(vg, cx, cy, rBody - 1.4f, NVG_PI * 1.05f, NVG_PI * 1.7f, NVG_CW);
+		nvgStrokeColor(vg, nvgRGBA(150, 230, 255, 70));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+
+		// pointer: light inside the body, amber across the bezel; glows while it moves or flashes
+		const float ca = std::cos(stepDialAng), sa = std::sin(stepDialAng);
+		const float moving = std::min(1.0f, std::fabs(target - stepDialAng) * 4.0f);
+		const float hot = std::max(moving, stepDialFlash);
+		nvgLineCap(vg, NVG_ROUND);
+		if (hot > 0.01f) {
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, cx + ca * rBody * 0.3f, cy + sa * rBody * 0.3f);
+			nvgLineTo(vg, cx + ca * (rBezel + 1.0f), cy + sa * (rBezel + 1.0f));
+			nvgStrokeColor(vg, nvgRGBA(255, 175, 40, static_cast<unsigned char>(90 * hot)));
+			nvgStrokeWidth(vg, 5.0f);
+			nvgStroke(vg);
+		}
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, cx + ca * rBody * 0.3f, cy + sa * rBody * 0.3f);
+		nvgLineTo(vg, cx + ca * rBody * 0.9f, cy + sa * rBody * 0.9f);
+		nvgStrokeColor(vg, nvgRGBA(205, 248, 255, 255));
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, cx + ca * rBody * 0.9f, cy + sa * rBody * 0.9f);
+		nvgLineTo(vg, cx + ca * (rBezel + 1.0f), cy + sa * (rBezel + 1.0f));
+		nvgStrokeColor(vg, nvgRGBA(255, 190, 70, 255));
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
+		nvgLineCap(vg, NVG_BUTT);
+
+		// letters (after the ticks, so the badges sit on top)
+		for (int k = 0; k < 8; k++) {
+			const float a = angOf(static_cast<float>(k));
+			drawStepTargetBadge(cx + std::cos(a) * rLetters, cy + std::sin(a) * rLetters, k, k == sel);
 		}
 	}
 
@@ -2477,6 +2588,8 @@ no viewindex at 153!*/
 		const double v = cBKnob->getValueNormalized();
 		const float ang = static_cast<float>((135.0 + 270.0 * v) * NVG_PI / 180.0);
 		const bool stepped = cBKnob->getMax() > 1.0001f;
+		if (cBKnob->getTag() == STEP_CTRL_TARG)
+			return;  // drawn as the STEP CTRL TARGET dial (drawStepTargetBadges)
 
 		// track
 		knobArc(cx, cy, rt, 0.0, 1.0, nvgRGBA(4, 186, 232, 85), 2.0f);

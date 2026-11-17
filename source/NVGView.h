@@ -743,8 +743,14 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float frameDt = 0.0f;              // seconds since the previous frame (0..0.1)
 		std::chrono::steady_clock::time_point lastFrameTime;
 		bool lastFrameValid = false;
+		// STEP CTRL TARGET: the dial (letters A..H around a knob) and the letters under the controls
+		// they select, all drawn here (the art has neither since 2026-11-16); the selected pair is lit.
 		void drawStepTargetBadges();
-		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)  // A..H: ring badges, the selected step target's pair lit
+		void drawStepTargetBadge(float x, float y, int k, bool on);
+		float stepDialAng = -1000.0f;  // pointer angle (radians), glides to the selected letter
+		int stepDialSel = -1;          // last selection, for the flash on a change
+		float stepDialFlash = 0.0f;    // 1 right after a change, fades out
+		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)
 		// while it is routed somewhere; srcGlow is that level smoothed (fast up, slow down).
