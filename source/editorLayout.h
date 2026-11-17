@@ -96,6 +96,13 @@ constexpr float kFrameB = 536.0f;
 constexpr float kChorusL = 739.0f, kChorusT = 458.0f;
 constexpr float kPlayLine = kPlay.y0 + 12.0f;   // 413
 constexpr float kFxLine = kFx.y0 + 12.0f;       // 483
+// The PLAY / DELAY dividers run at kTabH above the line from kFrameL to the end of the section label
+// (kPlayTabX / kFxTabX: label x kX0 + 9, plus 6.6 px per Lucida Console 11 px glyph, plus 5), slant
+// down 45 degrees to the line and run along it to kFrameR. The hover outlines of MASTER / PLAY /
+// DELAY follow the same path.
+constexpr float kTabH = 14.0f;
+constexpr float kPlayTabX = kX0 + 9.0f + 4 * 6.6f + 5.0f;   // "PLAY"
+constexpr float kFxTabX = kX0 + 9.0f + 5 * 6.6f + 5.0f;     // "DELAY"
 // Brackets right of the preset bar, the CONTROL slots and the scope.
 constexpr float kBracketX = kX1 - 2.0f;        // 1228 (the boxes end at kX1 - 9)
 // #moreInfo (opens the about window) sits on the title (the logo it used to cover is gone).

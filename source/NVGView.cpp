@@ -2882,9 +2882,13 @@ no viewindex at 153!*/
 		// only, like the step buttons. Indices after the generated blocks.
 		namespace ec = ::editorLayout::column;
 		const blockMap::Block kColBlocks[] = {
-			{"MASTER", 3, 5, {{ec::kFrameL, ec::kFrameT + 6.0f}, {ec::kFrameL + 6.0f, ec::kFrameT}, {ec::kFrameR, ec::kFrameT}, {ec::kFrameR, ec::kPlayLine}, {ec::kFrameL, ec::kPlayLine}}},
-			{"PLAY", 3, 4, {{ec::kFrameL, ec::kPlayLine}, {ec::kFrameR, ec::kPlayLine}, {ec::kFrameR, ec::kFxLine}, {ec::kFrameL, ec::kFxLine}}},
-			{"DELAY", 3, 5, {{ec::kFrameL, ec::kFxLine}, {ec::kFrameR, ec::kFxLine}, {ec::kFrameR, ec::kFrameB - 12.0f}, {ec::kFrameR - 12.0f, ec::kFrameB}, {ec::kFrameL, ec::kFrameB}}},
+			// MASTER / PLAY / DELAY meet along the tabbed divider paths (drawColumnFrame)
+			{"MASTER", 3, 7, {{ec::kFrameL, ec::kFrameT + 6.0f}, {ec::kFrameL + 6.0f, ec::kFrameT}, {ec::kFrameR, ec::kFrameT}, {ec::kFrameR, ec::kPlayLine},
+			                  {ec::kPlayTabX + ec::kTabH, ec::kPlayLine}, {ec::kPlayTabX, ec::kPlayLine - ec::kTabH}, {ec::kFrameL, ec::kPlayLine - ec::kTabH}}},
+			{"PLAY", 3, 8, {{ec::kFrameL, ec::kPlayLine - ec::kTabH}, {ec::kPlayTabX, ec::kPlayLine - ec::kTabH}, {ec::kPlayTabX + ec::kTabH, ec::kPlayLine}, {ec::kFrameR, ec::kPlayLine},
+			                {ec::kFrameR, ec::kFxLine}, {ec::kFxTabX + ec::kTabH, ec::kFxLine}, {ec::kFxTabX, ec::kFxLine - ec::kTabH}, {ec::kFrameL, ec::kFxLine - ec::kTabH}}},
+			{"DELAY", 3, 7, {{ec::kFrameL, ec::kFxLine - ec::kTabH}, {ec::kFxTabX, ec::kFxLine - ec::kTabH}, {ec::kFxTabX + ec::kTabH, ec::kFxLine}, {ec::kFrameR, ec::kFxLine},
+			                 {ec::kFrameR, ec::kFrameB - 12.0f}, {ec::kFrameR - 12.0f, ec::kFrameB}, {ec::kFrameL, ec::kFrameB}}},
 			{"CHORUS", 3, 5, {{ec::kChorusL, ec::kChorusT + 9.0f}, {ec::kChorusL + 9.0f, ec::kChorusT}, {ec::kFrameL, ec::kChorusT}, {ec::kFrameL, ec::kFrameB}, {ec::kChorusL, ec::kFrameB}}},
 		};
 		constexpr int kAllBlocks = blockMap::kBlockCount + static_cast<int>(sizeof(kColBlocks) / sizeof(kColBlocks[0]));
@@ -3099,14 +3103,15 @@ no viewindex at 153!*/
 		const NVGcolor kColLabel = nvgRGBA(0, 204, 255, 255);   // label text cyan of the art
 		const NVGcolor kColMagenta = nvgRGBA(93, 32, 93, 255);  // CONTROL box magenta of the art
 		const NVGcolor kColDimFrame = nvgRGBA(4, 186, 232, 120);
-		const NVGcolor kColDivider = nvgRGBA(160, 44, 170, 255);  // section dividers of the frame (drawColumnFrame)
+		const NVGcolor kColDivider = nvgRGBA(160, 44, 170, 255);  // bracket of the CONTROL slots
 	}
 
 	// The frame of the lower right (2026-11-17, after the user's mock-up): one outline in the art's
 	// frame cyan around MASTER, PLAY and DELAY that steps left at kChorusT to take in CHORUS, with the
-	// art's chamfered corners and a faint dark fill; magenta dividers: the CHORUS | DELAY separator
-	// (the frame's left edge continued down) and the PLAY and DELAY lines, each with a tab over its
-	// section label (top line, then a slant down to the line, like the art's header tabs).
+	// art's chamfered corners and a faint dark fill; dividers in the same cyan: the CHORUS | DELAY
+	// separator (the frame's left edge continued down) and the PLAY and DELAY lines, each stepping up
+	// over its section label in a tab (like the art's header tabs). Revised the same day: dividers were
+	// magenta and also ran under the labels.
 	void NVGView::drawColumnFrame() {
 		using namespace ::editorLayout::column;
 		nvgBeginPath(vg);
@@ -3127,28 +3132,22 @@ no viewindex at 153!*/
 		nvgStrokeWidth(vg, 2.0f);
 		nvgStroke(vg);
 
-		// dividers (magenta)
-		nvgFontSize(vg, 11.0f);
-		nvgFontFace(vg, "lucon");
-		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
-		const float lx = kX0 + 9.0f;
+		// dividers, in the frame's cyan and width (the hover outlines of the sections follow them):
+		// the CHORUS | DELAY separator, and the PLAY / DELAY lines, which step over their section label
+		// (tab top from the frame to kPlayTabX / kFxTabX, 45 degree slant down, then along the line)
 		nvgBeginPath(vg);
-		nvgMoveTo(vg, kFrameL, kChorusT + 1.0f);
-		nvgLineTo(vg, kFrameL, kFrameB - 1.0f);
-		auto line = [&](float y, const char* label) {
-			float bnd[4];
-			const float end = lx + nvgTextBounds(vg, lx, 0, label, NULL, bnd);
-			const float h = 14.0f;
-			nvgMoveTo(vg, kFrameL + 1.0f, y);
-			nvgLineTo(vg, kFrameR - 1.0f, y);
-			nvgMoveTo(vg, kFrameL + 1.0f, y - h);
-			nvgLineTo(vg, end + 5.0f, y - h);
-			nvgLineTo(vg, end + 5.0f + h, y);
+		nvgMoveTo(vg, kFrameL, kChorusT);
+		nvgLineTo(vg, kFrameL, kFrameB);
+		auto line = [&](float y, float tabX) {
+			nvgMoveTo(vg, kFrameL, y - kTabH);
+			nvgLineTo(vg, tabX, y - kTabH);
+			nvgLineTo(vg, tabX + kTabH, y);
+			nvgLineTo(vg, kFrameR, y);
 		};
-		line(kPlayLine, "PLAY");
-		line(kFxLine, "DELAY");
-		nvgStrokeColor(vg, kColDivider);
-		nvgStrokeWidth(vg, 1.5f);
+		line(kPlayLine, kPlayTabX);
+		line(kFxLine, kFxTabX);
+		nvgStrokeColor(vg, kColFrame);
+		nvgStrokeWidth(vg, 2.0f);
 		nvgStroke(vg);
 	}
 
