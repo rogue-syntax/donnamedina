@@ -316,6 +316,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\glIncludes.h" />
     <ClInclude Include="source\helpers.h" />
     <ClInclude Include="source\monoFontData.hpp" />
+    <ClInclude Include="source\creditsText.h" />
     <ClInclude Include="source\Map.h" />
     <ClInclude Include="source\mdaBaseController.h" />
     <ClInclude Include="source\mdaBaseProcessor.h" />

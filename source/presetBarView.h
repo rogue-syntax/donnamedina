@@ -65,16 +65,21 @@ private:
 // sits over panel controls). The hovered zone goes to BaseController::aboutHover (NVGView draws
 // it); a click opens the website or a mail to support.
 namespace aboutLinks {
-enum Zone { kNone = -1, kWeb = 0, kMail, kZoneCount };
-inline int zoneAt(float x, float y) {
+enum Zone { kNone = -1, kWeb = 0, kMail, kTabAbout, kTabCredits, kZoneCount };
+// x, y in window coordinates; the links only exist on the about page (not on the credits page)
+inline int zoneAt(float x, float y, bool creditsPage) {
 	using namespace editorLayout::about;
-	const editorLayout::ImageRect z[kZoneCount] = {kWebZone, kMailZone};
-	for (int i = 0; i < kZoneCount; i++)
+	const editorLayout::ImageRect z[kZoneCount] = {kWebZone, kMailZone, editorLayout::about::kTabAbout,
+	                                               editorLayout::about::kTabCredits};
+	for (int i = 0; i < kZoneCount; i++) {
+		if (creditsPage && (i == kWeb || i == kMail))
+			continue;
 		if (x >= z[i].x && x < z[i].x + z[i].w && y >= z[i].y && y < z[i].y + z[i].h)
 			return i;
+	}
 	return kNone;
 }
-constexpr const wchar_t* kUrl[kZoneCount] = {L"http://www.rogue-syntax.com", L"mailto:admin@rogue-syntax.com"};
+constexpr const wchar_t* kUrl[2] = {L"http://www.rogue-syntax.com", L"mailto:admin@rogue-syntax.com"};
 } // namespace aboutLinks
 
 class AboutLinksView : public VSTGUI::CView {
@@ -85,6 +90,8 @@ public:
 	VSTGUI::CMouseEventResult onMouseMoved(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
 	VSTGUI::CMouseEventResult onMouseExited(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
 	VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	bool onWheel(const VSTGUI::CPoint& where, const VSTGUI::CMouseWheelAxis& axis, const float& distance,
+	             const VSTGUI::CButtonState& buttons) override;
 	void draw(VSTGUI::CDrawContext*) override {}  // drawn by NVGView
 
 private:

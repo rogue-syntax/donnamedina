@@ -721,7 +721,7 @@ VSTGUI::CView* BaseController::createCustomView(VSTGUI::UTF8StringPtr name, cons
 	}
 	if (name && std::strcmp(name, "aboutLinks") == 0) {
 		using namespace editorLayout::about;
-		CPoint origin(kLinks.x, kLinks.y), size(kLinks.w, kLinks.h);
+		CPoint origin(kView.x, kView.y), size(kView.w, kView.h);
 		attributes.getPointAttribute("origin", origin);
 		attributes.getPointAttribute("size", size);
 		return new AboutLinksView(CRect(origin, size), this);
@@ -750,7 +750,16 @@ int AboutLinksView::zoneFor(const CPoint& where) const {
 	// where is in the parent's coordinates (= window coordinates for the top-level template)
 	const CRect r = getViewSize();
 	using namespace editorLayout::about;
-	return aboutLinks::zoneAt(float(where.x - r.left) + kLinks.x, float(where.y - r.top) + kLinks.y);
+	return aboutLinks::zoneAt(float(where.x - r.left) + kView.x, float(where.y - r.top) + kView.y,
+	                          ctrl && ctrl->aboutCredits);
+}
+
+bool AboutLinksView::onWheel(const CPoint&, const CMouseWheelAxis& axis, const float& distance, const CButtonState&) {
+	if (!ctrl || !ctrl->aboutCredits || axis != kMouseWheelAxisY || distance == 0.0f)
+		return false;
+	float s = ctrl->aboutScroll - distance * 36.0f;
+	ctrl->aboutScroll = s < 0.0f ? 0.0f : (s > ctrl->aboutScrollMax ? ctrl->aboutScrollMax : s);
+	return true;
 }
 
 CMouseEventResult AboutLinksView::onMouseMoved(CPoint& where, const CButtonState&) {
@@ -776,6 +785,14 @@ CMouseEventResult AboutLinksView::onMouseDown(CPoint& where, const CButtonState&
 	const int z = zoneFor(where);
 	if (z < 0)
 		return kMouseEventNotHandled;
+	if (z == aboutLinks::kTabAbout || z == aboutLinks::kTabCredits) {
+		const bool credits = z == aboutLinks::kTabCredits;
+		if (credits != ctrl->aboutCredits)
+			ctrl->aboutScroll = 0.0f;
+		ctrl->aboutCredits = credits;
+		ctrl->aboutHover = zoneFor(where);
+		return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+	}
 #ifdef _WIN32
 	ShellExecuteW(nullptr, L"open", aboutLinks::kUrl[z], nullptr, nullptr, SW_SHOWNORMAL);
 #endif

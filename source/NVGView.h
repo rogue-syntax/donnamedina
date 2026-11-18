@@ -775,6 +775,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		bool logoHoverForce = false;
 		bool shutHover = false;  // mouse over the about screen's close box
 		void syncAboutViews();   // about-only views (links) follow moreInfoWindowOpen
+		void drawAboutCredits(); // CREDITS page of the about screen
 		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)

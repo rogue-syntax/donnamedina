@@ -40,9 +40,14 @@ constexpr ImageRect kClose {kBox.x + kBox.w - 30, kBox.y, 30, 24};
 constexpr ImageRect kRogueSrc {292, 218, 342, 59};
 constexpr ImageRect kVstSrc {696, 217, 163, 62};
 // Links row (website, support mail) and info row (registration, format/build) above the footer.
-// The links are clickable through the invisible custom view "aboutLinks" (presetBarView.h;
-// vstgui.uidesc origin kLinks.x,kLinks.y size kLinks.w x kLinks.h, mouse-enabled only while the
-// about screen is open). Zone widths fit 11 px text (6.62 px per glyph).
+// The links, the ABOUT / CREDITS tabs of the title bar and the credits page's wheel scrolling go
+// through the invisible custom view "aboutLinks" (presetBarView.h; vstgui.uidesc origin
+// kView.x,kView.y size kView.w x kView.h: the box above the footer, without the close box;
+// mouse-enabled only while the about screen is open). Zone widths fit 11 px text (6.62 px/glyph).
+constexpr ImageRect kView {kBox.x, kBox.y, kBox.w - 30, kBox.h - 30};   // 304,66 610x380
+constexpr ImageRect kTabAbout {kBox.x + 8, kBox.y, 58, 24};
+constexpr ImageRect kTabCredits {kBox.x + 70, kBox.y, 72, 24};
+constexpr ImageRect kCreditsArea {kBox.x + 40, kBox.y + 36, kBox.w - 80, kBox.h - 76};  // scrolled text
 constexpr float kPad = 40.0f;
 constexpr float kInfoLineY = 384.0f;  // divider above the two rows
 constexpr ImageRect kLinks {kBox.x + 40, 392, kBox.w - 80, 18};

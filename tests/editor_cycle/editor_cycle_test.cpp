@@ -282,8 +282,16 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		rs::NVGView* nv = ctrl->nvgViewController ? ctrl->nvgViewController->nvgView : nullptr;
 		if (nv) {
 			nv->onMoreInfoBtnDown();
-			if (std::atoi(av) == 2)
+			const int mode = std::atoi(av);
+			if (mode == 2)
 				ctrl->aboutHover = 0;
+			if (mode >= 3) {  // 3: CREDITS page; 4: scrolled to the end
+				ctrl->aboutCredits = true;
+				if (mode == 4) {
+					pumpFor(300);  // a frame sets aboutScrollMax
+					ctrl->aboutScroll = ctrl->aboutScrollMax;
+				}
+			}
 			pumpFor(600);
 			std::printf("about open: %d, links view %s, mouse %d\n", nv->moreInfoWindowOpen ? 1 : 0,
 			            ctrl->aboutLinksView ? "found" : "MISSING",

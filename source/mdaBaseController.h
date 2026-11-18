@@ -172,6 +172,9 @@ protected:
 	// its mouse while the about screen is open).
 	int aboutHover = -1;
 	VSTGUI::CView* aboutLinksView = nullptr;
+	// CREDITS page of the about screen: shown, scroll offset (px) and its limit (set by NVGView)
+	bool aboutCredits = false;
+	float aboutScroll = 0.0f, aboutScrollMax = 0.0f;
 	virtual void onPresetBarClick(int /*zone*/, VSTGUI::CFrame* /*frame*/, const VSTGUI::CPoint& /*where*/) {}
 	virtual void onProcessorState(const void* /*data*/, uint32 /*size*/, int64 /*purpose*/) {}
 	VSTGUI::CView* createCustomView(VSTGUI::UTF8StringPtr name, const VSTGUI::UIAttributes& attributes,
