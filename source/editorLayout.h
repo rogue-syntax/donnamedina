@@ -102,7 +102,7 @@ constexpr Band kMaster {311.0f + kDY, 379.0f + kDY};
 constexpr Band kPlay {385.0f + kDY, 449.0f + kDY};
 constexpr Band kFx {455.0f + kDY, 518.0f + kDY};
 constexpr float kRowKnobDY = 17.0f, kRowLabelDY = 50.0f;
-constexpr float kPlayLowDY = 6.0f;  // PLAY: DRIFT / EXPR / target labels (their knobs are 8 px lower than SNAP)
+constexpr float kPlayLowDY = 9.0f;  // PLAY: DRIFT / EXPR / target labels (their knobs are 11 px lower than SNAP)
 constexpr float kSlotX0 = 937.0f + kDX, kSlotW = 73.5f;
 constexpr float slotCenterX (int i) { return kSlotX0 + kSlotW * (i + 0.5f); }
 
