@@ -60,6 +60,7 @@
 		<bitmap name="BKG1.png" path="BKG1.png"/>
 		<bitmap name="dm_about_window.png" path="dm_about_window.png"/>
 		<bitmap name="dm_title.png" path="dm_title.png"/>
+		<bitmap name="dmlogo_screenres.png" path="dmlogo_screenres.png"/>
 	</bitmaps>
 	<control-tags>
 		<control-tag name="Root::AUX_10_1" tag="46"/>
@@ -387,6 +388,7 @@
 		<view class="CView" custom-view-name="polyCount" mouse-enabled="true" opacity="1" origin="920, 217" size="132, 13" transparent="true" wants-focus="false"/>
 		<view bitmap="dm_about_window.png" class="CView" custom-view-name="#dmAboutWindow" mouse-enabled="false" opacity="1" origin="0, 0" size="1148, 542" sub-controller="8" transparent="false" wants-focus="false"/>
 		<view bitmap="dm_title.png" class="CView" custom-view-name="#dmTitle" mouse-enabled="false" opacity="1" origin="0, 0" size="143, 63" sub-controller="8" transparent="false" wants-focus="false"/>
+		<view bitmap="dmlogo_screenres.png" class="CView" custom-view-name="#dmLogo" mouse-enabled="false" opacity="1" origin="0, 0" size="322, 72" sub-controller="8" transparent="false" wants-focus="false"/>
 		<view class="CBButton" custom-view-name="#shutWin" default-value="0.5" max-value="1" min-value="0" mouse-enabled="true" opacity="1" origin="828, 60" size="30, 22" sub-controller="14" transparent="false" wants-focus="true" wheel-inc-value="0.1"/>
 	</template>
 </vstgui-ui-description>

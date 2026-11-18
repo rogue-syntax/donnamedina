@@ -741,6 +741,9 @@ no viewindex at 153!*/
 		else if ((*viewListIter).get()->customRSViewName == "dmTitle") {
 			setupPNG(viewListIter, DM_TITLE);
 		}
+		else if ((*viewListIter).get()->customRSViewName == "dmLogo") {
+			setupPNG(viewListIter, DM_LOGO);
+		}
 
 	}
 
@@ -1456,6 +1459,7 @@ no viewindex at 153!*/
 			drawSelctedStepTarg();
 			drawCtrlValueOutput();
 			drawBeatModOn();
+			drawLogo();  // over everything but the about window and the registration screen
 
 			drawMoreInfoWindow();
 
@@ -3759,6 +3763,12 @@ no viewindex at 153!*/
 		return result;
 	}
 	
+
+	void NVGView::drawLogo() {
+		using namespace ::editorLayout;
+		if (images[DM_LOGO] > 0)
+			drawImageAt(DM_LOGO, kLogoImg.x, kLogoImg.y, kLogoImg.w, kLogoImg.h);
+	}
 
 	void NVGView::drawMoreInfoWindow() {
 		//info window

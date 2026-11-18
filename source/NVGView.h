@@ -1070,6 +1070,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		const int GRID_TILE = 12;   // 5x5 repeating tile of the art's background grid (drawBkg)
 		const int DM_TITLE = 13;    // "DONNA MEDINA" title, cut from the original art (dm_title.png, 143x63)
 		const int TRACE_MASK = 14;  // white PCB traces (alpha from blockMap::kTrace), window sized (drawBlockFx)
+		const int DM_LOGO = 15;     // logo (dmlogo_screenres.png, 322x72), drawn over the UI (drawLogo)
+		void drawLogo();
 
 		// Fills the editor outside the art with the art's background grid (the area the wider
 		// window adds around the 1148x542 art, see editorLayout.h).

@@ -26,6 +26,8 @@ constexpr int kArtOffsetY = -15;
 struct ImageRect { int x, y, w, h; };
 constexpr ImageRect kPanelImg {0, 0, 1248, 542};                              // bkg1.png
 constexpr ImageRect kAboutImg {kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight};  // dm_about_window.png
+// Logo (dmlogo_screenres.png, 2026-11-18): top right, drawn after the rest of the UI (NVGView::drawLogo).
+constexpr ImageRect kLogoImg {920, 6, 322, 72};
 
 // Convert a position in the original 1148x542 art to window coordinates.
 constexpr float artX (float x) { return x + kArtOffsetX; }
