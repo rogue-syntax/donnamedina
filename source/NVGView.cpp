@@ -9,7 +9,7 @@
 #include "lfoShape.h"
 #include "fxStrip.h"
 #include <iostream>
-#include "luconData.hpp"
+#include "monoFontData.hpp"  // DejaVu Sans Mono (was Lucida Console, luconData.hpp)
 #include "constants.h"
 #include "glIncludes.h"
 
@@ -890,9 +890,9 @@ no viewindex at 153!*/
 		}
 
 		vg = nvgCreateGL3(NVG_ANTIALIAS | NVG_STENCIL_STROKES | NVG_DEBUG);
-		// freeData = 0: lucon_ttf is a static array (luconData.hpp); with 1, fontstash would free()
+		// freeData = 0: mono_ttf is a static array (monoFontData.hpp); with 1, fontstash would free()
 		// it when the NanoVG context is deleted (crash), which is why that delete had been disabled.
-		fontInt = nvgCreateFontMem(vg, "lucon", lucon_ttf, lucon_ttf_len, 0);
+		fontInt = nvgCreateFontMem(vg, "mono", mono_ttf, mono_ttf_len, 0);
 		
 		nvgFontSize(vg, 9.0f);
 
@@ -1697,7 +1697,7 @@ no viewindex at 153!*/
 			snprintf(rt, sizeof(rt), "%.0f MS", period * 1000.0);
 		else
 			snprintf(rt, sizeof(rt), "%.2f S", period);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgFontSize(vg, 9.0f);
 		auto plate = [&](const char* t, float ty, bool top, NVGcolor c) {
 			float b[4];
@@ -1814,7 +1814,7 @@ no viewindex at 153!*/
 			nvgStroke(vg);
 			nvgFillColor(vg, nvgRGBA(120, 220, 255, 220));
 		}
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgFontSize(vg, 8.0f);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		nvgText(vg, x, y + 0.5f, kLetter[k], NULL);
@@ -2441,7 +2441,7 @@ no viewindex at 153!*/
 		nvgClosePath(vg);
 
 		//nvgFontSize(vg, 9.0f);
-		//nvgFontFace(vg, "lucon");
+		//nvgFontFace(vg, "mono");
 		//nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		//nvgFillColor(vg, nvgRGBA(0, 160, 192, 255));
 		/*
@@ -2473,7 +2473,7 @@ no viewindex at 153!*/
 		nvgClosePath(vg);
 		nvgFill(vg);
 		//nvgFontSize(vg, 9.0f);
-		//nvgFontFace(vg, "lucon");
+		//nvgFontFace(vg, "mono");
 		//nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		//nvgFillColor(vg, nvgRGBA(0, 160, 192, 255));
 		/*
@@ -2520,7 +2520,7 @@ no viewindex at 153!*/
 		nvgStroke(vg);
 		float bounds[4];
 		nvgFontSize(vg, 13.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER);
 		nvgFillColor(vg, nvgRGB(255, 153, 255));
 		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(230), "No registration detected! ", NULL);
@@ -2737,7 +2737,7 @@ no viewindex at 153!*/
 		const float tx = kBoxL + 8.0f;
 		const float tw = kBoxR - tx - 8.0f;
 		nvgFontSize(vg, 11.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
 		nvgSave(vg);
 		nvgScissor(vg, tx, kReadout.y0 + 17.0f, tw, 44.0f);
@@ -3184,7 +3184,7 @@ no viewindex at 153!*/
 		if (baseController)
 			labels[3] = exprTargetName(exprTargetFromNormalized(baseController->getParamNormalized(EXPR_TARGET)));
 		nvgFontSize(vg, 9.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgFillColor(vg, kColLabel);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 4; i++)
@@ -3202,7 +3202,7 @@ no viewindex at 153!*/
 		if (baseController)
 			fxLabels[0] = fx::delayDivisionName(fx::delayDivisionFromNormalized(baseController->getParamNormalized(DLY_TIME)));
 		nvgFontSize(vg, 9.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgFillColor(vg, kColLabel);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 4; i++)
@@ -3215,7 +3215,7 @@ no viewindex at 153!*/
 		static const char* const choLabels[3] = {"RATE", "DEPTH", "MIX"};
 		static const float choX[3] = {775.0f, 825.0f, 875.0f};
 		nvgFontSize(vg, 9.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgFillColor(vg, kColLabel);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 3; i++)
@@ -3234,7 +3234,7 @@ no viewindex at 153!*/
 
 	void NVGView::drawColumnSectionLabel(float x, float y, const char* text) {
 		nvgFontSize(vg, 11.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 		nvgFillColor(vg, kColLabel);
 		nvgText(vg, x, y, text, NULL);
@@ -3401,7 +3401,7 @@ no viewindex at 153!*/
 		nvgSave(vg);
 		nvgScissor(vg, n.x + 4, n.y, n.w - 18, n.h);
 		nvgFontSize(vg, 11.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
 		nvgFillColor(vg, hover == kName ? kTextHot : kText);
 		nvgText(vg, n.x + 6, n.y + n.h * 0.5f + 1.0f, name.c_str(), NULL);
@@ -3419,7 +3419,7 @@ no viewindex at 153!*/
 
 		// SAVE and RND
 		nvgFontSize(vg, 9.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
 		const char* labels[2] = {"SAVE", "RND"};
 		const int zones[2] = {kSave, kRnd};
@@ -3468,7 +3468,7 @@ no viewindex at 153!*/
 
 		nvgSave(vg);
 		nvgFontSize(vg, 10.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 		const float pad = 3.0f, th = 13.0f;
 		float b[4];
@@ -3552,7 +3552,7 @@ no viewindex at 153!*/
 		}
 		// octave lines at every C, labelled when an octave is wide enough (MIDI 60 = C4)
 		nvgFontSize(vg, 8.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_BOTTOM);
 		for (int p = p0; p <= p1; p++) {
 			if (p % 12 != 0)
@@ -3655,7 +3655,7 @@ no viewindex at 153!*/
 		drawKnobWell(kPanAmtKnob, 11);
 		drawKnobWell(kPanSrcKnob, 7);
 		nvgFontSize(vg, 9.0f);
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		nvgFillColor(vg, kColLabel);
 		const float ly = kMaster.y1 - 10;
@@ -4055,7 +4055,7 @@ no viewindex at 153!*/
 		}
 
 		// version
-		nvgFontFace(vg, "lucon");
+		nvgFontFace(vg, "mono");
 		nvgFontSize(vg, 16.0f);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		nvgFillColor(vg, kPink);
@@ -4064,7 +4064,7 @@ no viewindex at 153!*/
 		nvgText(vg, cx, ly + 14.0f, ver.c_str(), NULL);
 
 		// Rogue Syntax and VST logos, cut from the old about art
-		const float rowY = ly + 46.0f;
+		const float rowY = ly + 40.0f;
 		auto cut = [&](const ImageRect& src, float dx, float dy) {
 			if (images[DM_ABOUT_WINDOW] <= 0)
 				return;
@@ -4075,13 +4075,13 @@ no viewindex at 153!*/
 			nvgFillPaint(vg, p);
 			nvgFill(vg);
 		};
-		const float pad = 40.0f;
+		const float pad = kPad;
 		cut(kRogueSrc, x + pad, rowY);
 		cut(kVstSrc, x + w - pad - kVstSrc.w, rowY - 1.5f);
 
 		// description, two paragraphs with a divider between them
 		const float tx = x + pad, tw = w - 2.0f * pad;
-		float ty = rowY + 62.0f + 22.0f;
+		float ty = rowY + 62.0f + 16.0f;
 		nvgFontSize(vg, 11.0f);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 		nvgTextLineHeight(vg, 1.35f);
@@ -4106,6 +4106,67 @@ no viewindex at 153!*/
 			}
 		}
 		nvgTextLineHeight(vg, 1.0f);
+
+		// links row (clickable through AboutLinksView) and info row, under a divider
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, tx, kInfoLineY + 0.5f);
+		nvgLineTo(vg, tx + tw, kInfoLineY + 0.5f);
+		nvgStrokeColor(vg, kMagDim);
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		{
+			const int hov = baseController ? baseController->aboutHover : -1;
+			const ImageRect zones[2] = {kWebZone, kMailZone};
+			const char* texts[2] = {"WWW.ROGUE-SYNTAX.COM", "ADMIN@ROGUE-SYNTAX.COM"};
+			nvgFontSize(vg, 11.0f);
+			for (int i = 0; i < 2; i++) {
+				const ImageRect& z = zones[i];
+				const bool hot = hov == i;
+				const float zy = z.y + z.h * 0.5f;
+				if (hot) {
+					nvgBeginPath(vg);
+					nvgRect(vg, static_cast<float>(z.x) - 4, static_cast<float>(z.y), static_cast<float>(z.w) + 8, static_cast<float>(z.h));
+					nvgFillColor(vg, nvgRGBA(4, 186, 232, 40));
+					nvgFill(vg);
+				}
+				nvgTextAlign(vg, (i == 0 ? NVG_ALIGN_LEFT : NVG_ALIGN_RIGHT) | NVG_ALIGN_MIDDLE);
+				const float txx = i == 0 ? static_cast<float>(z.x) : static_cast<float>(z.x + z.w);
+				nvgFillColor(vg, hot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(4, 186, 232, 255));
+				nvgText(vg, txx, zy + 1.0f, texts[i], NULL);
+				// underline (the text's own width)
+				const float tw2 = nvgTextBounds(vg, 0, 0, texts[i], NULL, nullptr);
+				const float ux0 = i == 0 ? txx : txx - tw2;
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, ux0, floorf(zy + 8.0f) + 0.5f);
+				nvgLineTo(vg, ux0 + tw2, floorf(zy + 8.0f) + 0.5f);
+				nvgStrokeColor(vg, hot ? nvgRGBA(220, 250, 255, 230) : nvgRGBA(4, 186, 232, 90));
+				nvgStrokeWidth(vg, 1.0f);
+				nvgStroke(vg);
+			}
+		}
+		{
+			// registration (left) and format / build (right)
+			const bool reg = constants::isRegLegit;
+			nvgFontSize(vg, 10.0f);
+			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+			nvgFillColor(vg, reg ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 150, 80, 255));
+			nvgText(vg, tx, kInfoY, reg ? "REGISTERED" : "UNREGISTERED", NULL);
+			// __DATE__ is "Mmm dd yyyy": shown as yyyy-mm-dd
+			static const std::string build = [] {
+				const char* d = __DATE__;
+				static const char* const kMon = "JanFebMarAprMayJunJulAugSepOctNovDec";
+				int m = 1;
+				for (int i = 0; i < 12; i++)
+					if (std::strncmp(d, kMon + 3 * i, 3) == 0) { m = i + 1; break; }
+				char b[32];
+				std::snprintf(b, sizeof(b), "%.4s-%02d-%02d", d + 7, m, std::atoi(d + 4));
+				return std::string(b);
+			}();
+			const std::string fmt = "VST3  |  64-BIT  |  BUILD " + build;
+			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+			nvgFillColor(vg, nvgRGBA(150, 160, 185, 230));
+			nvgText(vg, tx + tw, kInfoY, fmt.c_str(), NULL);
+		}
 
 		// footer: divider with a 45 degree step, copyright left, trademark notice right
 		const float fy = y + h - 30.0f;
@@ -4188,8 +4249,20 @@ no viewindex at 153!*/
 				controlMap[SHUT_WIN_BUTTON_VIEW_IDX]->setMouseEnabled(false);
 			}
 		}
+		syncAboutViews();
 	}
 
+
+	// Views that only work while the about screen is open (2026-11-18): the links row.
+	void NVGView::syncAboutViews() {
+		if (!baseController)
+			return;
+		if (baseController->aboutLinksView)
+			baseController->aboutLinksView->setMouseEnabled(moreInfoWindowOpen);
+		if (!moreInfoWindowOpen)
+			baseController->aboutHover = -1;
+		shutHover = false;
+	}
 
 	void NVGView::onShutWinBtnDown() {
 		//SHOW BLINK
@@ -4235,6 +4308,7 @@ no viewindex at 153!*/
 				controlMap[SHUT_WIN_BUTTON_VIEW_IDX]->setMouseEnabled(false);
 			}
 		}
+		syncAboutViews();
 	}
 
 	void NVGView::setSet(void* parent) {

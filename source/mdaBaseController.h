@@ -168,6 +168,10 @@ protected:
 	void setPolyCount(int n, bool withGesture);
 	void showPolyMenu(VSTGUI::CFrame* frame, const VSTGUI::CPoint& where);
 	bool presetBarEnabled = true;  // NVGView: false while the about window covers the bar
+	// About screen links (AboutLinksView): hovered zone (aboutLinks::Zone), the view (NVGView enables
+	// its mouse while the about screen is open).
+	int aboutHover = -1;
+	VSTGUI::CView* aboutLinksView = nullptr;
 	virtual void onPresetBarClick(int /*zone*/, VSTGUI::CFrame* /*frame*/, const VSTGUI::CPoint& /*where*/) {}
 	virtual void onProcessorState(const void* /*data*/, uint32 /*size*/, int64 /*purpose*/) {}
 	VSTGUI::CView* createCustomView(VSTGUI::UTF8StringPtr name, const VSTGUI::UIAttributes& attributes,

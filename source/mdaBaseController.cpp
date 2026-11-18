@@ -20,6 +20,10 @@
 #include <locale>
 #include <codecvt>
 #include "bcrypt/BCrypt.hpp"
+#ifdef _WIN32
+#include <windows.h>
+#include <shellapi.h>  // ShellExecuteW (about screen links)
+#endif
 */
 
 using namespace VSTGUI;
@@ -715,7 +719,67 @@ VSTGUI::CView* BaseController::createCustomView(VSTGUI::UTF8StringPtr name, cons
 		attributes.getPointAttribute("size", size);
 		return new PresetBarView(CRect(origin, size), this);
 	}
+	if (name && std::strcmp(name, "aboutLinks") == 0) {
+		using namespace editorLayout::about;
+		CPoint origin(kLinks.x, kLinks.y), size(kLinks.w, kLinks.h);
+		attributes.getPointAttribute("origin", origin);
+		attributes.getPointAttribute("size", size);
+		return new AboutLinksView(CRect(origin, size), this);
+	}
 	return nullptr;
+}
+
+// ---- about screen links ----
+AboutLinksView::AboutLinksView(const CRect& size, BaseController* c) : CView(size), ctrl(c) {
+	setTransparency(true);
+	setWantsFocus(false);
+	setMouseEnabled(false);  // NVGView enables it while the about screen is open
+	if (ctrl)
+		ctrl->aboutLinksView = this;
+}
+
+AboutLinksView::~AboutLinksView() {
+	if (ctrl) {
+		ctrl->aboutHover = -1;
+		if (ctrl->aboutLinksView == this)
+			ctrl->aboutLinksView = nullptr;
+	}
+}
+
+int AboutLinksView::zoneFor(const CPoint& where) const {
+	// where is in the parent's coordinates (= window coordinates for the top-level template)
+	const CRect r = getViewSize();
+	using namespace editorLayout::about;
+	return aboutLinks::zoneAt(float(where.x - r.left) + kLinks.x, float(where.y - r.top) + kLinks.y);
+}
+
+CMouseEventResult AboutLinksView::onMouseMoved(CPoint& where, const CButtonState&) {
+	if (!ctrl)
+		return kMouseEventNotHandled;
+	ctrl->aboutHover = zoneFor(where);
+	if (CFrame* f = getFrame())
+		f->setCursor(ctrl->aboutHover >= 0 ? kCursorHand : kCursorDefault);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult AboutLinksView::onMouseExited(CPoint&, const CButtonState&) {
+	if (ctrl)
+		ctrl->aboutHover = -1;
+	if (CFrame* f = getFrame())
+		f->setCursor(kCursorDefault);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult AboutLinksView::onMouseDown(CPoint& where, const CButtonState& buttons) {
+	if (!ctrl || !buttons.isLeftButton())
+		return kMouseEventNotHandled;
+	const int z = zoneFor(where);
+	if (z < 0)
+		return kMouseEventNotHandled;
+#ifdef _WIN32
+	ShellExecuteW(nullptr, L"open", aboutLinks::kUrl[z], nullptr, nullptr, SW_SHOWNORMAL);
+#endif
+	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
 }
 
 PresetBarView::PresetBarView(const CRect& size, BaseController* c) : CView(size), ctrl(c) {

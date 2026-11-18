@@ -39,6 +39,16 @@ constexpr float kTitleH = 24.0f;
 constexpr ImageRect kClose {kBox.x + kBox.w - 30, kBox.y, 30, 24};
 constexpr ImageRect kRogueSrc {292, 218, 342, 59};
 constexpr ImageRect kVstSrc {696, 217, 163, 62};
+// Links row (website, support mail) and info row (registration, format/build) above the footer.
+// The links are clickable through the invisible custom view "aboutLinks" (presetBarView.h;
+// vstgui.uidesc origin kLinks.x,kLinks.y size kLinks.w x kLinks.h, mouse-enabled only while the
+// about screen is open). Zone widths fit 11 px text (6.62 px per glyph).
+constexpr float kPad = 40.0f;
+constexpr float kInfoLineY = 384.0f;  // divider above the two rows
+constexpr ImageRect kLinks {kBox.x + 40, 392, kBox.w - 80, 18};
+constexpr ImageRect kWebZone {kLinks.x, kLinks.y, 136, 18};                     // WWW.ROGUE-SYNTAX.COM
+constexpr ImageRect kMailZone {kLinks.x + kLinks.w - 150, kLinks.y, 150, 18};   // ADMIN@ROGUE-SYNTAX.COM
+constexpr float kInfoY = 424.0f;  // middle of the info row
 } // namespace about
 
 // Convert a position in the original 1148x542 art to window coordinates.
@@ -112,7 +122,7 @@ constexpr float kChorusL = 739.0f, kChorusT = 458.0f;
 constexpr float kPlayLine = kPlay.y0 + 12.0f;   // 413
 constexpr float kFxLine = kFx.y0 + 12.0f;       // 483
 // The PLAY / DELAY dividers run at kTabH above the line from kFrameL to the end of the section label
-// (kPlayTabX / kFxTabX: label x kX0 + 9, plus 6.6 px per Lucida Console 11 px glyph, plus 5), slant
+// (kPlayTabX / kFxTabX: label x kX0 + 9, plus 6.6 px per 11 px glyph of the UI font (DejaVu Sans Mono, 0.602 em), plus 5), slant
 // down 45 degrees to the line and run along it to kFrameR. The hover outlines of MASTER / PLAY /
 // DELAY follow the same path.
 constexpr float kTabH = 14.0f;

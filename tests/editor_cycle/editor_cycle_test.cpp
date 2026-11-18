@@ -276,13 +276,18 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 			}
 		}
 	}
-	// EDITOR_SHOT_ABOUT=1: open the about screen (as a click on the logo does)
-	if (std::getenv("EDITOR_SHOT_ABOUT")) {
+	// EDITOR_SHOT_ABOUT=1: open the about screen (as a click on the logo does); =2: also show the
+	// website link hovered; prints whether the links view took the mouse
+	if (const char* av = std::getenv("EDITOR_SHOT_ABOUT")) {
 		rs::NVGView* nv = ctrl->nvgViewController ? ctrl->nvgViewController->nvgView : nullptr;
 		if (nv) {
 			nv->onMoreInfoBtnDown();
+			if (std::atoi(av) == 2)
+				ctrl->aboutHover = 0;
 			pumpFor(600);
-			std::printf("about open: %d\n", nv->moreInfoWindowOpen ? 1 : 0);
+			std::printf("about open: %d, links view %s, mouse %d\n", nv->moreInfoWindowOpen ? 1 : 0,
+			            ctrl->aboutLinksView ? "found" : "MISSING",
+			            ctrl->aboutLinksView ? (ctrl->aboutLinksView->getMouseEnabled() ? 1 : 0) : -1);
 		}
 	}
 	// EDITOR_SHOT_BLOCK=<block>[,<phase 0..1>]: hover that block (blockMap::kBlocks index) for the

@@ -60,6 +60,38 @@ private:
 	BaseController* ctrl;
 };
 
+// About screen links (2026-11-18): an invisible view over the links row (custom view "aboutLinks",
+// editorLayout::about::kLinks). NVGView enables its mouse only while the about screen is open (it
+// sits over panel controls). The hovered zone goes to BaseController::aboutHover (NVGView draws
+// it); a click opens the website or a mail to support.
+namespace aboutLinks {
+enum Zone { kNone = -1, kWeb = 0, kMail, kZoneCount };
+inline int zoneAt(float x, float y) {
+	using namespace editorLayout::about;
+	const editorLayout::ImageRect z[kZoneCount] = {kWebZone, kMailZone};
+	for (int i = 0; i < kZoneCount; i++)
+		if (x >= z[i].x && x < z[i].x + z[i].w && y >= z[i].y && y < z[i].y + z[i].h)
+			return i;
+	return kNone;
+}
+constexpr const wchar_t* kUrl[kZoneCount] = {L"http://www.rogue-syntax.com", L"mailto:admin@rogue-syntax.com"};
+} // namespace aboutLinks
+
+class AboutLinksView : public VSTGUI::CView {
+public:
+	AboutLinksView(const VSTGUI::CRect& size, BaseController* c);
+	~AboutLinksView() override;
+
+	VSTGUI::CMouseEventResult onMouseMoved(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseExited(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	void draw(VSTGUI::CDrawContext*) override {}  // drawn by NVGView
+
+private:
+	int zoneFor(const VSTGUI::CPoint& where) const;
+	BaseController* ctrl;
+};
+
 class PolyView : public VSTGUI::CView {
 public:
 	PolyView(const VSTGUI::CRect& size, BaseController* c);

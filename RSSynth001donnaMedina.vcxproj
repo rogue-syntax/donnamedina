@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -315,7 +315,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\fontstash.h" />
     <ClInclude Include="source\glIncludes.h" />
     <ClInclude Include="source\helpers.h" />
-    <ClInclude Include="source\luconData.hpp" />
+    <ClInclude Include="source\monoFontData.hpp" />
     <ClInclude Include="source\Map.h" />
     <ClInclude Include="source\mdaBaseController.h" />
     <ClInclude Include="source\mdaBaseProcessor.h" />
