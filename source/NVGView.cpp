@@ -2730,8 +2730,8 @@ no viewindex at 153!*/
 
 		// Name and value in the two CONTROL slots of the right column (drawRightColumn).
 		using namespace ::editorLayout::column;
-		const float tx = kX0 + 17.0f;
-		const float tw = (kX1 - 9.0f) - tx - 8.0f;
+		const float tx = kBoxL + 8.0f;
+		const float tw = kBoxR - tx - 8.0f;
 		nvgFontSize(vg, 11.0f);
 		nvgFontFace(vg, "lucon");
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
@@ -3580,9 +3580,8 @@ no viewindex at 153!*/
 
 		// 2026-11-16: no frame, separators or title for now; the content floats on the grid while the
 		// final placement (and the logo) is worked out. kX0/kX1 still set the content edges.
-		const float x0 = kX0, x1 = kX1;
-		const float lx = x0 + 9;  // label / content left edge
-		const float rx = x1 - 9;  // content right edge
+		const float lx = kBoxL;  // label / box left edge (top of the frame's chamfer)
+		const float rx = kBoxR;  // box right edge (the frame's right edge)
 
 		// a bracket right of a box (2026-11-17)
 		auto bracket = [&](float y0, float y1, NVGcolor c) {
@@ -3597,8 +3596,9 @@ no viewindex at 153!*/
 		};
 
 		// 4. Preset bar: < name > SAVE RND (drawPresetBar; PresetBarView handles the mouse)
-		drawInset(lx, kPreset.y0 + 3, rx - lx, kPreset.h() - 6, kColDimFrame);
-		bracket(kPreset.y0 + 3, kPreset.y1 - 3, kColFrame);
+		drawColumnSectionLabel(lx, kPreset.y0 + 2, "PRESET");
+		drawInset(lx, kPreset.y0 + 17, rx - lx, kPreset.h() - 20, kColDimFrame);
+		bracket(kPreset.y0 + 17, kPreset.y1 - 3, kColFrame);
 		drawPresetBar();
 
 		// 5. Readout: parameter name and value slots (text drawn by drawCtrlValueOutput)

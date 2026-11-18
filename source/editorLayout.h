@@ -63,7 +63,8 @@ struct Band { float y0, y1; constexpr float h () const { return y1 - y0; } };
 // polyCount, master/play/delay knobs, HQ/VEL toggles) include it too.
 constexpr float kDY = 16.0f;
 constexpr Band kTitle {3.0f, 71.0f};
-constexpr Band kPreset {77.0f + kDY, 105.0f + kDY};
+// PRESET: label at y0 + 2, the bar (presetBar::kBar) at y0 + 17 .. y1 - 3, like CONTROL and SCOPE.
+constexpr Band kPreset {63.0f + kDY, 105.0f + kDY};
 constexpr Band kReadout {111.0f + kDY, 175.0f + kDY};
 constexpr Band kScope {181.0f + kDY, 305.0f + kDY};   // waveform over the sounding voices (voices band merged in)
 constexpr Band kMaster {311.0f + kDY, 379.0f + kDY};
@@ -103,8 +104,12 @@ constexpr float kFxLine = kFx.y0 + 12.0f;       // 483
 constexpr float kTabH = 14.0f;
 constexpr float kPlayTabX = kX0 + 9.0f + 4 * 6.6f + 5.0f;   // "PLAY"
 constexpr float kFxTabX = kX0 + 9.0f + 5 * 6.6f + 5.0f;     // "DELAY"
-// Brackets right of the preset bar, the CONTROL slots and the scope.
-constexpr float kBracketX = kX1 - 2.0f;        // 1228 (the boxes end at kX1 - 9)
+// PRESET, CONTROL and SCOPE boxes (2026-11-18): the left edge lines up with the top of the frame's
+// top-left chamfer, the right edge with the frame's right edge. Their labels start at kBoxL.
+constexpr float kBoxL = kFrameL + 6.0f;        // 920
+constexpr float kBoxR = kFrameR;               // 1235
+// Brackets right of the boxes, outside the line.
+constexpr float kBracketX = kBoxR + 7.0f;      // 1242
 // #moreInfo (opens the about window) sits on the title (the logo it used to cover is gone).
 constexpr Rect kMoreInfo {1012.0f, 6.0f, 143.0f, 63.0f};
 } // namespace column

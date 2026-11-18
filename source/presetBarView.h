@@ -11,14 +11,16 @@ namespace presetBar {
 
 enum Zone { kNone = -1, kPrev = 0, kName, kNext, kSave, kRnd, kZoneCount };
 
-// Zone rectangles in window coordinates (inside the PRESET inset: x 937..1231 + column::kDX, y 80..102 + column::kDY).
-constexpr editorLayout::column::Rect kBar {937.0f + editorLayout::column::kDX, 80.0f + editorLayout::column::kDY, 294.0f, 22.0f};
+// Zone rectangles in window coordinates (the PRESET inset: x column::kBoxL..kBoxR, y 80..102 + column::kDY).
+constexpr float kX = editorLayout::column::kBoxL;
+constexpr float kY = 80.0f + editorLayout::column::kDY;
+constexpr editorLayout::column::Rect kBar {kX, kY, editorLayout::column::kBoxR - kX, 22.0f};  // 920,96 315x22
 constexpr editorLayout::column::Rect kZones[kZoneCount] = {
-	{937.0f + editorLayout::column::kDX, 80.0f + editorLayout::column::kDY, 22.0f, 22.0f},    // <
-	{961.0f + editorLayout::column::kDX, 80.0f + editorLayout::column::kDY, 172.0f, 22.0f},   // name (opens the preset menu)
-	{1135.0f + editorLayout::column::kDX, 80.0f + editorLayout::column::kDY, 22.0f, 22.0f},   // >
-	{1161.0f + editorLayout::column::kDX, 80.0f + editorLayout::column::kDY, 36.0f, 22.0f},   // SAVE
-	{1199.0f + editorLayout::column::kDX, 80.0f + editorLayout::column::kDY, 32.0f, 22.0f},   // RND
+	{kX, kY, 22.0f, 22.0f},            // <
+	{kX + 24.0f, kY, 193.0f, 22.0f},   // name (opens the preset menu)
+	{kX + 219.0f, kY, 22.0f, 22.0f},   // >
+	{kX + 245.0f, kY, 36.0f, 22.0f},   // SAVE
+	{kX + 283.0f, kY, 32.0f, 22.0f},   // RND (ends at kBoxR)
 };
 
 inline int zoneAt(float x, float y) {
@@ -36,7 +38,7 @@ inline int zoneAt(float x, float y) {
 // an invisible view too (custom view "polyCount"): drag up/down or the mouse wheel changes the limit,
 // a click without dragging opens a menu of common values. NVGView draws the plate (drawScopeInfo).
 namespace polyZone {
-constexpr editorLayout::column::Rect kRect {937.0f + editorLayout::column::kDX, 201.0f + editorLayout::column::kDY, 132.0f, 13.0f};
+constexpr editorLayout::column::Rect kRect {editorLayout::column::kBoxL, 201.0f + editorLayout::column::kDY, 132.0f, 13.0f};
 }
 
 namespace Steinberg { namespace Vst { namespace rs {
