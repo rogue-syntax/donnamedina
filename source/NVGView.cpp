@@ -3721,6 +3721,9 @@ no viewindex at 153!*/
 
 
 	void NVGView::drawMoreInfoBtn(RData& reIn) {
+		// 2026-11-18: the button covers the logo, whose hover/press effect drawLogo draws (over the
+		// logo); the old cyan outline would sit under the logo image, so nothing is drawn here.
+		return;
 		RSBView* rsbView = &RViewsMap.at("MORE_INFO_BTN");
 		//build info button
 		nvgBeginPath(vg);
@@ -3764,10 +3767,163 @@ no viewindex at 153!*/
 	}
 	
 
+	// Logo with its hover effect (2026-11-18). The logo is the about button (#moreInfo covers it).
+	// Hovered (eased in/out): a magenta ghost halo breathing behind it, a faint drifting ghost double
+	// over it, a light sheen sweeping across, a lit border with two sparks running around it (fading
+	// tails). Clicked (MORE_INFO_BTN blink): a white flash and a 1 px dip.
 	void NVGView::drawLogo() {
 		using namespace ::editorLayout;
-		if (images[DM_LOGO] > 0)
-			drawImageAt(DM_LOGO, kLogoImg.x, kLogoImg.y, kLogoImg.w, kLogoImg.h);
+		if (images[DM_LOGO] <= 0)
+			return;
+		static const auto t0 = std::chrono::steady_clock::now();
+		const double t = std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+		const float dt = logoLastT < 0.0 ? 0.0f : static_cast<float>((std::min)(0.1, t - logoLastT));
+		logoLastT = t;
+		const bool hovered = (moreInfoPhase == 1 || logoHoverForce) && !moreInfoWindowOpen;
+		logoHover += ((hovered ? 1.0f : 0.0f) - logoHover) * (std::min)(1.0f, dt * 9.0f);
+		if (logoHover < 0.002f) logoHover = 0.0f;
+		const float h = logoHover;
+		float flash = 0.0f;
+		{
+			auto it = RViewsMap.find("MORE_INFO_BTN");
+			if (it != RViewsMap.end())
+				flash = static_cast<float>(it->second.blinkIntensity);
+		}
+		const float x = kLogoImg.x, y = kLogoImg.y + (flash > 0.05f ? 1.0f : 0.0f);
+		const float w = kLogoImg.w, ht = kLogoImg.h;
+		const float cx = x + w * 0.5f, cy = y + ht * 0.5f;
+		const float kTwoPi = 6.2831853f;
+
+		// image drawn at a scale around the centre, tinted (the shader multiplies by the paint colour)
+		auto logoCopy = [&](float s, float dx, float dy, NVGcolor tint) {
+			const float sw = w * s, sh = ht * s;
+			const float sx = cx - sw * 0.5f + dx, sy = cy - sh * 0.5f + dy;
+			NVGpaint p = nvgImagePattern(vg, sx, sy, sw, sh, 0.0f, images[DM_LOGO], 1.0f);
+			p.innerColor = tint;
+			nvgBeginPath(vg);
+			nvgRect(vg, sx, sy, sw, sh);
+			nvgFillPaint(vg, p);
+			nvgFill(vg);
+		};
+
+		// 1. ghost halo behind: a soft glow box and enlarged magenta copies, breathing
+		const float breathe = 0.5f + 0.5f * sinf(static_cast<float>(t) * kTwoPi / 2.6f);
+		if (h > 0.0f) {
+			nvgSave(vg);
+			nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+			nvgBeginPath(vg);
+			nvgRect(vg, x - 16, y - 16, w + 32, ht + 32);
+			nvgFillPaint(vg, nvgBoxGradient(vg, x, y, w, ht, 4.0f, 14.0f + 6.0f * breathe,
+			                                nvgRGBA(255, 60, 200, (unsigned char)(70 * h)), nvgRGBA(255, 60, 200, 0)));
+			nvgFill(vg);
+			for (int i = 1; i <= 3; i++) {
+				const float s = 1.0f + i * (0.012f + 0.008f * breathe);
+				logoCopy(s, 0, 0, nvgRGBAf(1.0f, 0.35f, 0.85f, h * (0.16f - 0.04f * i)));
+			}
+			nvgRestore(vg);
+		}
+
+		// 2. the logo
+		drawImageAt(DM_LOGO, x, y, w, ht);
+
+		nvgSave(vg);
+		nvgScissor(vg, x, y, w, ht);
+		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+		if (h > 0.0f) {
+			// 3. ghost double: a faint copy drifting a pixel or two around the logo
+			const float gx = 1.6f * sinf(static_cast<float>(t) * 1.7f), gy = 1.0f * sinf(static_cast<float>(t) * 2.3f + 1.0f);
+			logoCopy(1.0f, gx, gy, nvgRGBAf(0.7f, 0.9f, 1.0f, h * (0.10f + 0.06f * breathe)));
+
+			// 4. sheen: a slanted light band sweeping left to right every 2.4 s (then a pause)
+			const float period = 2.4f, sweep = 0.9f;
+			const float ph = fmodf(static_cast<float>(t), period) / sweep;
+			if (ph < 1.0f) {
+				const float bw = 26.0f;
+				const float bx = x - 40.0f + (w + 80.0f) * ph;
+				nvgSave(vg);
+				nvgTranslate(vg, bx, y);
+				nvgSkewX(vg, -0.45f);
+				const NVGcolor c0 = nvgRGBA(255, 230, 250, 0), c1 = nvgRGBA(255, 230, 250, (unsigned char)(90 * h));
+				nvgBeginPath(vg);
+				nvgRect(vg, -bw, 0, bw, ht);
+				nvgFillPaint(vg, nvgLinearGradient(vg, -bw, 0, 0, 0, c0, c1));
+				nvgFill(vg);
+				nvgBeginPath(vg);
+				nvgRect(vg, 0, 0, bw, ht);
+				nvgFillPaint(vg, nvgLinearGradient(vg, 0, 0, bw, 0, c1, c0));
+				nvgFill(vg);
+				nvgRestore(vg);
+			}
+		}
+		// 7. click flash
+		if (flash > 0.0f) {
+			nvgBeginPath(vg);
+			nvgRect(vg, x, y, w, ht);
+			nvgFillColor(vg, nvgRGBA(255, 255, 255, (unsigned char)(80 * flash)));
+			nvgFill(vg);
+		}
+		nvgRestore(vg);
+
+		if (h <= 0.0f && flash <= 0.0f)
+			return;
+
+		// 5. lit border (inset 1 px) and 6. two sparks running around it, clockwise
+		const float bx0 = x + 1.0f, by0 = y + 1.0f, bx1 = x + w - 1.0f, by1 = y + ht - 1.0f;
+		const float bw = bx1 - bx0, bh = by1 - by0, per = 2.0f * (bw + bh);
+		auto at = [&](float d, float& px, float& py) {
+			d = fmodf(d, per);
+			if (d < 0) d += per;
+			if (d < bw) { px = bx0 + d; py = by0; return; }
+			d -= bw;
+			if (d < bh) { px = bx1; py = by0 + d; return; }
+			d -= bh;
+			if (d < bw) { px = bx1 - d; py = by1; return; }
+			d -= bw;
+			px = bx0; py = by1 - d;
+		};
+		nvgSave(vg);
+		nvgGlobalCompositeOperation(vg, NVG_LIGHTER);
+		nvgLineJoin(vg, NVG_MITER);
+		const float lit = (std::max)(h, flash);
+		nvgBeginPath(vg);
+		nvgRect(vg, bx0, by0, bw, bh);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, (unsigned char)(60 * lit)));
+		nvgStrokeWidth(vg, 5.0f);
+		nvgStroke(vg);
+		nvgStrokeColor(vg, nvgRGBA(110, 225, 255, (unsigned char)(150 * lit + 105 * flash)));
+		nvgStrokeWidth(vg, 1.5f);
+		nvgStroke(vg);
+
+		if (h > 0.0f) {
+			const float head0 = fmodf(static_cast<float>(t) / 1.8f, 1.0f) * per;  // once around in 1.8 s
+			const float tail = 90.0f, step = 3.0f;
+			nvgLineCap(vg, NVG_ROUND);
+			for (int s = 0; s < 2; s++) {
+				const float head = head0 + s * per * 0.5f;
+				float px, py, qx, qy;
+				for (float d = tail; d > 0.0f; d -= step) {
+					at(head - d, px, py);
+					at(head - d + step, qx, qy);
+					const float k = 1.0f - d / tail;  // 0 at the end of the tail, 1 at the head
+					nvgBeginPath(vg);
+					nvgMoveTo(vg, px, py);
+					nvgLineTo(vg, qx, qy);
+					nvgStrokeColor(vg, nvgRGBA(4, 186, 232, (unsigned char)(110 * h * k)));
+					nvgStrokeWidth(vg, 6.0f);
+					nvgStroke(vg);
+					nvgStrokeColor(vg, nvgRGBA(220, 250, 255, (unsigned char)(230 * h * k * k)));
+					nvgStrokeWidth(vg, 2.0f);
+					nvgStroke(vg);
+				}
+				// bright head
+				at(head, px, py);
+				nvgBeginPath(vg);
+				nvgCircle(vg, px, py, 7.0f);
+				nvgFillPaint(vg, nvgRadialGradient(vg, px, py, 0.5f, 7.0f, nvgRGBA(255, 255, 255, (unsigned char)(230 * h)), nvgRGBA(4, 186, 232, 0)));
+				nvgFill(vg);
+			}
+		}
+		nvgRestore(vg);
 	}
 
 	void NVGView::drawMoreInfoWindow() {
@@ -3802,11 +3958,21 @@ no viewindex at 153!*/
 
 	void NVGView::onMoreInfoBtnEnter() {
 		this->moreInfoPhase = 1;
-
+		// readout (CONTROL slots) while the logo / about button is hovered
+		if (!moreInfoWindowOpen) {
+			std::string v = version + "  CLICK FOR INFO";  // version: "Version x.y.z"
+			for (char& ch : v) ch = static_cast<char>(toupper(static_cast<unsigned char>(ch)));
+			targDisplayTxt.reset("ABOUT DONNA MEDINA", "#logo", 0.025f, 0.025f);
+			targValueTxt.reset(v.c_str(), "#logo", 0.013f, 0.013f);
+			targDisplayTxt.hold = true;
+			targValueTxt.hold = true;
+		}
 	};
 
 	void NVGView::onMoreInfoBtnExit() {
 		this->moreInfoPhase = 0;
+		targDisplayTxt.hold = false;
+		targValueTxt.hold = false;
 	};
 
 	void NVGView::onMoreInfoBtnDown() {

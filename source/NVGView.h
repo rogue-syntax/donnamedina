@@ -769,6 +769,10 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		// test hooks (editor_cycle EDITOR_SHOT_BLOCK): force the hovered block, freeze the pass (0..1)
 		int blockHoverForce = -1;
 		float blockFxFreeze = -1.0f;
+		// logo hover effect (drawLogo): eased hover amount, last frame time; test hook EDITOR_SHOT_LOGO
+		float logoHover = 0.0f;
+		double logoLastT = -1.0;
+		bool logoHoverForce = false;
 		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)

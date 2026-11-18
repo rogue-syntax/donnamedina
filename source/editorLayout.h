@@ -112,8 +112,9 @@ constexpr float kBoxL = kFrameL + 6.0f;        // 920
 constexpr float kBoxR = kFrameR;               // 1235
 // Brackets right of the boxes, outside the line.
 constexpr float kBracketX = kBoxR + 7.0f;      // 1242
-// #moreInfo (opens the about window) sits on the title (the logo it used to cover is gone).
-constexpr Rect kMoreInfo {1012.0f, 6.0f, 143.0f, 63.0f};
+// #moreInfo (opens the about window) covers the logo (kLogoImg, 2026-11-18); the hover effect is
+// drawn by NVGView::drawLogo.
+constexpr Rect kMoreInfo {920.0f, 6.0f, 322.0f, 72.0f};
 } // namespace column
 
 } // namespace editorLayout
