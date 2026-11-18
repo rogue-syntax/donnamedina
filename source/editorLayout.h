@@ -29,6 +29,18 @@ constexpr ImageRect kAboutImg {kArtOffsetX, kArtOffsetY, kArtWidth, kArtHeight};
 // Logo (dmlogo_screenres.png, 2026-11-18): top right, drawn after the rest of the UI (NVGView::drawLogo).
 constexpr ImageRect kLogoImg {920, 6, 322, 72};
 
+// About screen (2026-11-18), drawn in code by NVGView::drawMoreInfoWindow over a dark backdrop:
+// a box centred in the window; the close box (#shutWin in vstgui.uidesc: origin 914,66 size 30x24)
+// is its top-right corner of the title bar. The Rogue Syntax and VST logos are cut from
+// dm_about_window.png (source rectangles in that image).
+namespace about {
+constexpr ImageRect kBox {304, 66, 640, 410};
+constexpr float kTitleH = 24.0f;
+constexpr ImageRect kClose {kBox.x + kBox.w - 30, kBox.y, 30, 24};
+constexpr ImageRect kRogueSrc {292, 218, 342, 59};
+constexpr ImageRect kVstSrc {696, 217, 163, 62};
+} // namespace about
+
 // Convert a position in the original 1148x542 art to window coordinates.
 constexpr float artX (float x) { return x + kArtOffsetX; }
 constexpr float artY (float y) { return y + kArtOffsetY; }

@@ -2749,6 +2749,17 @@ no viewindex at 153!*/
 	}
 
 	void NVGView::onMouseEntered(CView* view, CFrame* frame) {
+		// The logo / about button: CBMoreInfoButton's own enter/exit handlers only run while
+		// VSTGUIEditorInterface::editorOpen is false, which it never is with the editor open (only its
+		// click works), so its hover comes from here.
+		if (moreInfoBtn && view == moreInfoBtn) {
+			onMoreInfoBtnEnter();
+			return;
+		}
+		if (view && view == controlMap[SHUT_WIN_BUTTON_VIEW_IDX]) {
+			shutHover = true;
+			return;
+		}
 		CControl* c = dynamic_cast<CControl*>(view);
 		if (!c || !baseController)
 			return;
@@ -2763,6 +2774,14 @@ no viewindex at 153!*/
 	}
 
 	void NVGView::onMouseExited(CView* view, CFrame* frame) {
+		if (moreInfoBtn && view == moreInfoBtn) {
+			onMoreInfoBtnExit();
+			return;
+		}
+		if (view && view == controlMap[SHUT_WIN_BUTTON_VIEW_IDX]) {
+			shutHover = false;
+			return;
+		}
 		CControl* c = dynamic_cast<CControl*>(view);
 		if (c && c->getTag() == hoverPid) {
 			hoverPid = -1;
@@ -3928,32 +3947,183 @@ no viewindex at 153!*/
 
 	void NVGView::drawMoreInfoWindow() {
 		//info window
-		if (moreInfoWindowOpen) {
-			
-			using namespace ::editorLayout;
-			// The about art is the same size as the panel art; fill the space around it with the grid
-			// so controls added outside the art do not show through.
-			drawGrid(kAboutImg);
-			NVGpaint imgPaint;
-			imgPaint = nvgImagePattern(vg, kAboutImg.x, kAboutImg.y, kAboutImg.w, kAboutImg.h, 0.0f, images[DM_ABOUT_WINDOW], 1.0);
+		// 2026-11-18: drawn in code (was dm_about_window.png drawn whole: its transparent surround let
+		// the panel show through and its box was placed for the old 1148 px window). The panel stays
+		// visible, dimmed, behind a centred box; the two logos are cut from dm_about_window.png.
+		if (!moreInfoWindowOpen)
+			return;
+		using namespace ::editorLayout;
+		using namespace ::editorLayout::about;
+		static const auto t0 = std::chrono::steady_clock::now();
+		const float t = std::chrono::duration<float>(std::chrono::steady_clock::now() - t0).count();
+		const NVGcolor kPink = nvgRGBA(255, 153, 255, 255);
+		const NVGcolor kMag = nvgRGBA(176, 60, 190, 255);
+		const NVGcolor kMagDim = nvgRGBA(176, 60, 190, 110);
+		const float x = static_cast<float>(kBox.x), y = static_cast<float>(kBox.y);
+		const float w = static_cast<float>(kBox.w), h = static_cast<float>(kBox.h);
+		const float cx = x + w * 0.5f;
+
+		// backdrop: the whole window dimmed, darker towards the edges
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, static_cast<float>(kEditorWidth), static_cast<float>(kEditorHeight));
+		nvgFillColor(vg, nvgRGBA(2, 5, 10, 205));
+		nvgFill(vg);
+		nvgBeginPath(vg);
+		nvgRect(vg, 0, 0, static_cast<float>(kEditorWidth), static_cast<float>(kEditorHeight));
+		nvgFillPaint(vg, nvgRadialGradient(vg, cx, y + h * 0.5f, h * 0.45f, static_cast<float>(kEditorWidth) * 0.6f,
+		                                   nvgRGBA(0, 0, 0, 0), nvgRGBA(0, 0, 0, 120)));
+		nvgFill(vg);
+
+		// box: soft magenta glow, opaque body, chamfered magenta border
+		const float c1 = 8.0f, c2 = 14.0f;
+		auto boxPath = [&]() {
 			nvgBeginPath(vg);
-			nvgRect(vg, kAboutImg.x, kAboutImg.y, kAboutImg.w, kAboutImg.h);
-			nvgFillPaint(vg, imgPaint);
-			nvgFill(vg);
+			nvgMoveTo(vg, x + c1, y);
+			nvgLineTo(vg, x + w, y);
+			nvgLineTo(vg, x + w, y + h - c2);
+			nvgLineTo(vg, x + w - c2, y + h);
+			nvgLineTo(vg, x, y + h);
+			nvgLineTo(vg, x, y + c1);
 			nvgClosePath(vg);
+		};
+		nvgBeginPath(vg);
+		nvgRect(vg, x - 30, y - 30, w + 60, h + 60);
+		nvgFillPaint(vg, nvgBoxGradient(vg, x, y, w, h, 6.0f, 26.0f, nvgRGBA(176, 60, 190, 70), nvgRGBA(176, 60, 190, 0)));
+		nvgFill(vg);
+		boxPath();
+		nvgFillPaint(vg, nvgLinearGradient(vg, 0, y, 0, y + h, nvgRGBA(12, 16, 28, 255), nvgRGBA(5, 6, 12, 255)));
+		nvgFill(vg);
+		nvgSave(vg);
+		nvgScissor(vg, x, y, w, h);
+		fillGrid(x, y + kTitleH, w, h - kTitleH);  // the panel's grid, faint inside the box
+		nvgBeginPath(vg);
+		nvgRect(vg, x, y + kTitleH, w, h - kTitleH);
+		nvgFillColor(vg, nvgRGBA(5, 7, 14, 190));
+		nvgFill(vg);
+		nvgRestore(vg);
+		boxPath();
+		nvgLineJoin(vg, NVG_MITER);
+		nvgStrokeColor(vg, kMag);
+		nvgStrokeWidth(vg, 2.0f);
+		nvgStroke(vg);
 
-			nvgFontSize(vg, 25.0f);
-			nvgFontFace(vg, "lucon");
-			nvgTextAlign(vg, NVG_ALIGN_LEFT);
-			nvgFillColor(vg, nvgRGB(255, 153, 255));
-			nvgText(vg, artX(290), artY(400), version.c_str(), NULL);
-
-			nvgFontSize(vg, 10.0f);
-			nvgFontFace(vg, "lucon");
-			nvgTextAlign(vg, NVG_ALIGN_LEFT);
-			nvgFillColor(vg, nvgRGB(255, 153, 255));
-			nvgText(vg, artX(261), artY(454), copyw.c_str(), NULL);
+		// title bar: ABOUT, a divider, the close box (#shutWin)
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x, y + kTitleH + 0.5f);
+		nvgLineTo(vg, x + w, y + kTitleH + 0.5f);
+		nvgStrokeColor(vg, kMagDim);
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		drawColumnSectionLabel(x + 14, y + 6, "ABOUT");
+		{
+			const float bx = static_cast<float>(kClose.x), by = static_cast<float>(kClose.y);
+			const float bw = static_cast<float>(kClose.w), bh = static_cast<float>(kClose.h);
+			nvgBeginPath(vg);
+			nvgRect(vg, bx, by, bw, bh);
+			nvgFillColor(vg, shutHover ? nvgRGBA(176, 60, 190, 150) : nvgRGBA(40, 20, 70, 200));
+			nvgFill(vg);
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, bx + 0.5f, by);
+			nvgLineTo(vg, bx + 0.5f, by + bh);
+			nvgStrokeColor(vg, kMag);
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+			const float mx = bx + bw * 0.5f, my = by + bh * 0.5f, s = 5.0f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, mx - s, my - s);
+			nvgLineTo(vg, mx + s, my + s);
+			nvgMoveTo(vg, mx + s, my - s);
+			nvgLineTo(vg, mx - s, my + s);
+			nvgStrokeColor(vg, shutHover ? nvgRGBA(255, 255, 255, 255) : nvgRGBA(130, 200, 255, 230));
+			nvgStrokeWidth(vg, 1.5f);
+			nvgStroke(vg);
 		}
+
+		// logo, with a breathing halo
+		float ly = y + kTitleH + 20.0f;
+		if (images[DM_LOGO] > 0) {
+			const float lw = static_cast<float>(kLogoImg.w), lh = static_cast<float>(kLogoImg.h);
+			const float lx = floorf(cx - lw * 0.5f);
+			const float br = 0.5f + 0.5f * sinf(t * 6.2831853f / 2.6f);
+			nvgBeginPath(vg);
+			nvgRect(vg, lx - 24, ly - 24, lw + 48, lh + 48);
+			nvgFillPaint(vg, nvgBoxGradient(vg, lx, ly, lw, lh, 4.0f, 14.0f + 8.0f * br,
+			                                nvgRGBA(255, 60, 200, (unsigned char)(50 + 40 * br)), nvgRGBA(255, 60, 200, 0)));
+			nvgFill(vg);
+			drawImageAt(DM_LOGO, lx, ly, lw, lh);
+			ly += lh;
+		}
+
+		// version
+		nvgFontFace(vg, "lucon");
+		nvgFontSize(vg, 16.0f);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+		nvgFillColor(vg, kPink);
+		std::string ver = version;
+		for (char& ch : ver) ch = static_cast<char>(toupper(static_cast<unsigned char>(ch)));
+		nvgText(vg, cx, ly + 14.0f, ver.c_str(), NULL);
+
+		// Rogue Syntax and VST logos, cut from the old about art
+		const float rowY = ly + 46.0f;
+		auto cut = [&](const ImageRect& src, float dx, float dy) {
+			if (images[DM_ABOUT_WINDOW] <= 0)
+				return;
+			NVGpaint p = nvgImagePattern(vg, dx - src.x, dy - src.y, static_cast<float>(kAboutImg.w), static_cast<float>(kAboutImg.h),
+			                             0.0f, images[DM_ABOUT_WINDOW], 1.0f);
+			nvgBeginPath(vg);
+			nvgRect(vg, dx, dy, static_cast<float>(src.w), static_cast<float>(src.h));
+			nvgFillPaint(vg, p);
+			nvgFill(vg);
+		};
+		const float pad = 40.0f;
+		cut(kRogueSrc, x + pad, rowY);
+		cut(kVstSrc, x + w - pad - kVstSrc.w, rowY - 1.5f);
+
+		// description, two paragraphs with a divider between them
+		const float tx = x + pad, tw = w - 2.0f * pad;
+		float ty = rowY + 62.0f + 22.0f;
+		nvgFontSize(vg, 11.0f);
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+		nvgTextLineHeight(vg, 1.35f);
+		nvgFillColor(vg, kPink);
+		static const char* const kPara[2] = {
+			"A numerically-controlled oscillator poly synth designed for long, rich plucked sounds, punctuating bass, and FM mayhem.",
+			"Built in the same tactile vein as your favorite tabletop synths - knobs, switches, sliders and pads.",
+		};
+		for (int i = 0; i < 2; i++) {
+			float b[4];
+			nvgTextBoxBounds(vg, tx, ty, tw, kPara[i], NULL, b);
+			nvgTextBox(vg, tx, ty, tw, kPara[i], NULL);
+			ty = b[3] + 8.0f;
+			if (i == 0) {
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, tx, floorf(ty) + 0.5f);
+				nvgLineTo(vg, tx + tw, floorf(ty) + 0.5f);
+				nvgStrokeColor(vg, kMag);
+				nvgStrokeWidth(vg, 1.0f);
+				nvgStroke(vg);
+				ty += 9.0f;
+			}
+		}
+		nvgTextLineHeight(vg, 1.0f);
+
+		// footer: divider with a 45 degree step, copyright left, trademark notice right
+		const float fy = y + h - 30.0f;
+		nvgBeginPath(vg);
+		nvgMoveTo(vg, x, fy + 0.5f);
+		nvgLineTo(vg, x + w, fy + 0.5f);
+		nvgMoveTo(vg, x + 222.0f, y + h);
+		nvgLineTo(vg, x + 252.0f, fy + 0.5f);
+		nvgStrokeColor(vg, kMagDim);
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		nvgFontSize(vg, 9.0f);
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+		nvgFillColor(vg, kColLabel);
+		nvgText(vg, x + 14.0f, fy + 15.0f, copyw.c_str(), NULL);
+		nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+		nvgFillColor(vg, nvgRGBA(235, 235, 245, 230));
+		nvgText(vg, x + w - 14.0f, fy + 15.0f, "VST is a registered trademark of Steinberg Media Technologies GmbH", NULL);
 	}
 
 	void NVGView::onMoreInfoBtnEnter() {

@@ -389,6 +389,6 @@
 		<view bitmap="dm_about_window.png" class="CView" custom-view-name="#dmAboutWindow" mouse-enabled="false" opacity="1" origin="0, 0" size="1148, 542" sub-controller="8" transparent="false" wants-focus="false"/>
 		<view bitmap="dm_title.png" class="CView" custom-view-name="#dmTitle" mouse-enabled="false" opacity="1" origin="0, 0" size="143, 63" sub-controller="8" transparent="false" wants-focus="false"/>
 		<view bitmap="dmlogo_screenres.png" class="CView" custom-view-name="#dmLogo" mouse-enabled="false" opacity="1" origin="0, 0" size="322, 72" sub-controller="8" transparent="false" wants-focus="false"/>
-		<view class="CBButton" custom-view-name="#shutWin" default-value="0.5" max-value="1" min-value="0" mouse-enabled="true" opacity="1" origin="828, 60" size="30, 22" sub-controller="14" transparent="false" wants-focus="true" wheel-inc-value="0.1"/>
+		<view class="CBButton" custom-view-name="#shutWin" default-value="0.5" max-value="1" min-value="0" mouse-enabled="true" opacity="1" origin="914, 66" size="30, 24" sub-controller="14" transparent="false" wants-focus="true" wheel-inc-value="0.1"/>
 	</template>
 </vstgui-ui-description>

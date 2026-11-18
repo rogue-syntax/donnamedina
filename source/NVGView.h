@@ -660,7 +660,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 
 		int buttonBlinkFastest(RSBView* rsbV);
 
-		CBMoreInfoButton* moreInfoBtn;
+		CBMoreInfoButton* moreInfoBtn = nullptr;
 		
 
 		bool moreInfoWindowOpen = false;
@@ -773,6 +773,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		float logoHover = 0.0f;
 		double logoLastT = -1.0;
 		bool logoHoverForce = false;
+		bool shutHover = false;  // mouse over the about screen's close box
 		void drawPlayPanel();  // PLAY panel frame and labels (editorLayout::play)
 		void drawSourceStrip(int src, float x, float y, float w);
 		// Source glow: each envelope/LFO display glows in its colour with its live level (newest voice)
