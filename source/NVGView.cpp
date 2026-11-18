@@ -3188,8 +3188,10 @@ no viewindex at 153!*/
 		nvgFontFace(vg, "mono");
 		nvgFillColor(vg, kColLabel);
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
+		// DRIFT, EXPR and the target knob sit kPlayLowDY lower than SNAP (right of the PLAY tab's slant,
+		// where the divider is lower; #driftAmount/#exprAmount/#exprTarget at y 426, SNAP at 418)
 		for (int i = 0; i < 4; i++)
-			nvgText(vg, slotCenterX(i), kPlay.y0 + kRowLabelDY, labels[i], NULL);
+			nvgText(vg, slotCenterX(i), kPlay.y0 + kRowLabelDY + (i ? kPlayLowDY : 0.0f), labels[i], NULL);
 		// the SYNC (#keySync, 1086,400: OSC KEY SYNC), HQ (#hqMode, 1140,400) and VEL (#exprVel, 1184,400)
 		// toggles, above the PLAY divider, are labelled to their right
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
