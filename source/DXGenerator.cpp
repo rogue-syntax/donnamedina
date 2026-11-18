@@ -388,7 +388,13 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 			RVoicesMap[vl].portoInc = 0.0f;
 
 			RVoicesMap[vl].note = (*note);
-			retriggerVoice(RVoicesMap[vl], false);
+			// OSC KEY SYNC off: re-attack the running voice now (envelopes from their current level,
+			// oscillators/LFOs/filter keep running: no delay, nothing jumps). On, or if the voice is
+			// already fading (a steal, or a sync retrigger): fade out, then restart from a reset voice.
+			if (!keySync && !RVoicesMap[vl].rampingDown)
+				processNoteOn(RVoicesMap[vl], note, velocity, true, true);
+			else
+				retriggerVoice(RVoicesMap[vl], false);
 		}
 
 	}else if (cutNote == false) {
@@ -414,37 +420,27 @@ void DXGenerator::noteOn(int32* note, int32* velocity, int32* noteID) {
 	
 }
 
+// Start the fade-out of a sounding voice: then it restarts (killIt false: a key-sync retrigger) or
+// stays silent (killIt true: stolen). The fade is a gain after the filter (interpolateVoice), so
+// the filter's ringing fades with the note; the envelopes keep running meanwhile. A voice already
+// fading keeps its fade position (a steal turned into a retrigger just restarts at its end).
+// Replaces the linear ramp of the amp envelope (and saveTargValues, which also wrote the ramp step
+// into the LFO amplitudes; those are reset every sample, so that had no effect).
 void DXGenerator::retriggerVoice(RVoice& voiceObj, bool killIt) {
-
-	voiceObj.voiceEnvLfo[1].env = voiceObj.voiceEnvLfo[1].cenv;
-	voiceObj.voiceEnvLfo[1].catt = 1.0f;
-	voiceObj.rampingDown = true;// change to 0,1
+	if (!voiceObj.rampingDown) {
+		voiceObj.rampingDown = true;
+		voiceObj.fadePos = 1.0f;
+	}
+	const float ms = retrigFadeMs > 0.5f ? retrigFadeMs : 0.5f;
+	voiceObj.fadeStep = 1000.0f / (ms * sampleRate);
 	voiceObj.killIt = killIt;
 	voiceObj.releasePending = false; // a new note-on (or a steal) supersedes any pending release
-	saveTargValues(voiceObj, killIt);
-
-}
-
-
-void DXGenerator::saveTargValues(RVoice& voiceObj, bool killIt) {
-	if (killIt == true) {
-		voiceObj.voiceEnvLfo[1].envInc = -(1000.0*voiceObj.voiceEnvLfo[1].env) / retrigFadeMs / sampleRate;
-		voiceObj.voiceEnvLfo[4].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[4].m_dAmplitude) / retrigFadeMs / sampleRate;
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[5].m_dAmplitude) / retrigFadeMs / sampleRate;
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[6].m_dAmplitude) / retrigFadeMs / sampleRate;
-	}
-	else {
-		voiceObj.voiceEnvLfo[1].envInc = -(1000.0*voiceObj.voiceEnvLfo[1].env) / retrigFadeMs / sampleRate;
-		voiceObj.voiceEnvLfo[4].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[4].m_dAmplitude) / retrigFadeMs / sampleRate;
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[5].m_dAmplitude) / retrigFadeMs / sampleRate;
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = -(1000.0*voiceObj.voiceEnvLfo[6].m_dAmplitude) / retrigFadeMs / sampleRate;
-	}
 }
 	
 
 
 
-void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool retrig) {
+void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool retrig, bool soft) {
 
 	voiceObj.WTOsc.m_uWaveform = (int)controls[OSC_];
 	voiceObj.WTOsc2.m_uWaveform = (int)controls[MOD_OSC_];
@@ -461,8 +457,9 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 	//voiceObj.WTOsc.m_dOscFo = midiFreqTable[(*note)];
 	voiceObj.WTOsc.m_nOctave = controls[OCT_];//change to ctrls
 	voiceObj.WTOsc.update();
-	
-	voiceObj.WTOsc.startOscillator();
+
+	if (!soft)
+		voiceObj.WTOsc.startOscillator();
 
 
 	voiceObj.WTOsc2.m_uMIDINoteNumber = (*note);
@@ -470,13 +467,20 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 	voiceObj.WTOsc2.m_nOctave = controls[MOD_OCT_];
 	voiceObj.WTOsc2.note = (*note);
 	voiceObj.WTOsc2.update();
-	voiceObj.WTOsc2.startOscillator();
-	voiceObj.osc2out = 0.0;
+	if (!soft) {
+		voiceObj.WTOsc2.startOscillator();
+		voiceObj.osc2out = 0.0;
+		// The voice is silent here (a fresh note's voice is not being rendered; a key-sync restart
+		// comes at the end of its fade), so clearing the filter's memory cannot click, and the old
+		// note's ringing does not carry into the new one.
+		voiceObj.m_Filter1.reset();
+	}
 	// do for all env/lfo
 	//voiceObj.voiceEnvLfo[1].env = (0.0f + gainLevel) * volume * ((*vel));//make dynamic
 	voiceObj.voiceEnvLfo[1].env = ( 1.0f) * voiceObj.velocity;//make dynamic
 	voiceObj.voiceEnvLfo[1].catt = (*EnvLfoCtrls[1]).catt;
-	voiceObj.voiceEnvLfo[1].cenv = 0.0003f;
+	if (!soft)
+		voiceObj.voiceEnvLfo[1].cenv = 0.0003f;  // soft: the attack starts from the current level
 	voiceObj.voiceEnvLfo[1].cdec = (*EnvLfoCtrls[1]).cdec;
 
 	// B-56: envelopes 2 and 3 (modulation sources) restart their attack. On a retrigger of a
@@ -496,6 +500,9 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 	voiceObj.voiceEnvLfo[3].catt = (*EnvLfoCtrls[3]).catt;
 	voiceObj.voiceEnvLfo[3].cdec = (*EnvLfoCtrls[3]).cdec;
 
+	// the per-voice LFOs restart with the note; a soft retrigger keeps them running (a restart would
+	// jump whatever they modulate, and their delay fade-in would start from 0 again)
+	if (!soft) {
 	voiceObj.voiceEnvLfo[4].m_uWaveform = (*EnvLfoCtrls[4]).lfoType;
 	voiceObj.voiceEnvLfo[4].triCutoff = 0.5;
 	voiceObj.voiceEnvLfo[4].m_dPulseWidthControl = 50;
@@ -516,6 +523,7 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 	voiceObj.voiceEnvLfo[6].m_dDelayTime = ParamClamp2((*EnvLfoCtrls[6]).lfoDelay, LFO_DELAY_TIME_MIN, 1.0f);
 	voiceObj.voiceEnvLfo[6].moduloStart = (*EnvLfoCtrls[6]).phaseStart;
 	voiceObj.voiceEnvLfo[6].reset();
+	}
 
 
 	newIntEnv = ctrlValues[INT_ENV_SRC + paramStartIdx];//WONT WORK ON both gens?
@@ -555,7 +563,10 @@ void DXGenerator::processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool 
 
 	voiceObj.sampleCount = 0;
 	voiceObj.startClock = sampleClock;  // playheads
-	if (driftAmount > 0.0f) {  // drift: new random offsets for each note (re)start
+	if (soft) {
+		// soft retrigger: keep this voice's drift offsets (new ones would step pitch, filter and pan)
+	}
+	else if (driftAmount > 0.0f) {  // drift: new random offsets for each note (re)start
 		voiceObj.driftPitch = std::pow(2.0f, driftAmount * kDriftCents * driftRand() / 1200.0f);
 		voiceObj.driftFilter = driftAmount * kDriftFilter * driftRand();
 		voiceObj.driftPan = driftAmount * kDriftPan * driftRand();
@@ -725,41 +736,33 @@ void DXGenerator::detectSilence( int32* activeVoices ) {
 
 
 void DXGenerator::interpolateVoice(RVoice& voiceObj) {
-	float signer = 1.0;
-	if (voiceObj.voiceEnvLfo[1].env < 0.0003f ) {
+	// B-64: a fading voice (retrigger or steal) renders through the full voice path. The fade is a
+	// gain on the output after the filter (2026-11-17; it used to ramp the amp envelope, which sits
+	// before the filter, so a resonant filter's ringing was cut off, not faded, at the restart).
+	singleVoiceProcessing(voiceObj);
+	const float s = voiceObj.fadePos;
+	const float g = s * s * (3.0f - 2.0f * s);  // S-curve: no corner where the fade starts or ends
+	voiceObj.o *= g;
+	voiceObj.o1 *= g;
+	voiceObj.o2 *= g;
+	voiceObj.fadePos -= voiceObj.fadeStep;
+	if (voiceObj.fadePos <= 0.0f) {
+		voiceObj.fadePos = 0.0f;
 		voiceObj.rampingDown = false;
-		voiceObj.voiceEnvLfo[1].env = 0.0f;
-		//reset all envLfo
-		// not necc here?
 		if (voiceObj.killIt == false) {
-			processNoteOn(voiceObj, &voiceObj.note, &voiceObj.vel, true);  // end of retrigger fade (B-56)
+			// end of a key-sync retrigger fade: restart (resets oscillators, LFOs and the filter; B-56)
+			processNoteOn(voiceObj, &voiceObj.note, &voiceObj.vel, true);
 			if (voiceObj.releasePending == true) { // B-18: note-off arrived during the fade
 				voiceObj.releasePending = false;
 				releaseVoice(voiceObj);
 			}
 		}
-
-	}
-	else {
-		voiceObj.voiceEnvLfo[1].env = voiceObj.voiceEnvLfo[1].env + voiceObj.voiceEnvLfo[1].envInc;
-
-		voiceObj.voiceEnvLfo[4].m_dAmplitude = voiceObj.voiceEnvLfo[4].m_dAmplitude + voiceObj.voiceEnvLfo[4].envInc;
-		// B-25: LFO 2/3 used LFO 1's amplitude here (copy-paste). No audible effect either way:
-		// singleVoiceProcessing resets m_dAmplitude from the global LFO level every sample.
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = voiceObj.voiceEnvLfo[5].m_dAmplitude + voiceObj.voiceEnvLfo[5].envInc;
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = voiceObj.voiceEnvLfo[6].m_dAmplitude + voiceObj.voiceEnvLfo[6].envInc;
-		//copysign(signer, voiceObj.o);
-		//0.0 - voiceObj.o
-		//voiceObj.o = voiceObj.o + (voiceObj.voiceEnvLfo[1].envInc * signer);
-		//voiceObj.o = voiceObj.o / 2;
-		//do per env / lfo
-		//not necc here?
-		// B-64: a stolen voice (killIt) fades through the full voice path too. deadVoiceProcessing
-		// rendered only the carrier (no modulator), with a differently updated filter and no
-		// modulation, so the stolen note's sound jumped at the steal: a click on every new note
-		// with POLY_COUNT 1 (and on every steal at the voice limit).
-		singleVoiceProcessing(voiceObj);
-		
+		else {
+			// stolen: silent from here (detectSilence drops it); clear the filter so nothing rings on
+			voiceObj.voiceEnvLfo[1].env = 0.0f;
+			voiceObj.voiceEnvLfo[1].cenv = 0.0f;
+			voiceObj.m_Filter1.reset();
+		}
 	}
 }
 

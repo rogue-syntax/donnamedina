@@ -503,6 +503,14 @@ inline double snapMs (double v) {
 inline double snapToNormalized (double ms) { return std::log (ms / 2.0) / std::log (40.0); }
 const double SNAP_DEFAULT_MS = 21.0;
 
+// OSC KEY SYNC (2026-11-17), what a repeated pitch (the voice is still sounding) does:
+// off (default) = re-attack the running voice at once: envelopes from their current level,
+// oscillators, LFOs, filter and drift keep running (no delay, nothing jumps);
+// on = fade out over SNAP_TIME, then restart from a reset voice (oscillator phase, LFOs, filter):
+// the same attack every time, after the fade. Part of the preset. Id 103 was free (below the step
+// buttons, so it is a host parameter and saved in presets).
+const int KEY_SYNC = 103;
+
 // Drift (2026-11-15): each note (re)start picks small random offsets, scaled by DRIFT_AMOUNT (0 = off):
 // pitch up to +-kDriftCents (both oscillators, so the FM ratio stays), filter cutoff up to
 // +-kDriftFilter (knob units) and pan up to +-kDriftPan. Triangular distribution (most notes close to
@@ -544,7 +552,7 @@ inline void exprDepths (int target, float& filter, float& fm, float& width) {
 // parameter gets its default (applyNewParamDefaults). Readers take the tagged blocks after the
 // bypass flag in any order: MASTER_VOL_STATE_TAG, POLY_STATE_TAG, STATE_VERSION_TAG.
 const unsigned int STATE_VERSION_TAG = 0x52455653u;  // "SVER" (little endian)
-const unsigned int STATE_VERSION = 2;                 // 1 = states without the block
+const unsigned int STATE_VERSION = 3;                 // 1 = states without the block; 3: KEY_SYNC
 struct NewParamDefault { int pid; double normalized; unsigned int since; };
 inline const NewParamDefault* newParamDefaults (int& count) {
 	static const NewParamDefault k[] = {
@@ -560,6 +568,7 @@ inline const NewParamDefault* newParamDefaults (int& count) {
 		{CHO_RATE, 0.4, 2},
 		{CHO_DEPTH, 0.5, 2},
 		{CHO_MIX, 0.0, 2},
+		{KEY_SYNC, 0.0, 3},
 	};
 	count = static_cast<int> (sizeof (k) / sizeof (k[0]));
 	return k;

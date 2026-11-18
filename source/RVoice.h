@@ -163,6 +163,11 @@ public:
 	// B-18: a note-off that arrives during the retrigger fade (rampingDown) is held here
 	// and applied right after the fade restarts the note, instead of being erased.
 	bool releasePending = false;
+	// Retrigger/steal fade (rampingDown, 2026-11-17): a gain on the voice output after the filter, so
+	// the filter's ringing fades too. fadePos runs 1 -> 0 by fadeStep per sample; gain = S-curve of it
+	// (DXGenerator::interpolateVoice).
+	float fadePos = 0.0f;
+	float fadeStep = 0.0f;
 	float e = 0.0f;
 	//float tuneC2;
 	int newInt = 0;

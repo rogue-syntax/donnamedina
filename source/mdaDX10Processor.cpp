@@ -102,6 +102,7 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);
+	recalcKeySync(floatParams[KEY_SYNC]);
 	recalcExprTarget(floatParams[EXPR_TARGET]);
 	recalcDrift(floatParams[DRIFT_AMOUNT]);
 	recalcFx(0.0);
@@ -741,6 +742,7 @@ tresult PLUGIN_API DX10Processor::initialize (FUnknown* context)
 		recalculators[SNAP_TIME] = &DX10Processor::recalcSnapTime;
 		recalculators[EXPR_AMOUNT] = &DX10Processor::recalcExprAmount;
 		recalculators[EXPR_VEL] = &DX10Processor::recalcExprVel;
+		recalculators[KEY_SYNC] = &DX10Processor::recalcKeySync;
 		recalculators[EXPR_TARGET] = &DX10Processor::recalcExprTarget;
 		recalculators[DRIFT_AMOUNT] = &DX10Processor::recalcDrift;
 		recalculators[HQ_MODE] = &DX10Processor::recalcHq;
@@ -976,6 +978,7 @@ void DX10Processor::setParameter (ParamID index, ParamValue newValue, int32 samp
 			generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 			recalcExprAmount(floatParams[EXPR_AMOUNT]);
 			recalcExprVel(floatParams[EXPR_VEL]);
+			recalcKeySync(floatParams[KEY_SYNC]);
 			recalcExprTarget(floatParams[EXPR_TARGET]);
 			recalcDrift(floatParams[DRIFT_AMOUNT]);
 			recalcFx(0.0);
@@ -1022,6 +1025,7 @@ void DX10Processor::setCurrentProgram(Steinberg::uint32 val) {
 	generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);
+	recalcKeySync(floatParams[KEY_SYNC]);
 	recalcExprTarget(floatParams[EXPR_TARGET]);
 	recalcDrift(floatParams[DRIFT_AMOUNT]);
 	recalcFx(0.0);
@@ -1966,6 +1970,10 @@ int DX10Processor::recalcExprAmount(double value) {
 	generators[0].exprAmount = static_cast<float>(2.0 * value - 1.0);
 	return 0;
 }
+int DX10Processor::recalcKeySync(double value) {
+	generators[0].keySync = value >= 0.5;
+	return 0;
+}
 int DX10Processor::recalcExprVel(double value) {
 	generators[0].exprVel = value >= 0.5;
 	return 0;
@@ -2153,6 +2161,7 @@ bool DX10Processor::processParameterChanges(IParameterChanges* changes){
 						generators[0].retrigFadeMs = static_cast<float>(snapMs(floatParams[SNAP_TIME]));
 						recalcExprAmount(floatParams[EXPR_AMOUNT]);
 						recalcExprVel(floatParams[EXPR_VEL]);
+						recalcKeySync(floatParams[KEY_SYNC]);
 						recalcExprTarget(floatParams[EXPR_TARGET]);
 						recalcDrift(floatParams[DRIFT_AMOUNT]);
 						recalcFx(0.0);
@@ -2210,6 +2219,7 @@ tresult DX10Processor::setState(IBStream* state) {
 	recalcSnapTime(floatParams[SNAP_TIME]);
 	recalcExprAmount(floatParams[EXPR_AMOUNT]);
 	recalcExprVel(floatParams[EXPR_VEL]);
+	recalcKeySync(floatParams[KEY_SYNC]);
 	recalcExprTarget(floatParams[EXPR_TARGET]);
 	recalcDrift(floatParams[DRIFT_AMOUNT]);
 	recalcFx(0.0);

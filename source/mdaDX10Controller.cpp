@@ -341,6 +341,7 @@ DX10Controller::DX10Controller ()
 	onCtrlChange[EXPR_VEL] = &DX10Controller::onToggleButton;  // button glow, readout ON/OFF
 	onCtrlChange[DRIFT_AMOUNT] = &DX10Controller::onEnvBipolar; // readout "DRIFT / 40 % (6 CENTS)"
 	onCtrlChange[HQ_MODE] = &DX10Controller::onToggleButton;    // button glow, readout ON/OFF
+	onCtrlChange[KEY_SYNC] = &DX10Controller::onToggleButton;   // button glow, readout ON/OFF
 	for (int id = FX_PARAM_FIRST; id <= FX_PARAM_LAST; id++)
 		onCtrlChange[id] = &DX10Controller::onEnvBipolar;       // readout (paramDisplay)
 
@@ -911,6 +912,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		parameters.addParameter (USTRING ("EXPR VELOCITY"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, EXPR_VEL);
 		parameters.addParameter (USTRING ("DRIFT"), USTRING ("%"), 0, 0.0, ParameterInfo::kCanAutomate, DRIFT_AMOUNT);
 		parameters.addParameter (USTRING ("HQ (2x OVERSAMPLING)"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, HQ_MODE);
+		parameters.addParameter (USTRING ("OSC KEY SYNC"), nullptr, 1, 0.0, ParameterInfo::kCanAutomate, KEY_SYNC);
 		{
 			auto* t = new StringListParameter (USTRING ("DELAY TIME"), DLY_TIME);
 			for (int i = 0; i < fx::kDelayDivisions; i++)

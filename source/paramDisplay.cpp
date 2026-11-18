@@ -220,6 +220,7 @@ const char* label (int pid)
 		case CHO_MIX: return "CHORUS MIX";
 		case EXPR_TARGET: return "EXPR TARGET";
 		case EXPR_VEL: return "EXPR VELOCITY";
+		case KEY_SYNC: return "OSC KEY SYNC";
 		// the small squares above WIDTH/TUNE/FINE: click to centre that knob
 		case WIDTH_RESET: return "OSC WIDTH RESET";
 		case TUNE_RESET: return "OSC TUNE RESET";

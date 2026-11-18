@@ -1725,10 +1725,10 @@ int main(int argc, char** argv) {
 		              b.t - 0.3, b.t - 0.4);
 		check("released voice: time since release", b.s[0].pitch == 64 && std::fabs(b.s[0].relAge - (b.t - 0.4)) < 0.002 &&
 		          std::fabs(b.s[0].age - (b.t - 0.3)) < 0.002 && b.s[0].level > 0.0f, buf);
-		// the retrigger restarts the voice after the ~21 ms fade, so its age is from then
+		// the retrigger (key sync off: a soft re-attack at the note-on) restarts the voice's age
 		std::snprintf(buf, sizeof(buf), "%d age %.3f (note-on %.3f s before)", c.s[0].pitch, c.s[0].age, c.t - 0.6);
-		check("retriggered voice is newest, age from its restart", c.s[0].pitch == 60 && c.s[0].age < c.t - 0.6 &&
-		          c.s[0].age > c.t - 0.6 - 0.03 && c.s[0].relAge < 0, buf);
+		check("retriggered voice is newest, age from its restart", c.s[0].pitch == 60 &&
+		          std::fabs(c.s[0].age - (c.t - 0.6)) < 0.002 && c.s[0].relAge < 0, buf);
 		const int byTimer = g_msgsOut[static_cast<unsigned char>(PMSG_PLAYHEADS_CHAR)];
 		const int inProcess = g_msgsIn[static_cast<unsigned char>(PMSG_PLAYHEADS_CHAR)];
 		std::snprintf(buf, sizeof(buf), "%d sent by timer, %d inside process", byTimer, inProcess);
@@ -1976,6 +1976,102 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	// ---- OSC KEY SYNC (2026-11-17): what a repeated pitch does ----
+	// off (default): the running voice re-attacks at once (no fade, no gap, nothing reset);
+	// on: fade over the Snap time (a gain after the filter), then restart from a reset voice.
+	// Click measure: the largest sample-to-sample step around the repeat over the largest the note
+	// makes by itself before and after (a jump in the signal shows as a larger step). ENV_1 attack 0.3
+	// (~4 ms): the tests' default attack 0 (0.35 ms) is a deliberate hard edge on any re-attack. (The
+	// re-attack does bend the slope: a one-pole attack starts at full speed, like an analog envelope.)
+	{
+		std::printf("\nOSC KEY SYNC (repeated pitch)\n");
+		auto check = [&](const char* name, bool ok, const char* detail) {
+			if (!ok) failures++;
+			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
+		};
+		char buf[200];
+		const double tRep = 0.3;  // the repeat; the first note at 0.05 s, held (decaying)
+		struct Rep { std::vector<float> L; bool fadingAfter = false; };
+		auto rep = [&](bool sync, double snapNorm, double cutoff, double q) {
+			Rep r;
+			Options o;
+			o.params = {{0.0, {KEY_SYNC, sync ? 1.0 : 0.0}}, {0.0, {SNAP_TIME, snapNorm}}, {0.0, {ENV_1_ATTACK, 0.3}}};
+			if (cutoff >= 0.0)
+				o.params.push_back({0.0, {FILTER_, cutoff}}), o.params.push_back({0.0, {FILTER_Q, q}});
+			o.captureL = &r.L;
+			o.perBlock = [&](rs::DX10Processor& p, double t) {
+				if (t >= tRep && t - tRep < 0.0116)
+					r.fadingAfter = p.generators[0].RVoicesMap[kPitch].rampingDown;
+			};
+			render({"keysync", 0.95, 0.5}, {{at(0.05), true, kPitch}, {at(tRep), true, kPitch}}, 0.5, o);
+			return r;
+		};
+		auto maxStep = [](const std::vector<float>& L, double t0, double t1) {
+			float m = 0.0f;
+			for (int64 i = std::max<int64>(1, at(t0)); i < at(t1) && i < int64(L.size()); i++)
+				m = std::max(m, std::fabs(L[i] - L[i - 1]));
+			return m;
+		};
+		auto rms = [](const std::vector<float>& L, double t0, double t1) {
+			double e = 0.0;
+			int64 n = 0;
+			for (int64 i = at(t0); i < at(t1) && i < int64(L.size()); i++, n++)
+				e += double(L[i]) * L[i];
+			return n ? float(std::sqrt(e / n)) : 0.0f;
+		};
+		auto peak = [](const std::vector<float>& L, double t0, double t1) {
+			float m = 0.0f;
+			for (int64 i = at(t0); i < at(t1) && i < int64(L.size()); i++)
+				m = std::max(m, std::fabs(L[i]));
+			return m;
+		};
+		auto click = [&](const Rep& r, double fadeMs) {
+			const float ref = std::max(maxStep(r.L, 0.20, tRep - 0.002), maxStep(r.L, tRep + fadeMs / 1000.0 + 0.03, 0.48));
+			return ref > 0.0f ? maxStep(r.L, tRep - 0.001, tRep + fadeMs / 1000.0 + 0.01) / ref : 99.0f;
+		};
+		const double snapDef = snapToNormalized(SNAP_DEFAULT_MS);
+		{  // off: immediate, no gap, no click
+			const Rep r = rep(false, snapDef, -1.0, 0.0);
+			const float before = rms(r.L, tRep - 0.025, tRep), after = rms(r.L, tRep, tRep + 0.025);  // the patch wobbles ~25 ms
+			const float c = click(r, 0.0);
+			std::snprintf(buf, sizeof(buf), "fading %d, RMS 25 ms after/before %.0f %%, click x%.2f", int(r.fadingAfter),
+			              before > 0 ? 100.0f * after / before : 0.0f, c);
+			check("off: re-attack at once, no gap, no click", !r.fadingAfter && after >= 0.95f * before && c < 1.5f, buf);
+		}
+		{  // on: fades to silence, then restarts; no click at either end
+			const Rep r = rep(true, snapDef, -1.0, 0.0);
+			const double end = tRep + SNAP_DEFAULT_MS / 1000.0;
+			const float c = click(r, SNAP_DEFAULT_MS);
+			const float tail = peak(r.L, end - 0.0005, end - 0.00005), before = peak(r.L, tRep - 0.025, tRep);
+			std::snprintf(buf, sizeof(buf), "fading %d, last 0.5 ms of fade %.2f %% of before, click x%.2f", int(r.fadingAfter),
+			              before > 0 ? 100.0f * tail / before : 0.0f, c);
+			check("on: fade to silence, restart, no click", r.fadingAfter && tail < 0.01f * before && c < 1.5f, buf);
+		}
+		// resonant low filter (rings): the fade is after the filter, so the ringing fades too and the
+		// filter reset at the restart cannot click
+		for (int sync = 0; sync < 2; sync++) {
+			const Rep r = rep(sync != 0, snapDef, 0.25, 1.0);
+			const float c = click(r, sync ? SNAP_DEFAULT_MS : 0.0);
+			// on: the ringing is faded too, so the voice is silent when the filter is reset
+			const double end = tRep + SNAP_DEFAULT_MS / 1000.0;
+			const float tail = peak(r.L, end - 0.0005, end - 0.00005), before = peak(r.L, tRep - 0.025, tRep);
+			std::snprintf(buf, sizeof(buf), sync ? "click x%.2f, last 0.5 ms of fade %.2f %%" : "click x%.2f", c,
+			              before > 0 ? 100.0f * tail / before : 0.0f);
+			check(sync ? "on, resonant filter: silent at reset, no click" : "off, resonant filter: no click",
+			      c < 1.5f && (!sync || tail < 0.01f * before), buf);
+		}
+		{  // parameter: readout name, host parameter, part of the preset, old states load it off
+			const std::string n = paramDisplay::label(KEY_SYNC);
+			int n2 = 0;
+			const NewParamDefault* d = newParamDefaults(n2);
+			bool listed = false;
+			for (int i = 0; i < n2; i++)
+				if (d[i].pid == KEY_SYNC && d[i].normalized == 0.0 && d[i].since == 3 && STATE_VERSION >= 3) listed = true;
+			std::snprintf(buf, sizeof(buf), "name '%s', default off for states before v3 %d", n.c_str(), int(listed));
+			check("name, host param, state default", n == "OSC KEY SYNC" && listed && isHostParam(KEY_SYNC) && !isGlobalParam(KEY_SYNC), buf);
+		}
+	}
+
 	// ---- Snap (2026-11-15): retrigger fade time, and the state version for new parameters ----
 	{
 		std::printf("\nSnap (retrigger fade) and state version\n");
@@ -1991,7 +2087,7 @@ int main(int argc, char** argv) {
 		auto fading = [&](double snapNorm, double t1) {
 			bool f = false;
 			Options o;
-			o.params = {{0.0, {SNAP_TIME, snapNorm}}};
+			o.params = {{0.0, {SNAP_TIME, snapNorm}}, {0.0, {KEY_SYNC, 1.0}}};  // the fade is the key-sync retrigger
 			o.perBlock = [&](rs::DX10Processor& p, double t) {
 				if (t >= t1 && t - t1 < 0.0116)
 					f = p.generators[0].RVoicesMap[kPitch].rampingDown;
@@ -2184,20 +2280,23 @@ int main(int argc, char** argv) {
 		std::snprintf(buf, sizeof(buf), "max %.1f cents, first %+.1f c %+.3f f %+.2f pan", maxC, 1200.0f * std::log2(a[0].p), a[0].f, a[0].n);
 		check("full drift: offsets in range, each note its own", inRange && allDiffer && maxC > 1.0f, buf);
 		check("same input renders the same (deterministic)", capA == capB, capA == capB ? "identical" : "differs");
-		// a retrigger picks new offsets
-		float p1 = 0.0f, p2 = 0.0f;
-		{
+		// a key-sync retrigger picks new offsets; a soft one (key sync off) keeps them (no pitch step)
+		for (int sync = 1; sync >= 0; sync--) {
+			float p1 = 0.0f, p2 = 0.0f;
 			Options o;
-			o.params = {{0.0, {DRIFT_AMOUNT, 1.0}}};
+			o.params = {{0.0, {DRIFT_AMOUNT, 1.0}}, {0.0, {KEY_SYNC, double(sync)}}};
 			o.perBlock = [&](rs::DX10Processor& p, double t) {
 				const float v = p.generators[0].RVoicesMap[kPitch].driftPitch;
 				if (t > 0.1 && t < 0.12) p1 = v;
 				if (t > 0.3) p2 = v;
 			};
 			render({"drift", 1.0, 0.5}, {{at(0.05), true, kPitch}, {at(0.2), true, kPitch}}, 0.35, o);
+			std::snprintf(buf, sizeof(buf), "%+.2f c then %+.2f c", 1200.0f * std::log2(p1), 1200.0f * std::log2(p2));
+			if (sync)
+				check("key-sync retrigger: new offsets", p1 != p2 && p1 != 0.0f && p2 != 0.0f, buf);
+			else
+				check("soft retrigger: same offsets", p1 == p2 && p1 != 0.0f, buf);
 		}
-		std::snprintf(buf, sizeof(buf), "%+.2f c then %+.2f c", 1200.0f * std::log2(p1), 1200.0f * std::log2(p2));
-		check("retrigger: new offsets", p1 != p2 && p1 != 0.0f && p2 != 0.0f, buf);
 		const std::string r = paramDisplay::value(DRIFT_AMOUNT, 0.4, paramDisplay::Context());
 		check("readout", r == "40 % (+-6 CENTS)", r.c_str());
 	}

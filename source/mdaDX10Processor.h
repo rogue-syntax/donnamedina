@@ -214,6 +214,7 @@ public:
 	int recalcSnapTime(double value);
 	int recalcExprAmount(double value);
 	int recalcExprVel(double value);
+	int recalcKeySync(double value);
 	int recalcExprTarget(double value);
 	int recalcDrift(double value);
 	int recalcHq(double value);

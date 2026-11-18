@@ -536,11 +536,12 @@ public:
 
 	float adjustedRatio = 0.0f;
 
-	void processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool retrig = false);  // retrig: B-56
+	// retrig: B-56 (envelopes 2/3 keep their level). soft: OSC KEY SYNC off, a repeated note re-attacks
+	// the running voice (no oscillator phase, LFO, drift or filter reset; see noteOn).
+	void processNoteOn(RVoice& voiceObj, int32* note, int32* vel, bool retrig = false, bool soft = false);
 
 	void processNoteReOn(RVoice& voiceObj, int32* note, int32* vel);
 
-	void saveTargValues(RVoice& voiceObj, bool killIt);
 
 	bool interpolateFloat(float& origVal, float& targVal, float& val);
 	float interpolateFS;
@@ -603,6 +604,10 @@ public:
 	bool portamentoMode = false;
 	// Snap: the retrigger/steal fade time (SNAP_TIME, DX10Processor::recalcSnapTime)
 	float retrigFadeMs = 21.0f;
+	// OSC KEY SYNC (KEY_SYNC): on = a repeated note fades out over the Snap time and restarts from a
+	// reset voice (identical attack every time); off (default) = it re-attacks the running voice at
+	// once (DXGenerator::noteOn).
+	bool keySync = false;
 	// Expression (EXPR_AMOUNT/VEL/TARGET, DX10Processor::recalcExpr*): amount -1..1, velocity mode,
 	// per-destination depths for the target (exprDepths)
 	float exprAmount = 0.0f;

@@ -3166,8 +3166,10 @@ no viewindex at 153!*/
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_TOP);
 		for (int i = 0; i < 4; i++)
 			nvgText(vg, slotCenterX(i), kPlay.y0 + kRowLabelDY, labels[i], NULL);
-		// the HQ (#hqMode, 1140,400) and VEL (#exprVel, 1184,400), above the PLAY divider, toggles are labelled to their right
+		// the SYNC (#keySync, 1086,400: OSC KEY SYNC), HQ (#hqMode, 1140,400) and VEL (#exprVel, 1184,400)
+		// toggles, above the PLAY divider, are labelled to their right
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+		nvgText(vg, 1110.0f + kDX, 389.5f + kDY, "SYNC", NULL);
 		nvgText(vg, 1164.0f + kDX, 389.5f + kDY, "HQ", NULL);
 		nvgText(vg, 1208.0f + kDX, 389.5f + kDY, "VEL", NULL);
 
