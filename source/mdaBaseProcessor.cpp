@@ -705,16 +705,12 @@ tresult PLUGIN_API BaseProcessor::sendIntAttr(const char* msgID, const char* att
 
 
 
+// Runs after every block that carries parameter changes (preProcess) and after setState.
+// B-66: it used to set the generators' sample rate to the host rate here. The engine rate is set by
+// setActive and DX10Processor::applyEngineRate (host rate, or twice it in HQ), so in HQ every
+// parameter change put the oscillators back on the host rate: everything played an octave up
+// (the filters, built for the HQ rate, stayed there). Nothing is left to do here.
 void BaseProcessor::recalculate() {
-
-	for (genRecalcIdx = 0; genRecalcIdx < GENCOUNT; genRecalcIdx++) {
-		generators[genRecalcIdx].sampleRateDouble = getSampleRate();
-		generators[genRecalcIdx].sampleRate = (float)generators[genRecalcIdx].sampleRateDouble;
-		generators[genRecalcIdx].ifs = 1.0f / generators[genRecalcIdx].sampleRateDouble;
-		//generators[genRecalcIdx].recalculate(generators[genRecalcIdx].sampleRate);
-	}
-
-
 }
 
 

@@ -21,6 +21,8 @@
 #include "public.sdk/source/common/memorystream.h"
 #include "base/source/fstreamer.h"
 #include <functional>
+#include <thread>
+#include <atomic>
 #include "pluginterfaces/vst/ivstprocesscontext.h"
 
 #include <cmath>
@@ -234,6 +236,7 @@ struct Options {
 	std::vector<float>* captureL = nullptr;  // if set: receives every output sample (left)
 	std::vector<float>* captureR = nullptr;
 	double sampleRate = 0.0;  // 0 = kSampleRate; events (NoteEvent::sample) are in samples at this rate
+	std::function<int32()> blockSize;  // if set: the size of each block (1..kBlock), as hosts like FL vary it
 };
 
 struct Settings {
@@ -283,12 +286,13 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	int64 pos = 0;
 	bool first = true;
 	while (pos < total) {
+		const int32 nb = opt.blockSize ? std::max<int32>(1, std::min<int32>(kBlock, opt.blockSize())) : kBlock;
 		EventList evList;
 		for (const auto& e : events) {
-			if (e.sample >= pos && e.sample < pos + kBlock) {
+			if (e.sample >= pos && e.sample < pos + nb) {
 				Event ev{};
 				ev.busIndex = 0;
-				ev.sampleOffset = e.overshoot > 0 ? kBlock + e.overshoot : static_cast<int32>(e.sample - pos);
+				ev.sampleOffset = e.overshoot > 0 ? nb + e.overshoot : static_cast<int32>(e.sample - pos);
 				if (e.on) {
 					ev.type = Event::kNoteOnEvent;
 					ev.noteOn.channel = 0;
@@ -325,7 +329,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		}
 		for (const auto& p : opt.params) {
 			const int64 s0 = static_cast<int64>(p.first * sr);
-			if (s0 >= pos && s0 < pos + kBlock) {
+			if (s0 >= pos && s0 < pos + nb) {
 				int32 idx = 0;
 				if (auto* q = changes.addParameterData(p.second.first, idx)) {
 					int32 pidx = 0;
@@ -339,7 +343,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		ProcessData data{};
 		data.processMode = kRealtime;
 		data.symbolicSampleSize = kSample32;
-		data.numSamples = kBlock;
+		data.numSamples = nb;
 		data.numOutputs = 1;
 		data.outputs = &out;
 		data.inputEvents = (opt.nullEventsIfEmpty && evList.getEventCount() == 0) ? nullptr : &evList;
@@ -355,7 +359,7 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 		proc->process(data);
 		heapwatch::g_inProcess = false;
 		g_inProcess = false;
-		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + kBlock) / sr);
+		if (opt.perBlock) opt.perBlock(*proc, static_cast<double>(pos + nb) / sr);
 		pumpMessages();
 
 		if (chans[0] != left.data() || chans[1] != right.data()) {
@@ -370,14 +374,14 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 			}
 		}
 
-		for (int32 i = 0; i < kBlock && pos + i < total; i++) {
+		for (int32 i = 0; i < nb && pos + i < total; i++) {
 			if (opt.captureL) opt.captureL->push_back(left[i]);
 			if (opt.captureR) opt.captureR->push_back(right[i]);
 			const float v = std::max(std::fabs(left[i]), std::fabs(right[i]));
 			auto& pk = peaks[static_cast<size_t>((pos + i) / window)];
 			pk = std::max(pk, v);
 		}
-		pos += kBlock;
+		pos += nb;
 	}
 
 	for (int k = 0; k < 4; k++) {  // let the message timer (15 ms) deliver what is queued
@@ -924,7 +928,240 @@ int lfoProbe(int argc, char** argv) {
 	return 0;
 }
 
+// NaN / Inf hunt (2026-11-19): random patches through the controller round trip, random knob moves
+// every 0.25 s, dense random notes (chords past the voice limit, fast repeats on one pitch, random
+// velocities). Every output sample is checked for non-finite values and for levels above 8.
+// Run: note_off_test.exe nanfuzz [firstSeed] [count] [seconds]
+int nanFuzzProbe(int argc, char** argv) {
+	const int first = argc > 2 ? std::atoi(argv[2]) : 1;
+	const int count = argc > 3 ? std::atoi(argv[3]) : 20;
+	const double seconds = argc > 4 ? std::atof(argv[4]) : 8.0;
+	rs::DX10Processor::ensureFactoryPresets();
+	int badSeeds = 0;
+	for (int seed = first; seed < first + count; seed++) {
+		unsigned rng = 0x9E3779B9u * unsigned(seed) + 17u;
+		auto rnd = [&rng]() { rng = rng * 1664525u + 1013904223u; return (rng >> 8) / 16777216.0; };
+		static HostApplication fhost;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&fhost);
+		std::vector<int> steps;
+		ctrl->presetStepCounts(steps);
+		Options o;
+		o.keepPatchEnvelopes = true;
+		const int prog = int(rnd() * rs::DX10Processor::kNumPrograms) % rs::DX10Processor::kNumPrograms;
+		o.params.push_back({0.0, {rs::BaseController::kPresetParam, (prog + 0.5) / rs::DX10Processor::kNumPrograms}});
+		// a random patch at 0.05 s, then knob moves (variations, sometimes a full random) every 0.25 s
+		presetTools::State st;
+		st.program = uint32(prog);
+		st.values.assign(GPARAMS, 0.0);
+		for (int i = 0; i < GPARAMS; i++) st.values[i] = rs::DX10Processor::programParams[prog][i];
+		std::vector<double> prev(GPARAMS, -1.0);
+		for (double t = 0.05; t < seconds; t += 0.25) {
+			presetTools::randomize(st, steps.data(), steps.size(),
+			                       (t < 0.1 || rnd() < 0.15) ? presetTools::Mode::kFull : presetTools::Mode::kVariation,
+			                       uint32_t(rng));
+			rnd();
+			for (int id = 0; id < GPARAMS; id++) {
+				if (id == MASTER_VOL || !ctrl->getParameterObject(ParamID(id))) continue;
+				if (st.values[id] == prev[id]) continue;
+				prev[id] = st.values[id];
+				o.params.push_back({t, {ParamID(id), st.values[id]}});
+			}
+		}
+		// MIDI controllers (pitch bend, mod wheel, expression, aftertouch, sustain), moved in bursts
+		const ParamID cc[] = {rs::BaseController::kPitchBendParam, rs::BaseController::kModWheelParam,
+		                      rs::BaseController::kExpressionParam, rs::BaseController::kAftertouchParam,
+		                      rs::BaseController::kBreathParam, rs::BaseController::kSustainParam};
+		for (double t = 0.1; t < seconds; t += 0.002 + rnd() * 0.05)
+			o.params.push_back({t, {cc[int(rnd() * 6) % 6], rnd() < 0.1 ? (rnd() < 0.5 ? 0.0 : 1.0) : rnd()}});
+		// HQ switched on and off now and then
+		const bool hqSeed = rnd() < 0.5;
+		for (double t = 0.3; t < seconds; t += 1.0 + rnd() * 2.0)
+			o.params.push_back({t, {HQ_MODE, (hqSeed || rnd() < 0.3) ? 1.0 : 0.0}});
+		std::stable_sort(o.params.begin(), o.params.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
+		// FL-like block sizes: mostly the buffer size, sometimes odd small ones
+		o.blockSize = [&rnd]() -> int32 {
+			const double r = rnd();
+			return r < 0.6 ? 512 : r < 0.8 ? int32(1 + rnd() * 511) : r < 0.9 ? int32(1 + rnd() * 16) : 256;
+		};
+		if (std::getenv("FUZZ_SR")) o.sampleRate = std::atof(std::getenv("FUZZ_SR"));
+		// notes
+		std::vector<NoteEvent> ev;
+		for (double t = 0.1; t < seconds - 0.5;) {
+			const double kind = rnd();
+			auto note = [&](double at0, double len, int16 p, float vel) {
+				NoteEvent on{at(at0), true, p};
+				on.velocity = vel;
+				ev.push_back(on);
+				ev.push_back({at(at0 + len), false, p});
+			};
+			if (kind < 0.15) {  // big chord (past the voice limit)
+				const int n = 4 + int(rnd() * 40);
+				for (int k = 0; k < n; k++) note(t, 0.05 + rnd() * 1.5, int16(24 + rnd() * 72), float(0.05 + rnd() * 0.95));
+				t += 0.05 + rnd() * 0.4;
+			}
+			else if (kind < 0.35) {  // fast repeats on one pitch
+				const int16 p = int16(24 + rnd() * 72);
+				const int n = 3 + int(rnd() * 12);
+				for (int k = 0; k < n; k++) { note(t, 0.003 + rnd() * 0.05, p, float(0.05 + rnd() * 0.95)); t += 0.005 + rnd() * 0.06; }
+			}
+			else {  // single notes
+				note(t, 0.01 + rnd() * 1.0, int16(12 + rnd() * 100), float(0.01 + rnd() * 0.99));
+				t += rnd() * 0.15;
+			}
+		}
+		std::sort(ev.begin(), ev.end(), [](const NoteEvent& a, const NoteEvent& b) { return a.sample < b.sample; });
+		o.peer = ctrl;
+		o.onCreated = [ctrl](rs::DX10Processor& p) {
+			ctrl->connect(&p);
+			std::memset(p.generators[0].voiceRowL, 0, sizeof(p.generators[0].voiceRowL));  // (rows are only written as used)
+			std::memset(p.generators[0].voiceRowR, 0, sizeof(p.generators[0].voiceRowR));
+		};
+		// FUZZ_THREAD=1: a second thread loads random states into the processor while it renders, as a
+		// host does from its UI thread (preset browser, undo, project load)
+		std::atomic<bool> stopUi{false};
+		std::thread ui;
+		int uiLoads = 0;
+		if (std::getenv("FUZZ_THREAD")) {
+			auto created = o.onCreated;
+			o.onCreated = [&, created](rs::DX10Processor& p) {
+				created(p);
+				ui = std::thread([&p, &stopUi, &uiLoads, &steps, prog, seed]() {
+					uint32_t k = uint32_t(seed) * 7919u;
+					while (!stopUi.load()) {
+						presetTools::State s;
+						s.program = uint32(prog);
+						s.values.assign(GPARAMS, 0.0);
+						for (int i = 0; i < GPARAMS; i++) s.values[i] = rs::DX10Processor::programParams[prog][i];
+						s.hasMasterVol = true;
+						s.masterVol = DEFAULT_MASTER_VOL;
+						presetTools::randomize(s, steps.data(), steps.size(), presetTools::Mode::kFull, ++k);
+						const std::vector<char> blob = presetTools::writeState(s);
+						MemoryStream ms(const_cast<char*>(blob.data()), TSize(blob.size()));
+						static_cast<IComponent&>(p).setState(&ms);
+						uiLoads++;
+						Sleep(1);
+					}
+				});
+			};
+			o.inspect = [&](rs::DX10Processor&) { stopUi = true; ui.join(); };
+		}
+		// first bad block: what the voices look like
+		bool reported = false;
+		float voicePeak = 0.0f;
+		double voicePeakT = 0.0;
+		int maxVoices = 0;
+		bool rateMsg = false;
+		o.perBlock = [&](rs::DX10Processor& p, double t) {
+			p.flushMessageQueue();
+			auto& g = p.generators[0];
+			maxVoices = (std::max)(maxVoices, int(g.notes.size()));
+			if (p.hqActive && g.sampleRateDouble != 2.0 * p.getSampleRate() && !rateMsg) {
+				std::printf("    t %.3f HQ on but the engine rate is %.0f (host %.0f)\n", t, g.sampleRateDouble, p.getSampleRate());
+				rateMsg = true;
+			}
+			for (int i = 0; i < g.notes.size(); i++)
+				for (int s = 0; s < rs::DXGenerator::kRenderMax; s++) {
+					const float a = (std::max)(std::fabs(g.voiceRowL[i][s]), std::fabs(g.voiceRowR[i][s]));
+					if (a > voicePeak) { voicePeak = a; voicePeakT = t; }
+				}
+			if (reported) return;
+			for (int i = 0; i < g.notes.size(); i++) {
+				const RVoice& v = g.RVoicesMap[g.notes[i]];
+				const bool bad = !std::isfinite(v.o1) || !std::isfinite(v.o2) || !std::isfinite(v.voiceEnvLfo[1].cenv) ||
+				                 !std::isfinite(v.WTOsc.m_dModulo) || !std::isfinite(v.WTOsc2.m_dModulo) || std::fabs(v.o) > 8.0f;
+				if (!bad) continue;
+				double z1, z2;
+				v.m_Filter1.getZ(z1, z2);
+				std::printf("    t %.3f voice %d (note %d): o %g o1 %g  osc1 %g osc2 %g  fo %g/%g mod %g/%g  env1 %g/%g gainer %g  z %g %g  fc %g q %g  wave %u/%u type %d ramp %d HQ %d\n",
+				            t, g.notes[i], v.note, v.o, v.o1, v.osc1pure, v.osc2out, v.WTOsc.m_dFo, v.WTOsc2.m_dFo,
+				            v.WTOsc.m_dModulo, v.WTOsc2.m_dModulo, v.voiceEnvLfo[1].env, v.voiceEnvLfo[1].cenv, v.gainerTemp,
+				            z1, z2, v.m_Filter1.m_dFcControl, v.m_Filter1.qValue(), v.WTOsc.m_uWaveform, v.WTOsc2.m_uWaveform,
+				            g.ctrlValues[MOD_TYPE_], v.rampingDown ? 1 : 0, p.hqActive ? 1 : 0);
+				reported = true;
+				break;
+			}
+		};
+		std::vector<float> L, R;
+		o.captureL = &L;
+		o.captureR = &R;
+		render(Settings{"fuzz", 0.0, 0.0}, ev, seconds, o);
+		ctrl->disconnect(nullptr);
+		ctrl->terminate();
+		ctrl->release();
+		size_t nonFinite = 0, firstBad = 0;
+		float pk = 0.0f;
+		for (size_t i = 0; i < L.size(); i++) {
+			const bool fin = std::isfinite(L[i]) && std::isfinite(R[i]);
+			if (!fin) { if (!nonFinite) firstBad = i; nonFinite++; continue; }
+			pk = (std::max)(pk, (std::max)(std::fabs(L[i]), std::fabs(R[i])));
+		}
+		const bool bad = nonFinite > 0 || pk > 8.0f;
+		badSeeds += bad;
+		std::printf("  seed %3d preset %2d: %zu notes, peak %8.3f, voice peak %7.3f at %.2f s, max voices %d, non-finite %zu%s", seed,
+		            prog, ev.size() / 2, pk, voicePeak, voicePeakT, maxVoices, nonFinite, bad ? "  BAD" : "");
+		if (nonFinite) std::printf(" (first at %.3f s)", firstBad / kSampleRate);
+		if (uiLoads) std::printf(" [%d states loaded from a second thread]", uiLoads);
+		std::printf("\n");
+	}
+	std::printf("nanfuzz: %d of %d seeds bad\n", badSeeds, count);
+	return badSeeds ? 1 : 0;
+}
+
+// B-66: the pitch with HQ on or off, before and after a parameter change. Preset 0, A4 held from
+// 0.1 s, FILTER_ moves at 0.5 s; pitch by autocorrelation over 0.2-0.45 s and 0.7-0.95 s.
+struct HqPitch { double before, after, rateBefore, rateAfter; };
+static HqPitch hqPitch(bool hqOn) {
+	static HostApplication hhost;
+	auto* ctrl = new rs::DX10Controller();
+	ctrl->initialize(&hhost);
+	if (hqOn) ctrl->setParamNormalized(HQ_MODE, 1.0);
+	Options o;
+	o.keepPatchEnvelopes = true;
+	o.params = {{0.0, {rs::BaseController::kPresetParam, 0.5 / rs::DX10Processor::kNumPrograms}}, {0.5, {FILTER_, 0.9}}};
+	o.peer = ctrl;
+	o.onCreated = [ctrl, hqOn](rs::DX10Processor& p) { if (hqOn) { p.hqWanted = true; p.floatParams[HQ_MODE] = 1.0; } ctrl->connect(&p); };
+	double rateBefore = 0, rateAfter = 0;
+	o.perBlock = [&](rs::DX10Processor& p, double t) {
+		p.flushMessageQueue();
+		if (t > 0.3 && t < 0.4) rateBefore = p.generators[0].sampleRateDouble;
+		if (t > 0.8 && t < 0.9) rateAfter = p.generators[0].sampleRateDouble;
+	};
+	std::vector<float> L, R;
+	o.captureL = &L;
+	o.captureR = &R;
+	render(Settings{"hq", 0.0, 0.0}, {{at(0.1), true, 69}}, 1.0, o);
+	ctrl->disconnect(nullptr);
+	ctrl->terminate();
+	ctrl->release();
+	auto hz = [&](double a, double b) {  // autocorrelation: the first lag with r > 0.95 of the peak
+		const size_t s0 = size_t(a * kSampleRate), n = size_t((b - a) * kSampleRate) / 2;
+		std::vector<double> r(1200, 0.0);
+		double best = 0.0;
+		for (size_t lag = 20; lag < r.size(); lag++) {
+			for (size_t i = 0; i < n; i++) r[lag] += double(L[s0 + i]) * L[s0 + i + lag];
+			best = (std::max)(best, r[lag]);
+		}
+		for (size_t lag = 21; lag + 1 < r.size(); lag++)
+			if (r[lag] > 0.95 * best && r[lag] >= r[lag - 1] && r[lag] >= r[lag + 1]) return kSampleRate / double(lag);
+		return 0.0;
+	};
+	return {hz(0.2, 0.45), hz(0.7, 0.95), rateBefore, rateAfter};
+}
+
+// Run: note_off_test.exe hqrate
+int hqRateProbe(int, char**) {
+	for (bool hq : {false, true}) {
+		const HqPitch p = hqPitch(hq);
+		std::printf("HQ %s, A4: before the knob move %.1f Hz (engine rate %.0f), after %.1f Hz (engine rate %.0f)\n",
+		            hq ? "on " : "off", p.before, p.rateBefore, p.after, p.rateAfter);
+	}
+	return 0;
+}
+
 int main(int argc, char** argv) {
+	if (argc > 1 && std::strcmp(argv[1], "hqrate") == 0) return hqRateProbe(argc, argv);
+	if (argc > 1 && std::strcmp(argv[1], "nanfuzz") == 0) return nanFuzzProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "lfo") == 0) return lfoProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "alias") == 0) return aliasProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "retrig") == 0) return retrigProbe(argc, argv);
@@ -2421,6 +2658,12 @@ int main(int argc, char** argv) {
 		check("HQ: same level (decimator gain 1)", std::fabs(db) < 0.5, buf);
 		std::snprintf(buf, sizeof(buf), "playhead age error %.4f s (normal %.4f s)", c.phAge, a.phAge);
 		check("HQ: playhead clock in seconds", std::fabs(c.phAge) < 0.015 && std::fabs(a.phAge) < 0.015, buf);
+		{  // B-66: a parameter change put the HQ engine back on the host rate (an octave up)
+			const HqPitch off = hqPitch(false), on = hqPitch(true);
+			std::snprintf(buf, sizeof(buf), "%.1f / %.1f Hz (HQ off), %.1f / %.1f Hz (on)", off.before, off.after, on.before, on.after);
+			auto samePitch = [](double x, double y) { return y > 0.0 && std::fabs(x / y - 1.0) < 0.02; };
+			check("B-66: HQ pitch unchanged by parameter changes", samePitch(on.before, off.before) && samePitch(on.after, off.after), buf);
+		}
 		// global: kept across a preset change and saved in its own block
 		int hqAfter = -1;
 		std::vector<char> st;
