@@ -608,6 +608,7 @@ int goldenProbe(int argc, char** argv) {
 	const bool save = argc > 2 && std::strcmp(argv[2], "save") == 0;
 	const bool hq = std::getenv("GOLDEN_HQ") != nullptr;
 	const bool keySync = std::getenv("GOLDEN_KEYSYNC") != nullptr;
+	const int lfoOverride = std::getenv("GOLDEN_LFO") ? std::atoi(std::getenv("GOLDEN_LFO")) : -1;
 	int ovC = 0, ovM = 0, ovT = 0;
 	const bool oscOverride = std::getenv("GOLDEN_OSC") && std::sscanf(std::getenv("GOLDEN_OSC"), "%d,%d,%d", &ovC, &ovM, &ovT) == 3;
 	const double seconds = 3.0;
@@ -668,6 +669,10 @@ int goldenProbe(int argc, char** argv) {
 				g.ctrlValues[MOD_OSC_] = ovM; g.controls[MOD_OSC_] = float(ovM);
 				g.ctrlValues[MOD_TYPE_] = ovT; g.controls[MOD_TYPE_] = float(ovT);
 			}
+			// GOLDEN_LFO=<0..3>: all three LFOs' shape (sine, saw, triangle, square), forced the same way
+			if (lfoOverride >= 0 && t >= 0.09)
+				for (int k = 4; k <= 6; k++)
+					p.EnvLfoCtrls[k].lfoType = lfoOverride;
 		};
 		std::vector<float> L, R;
 		o.captureL = &L;

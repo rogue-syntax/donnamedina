@@ -110,43 +110,45 @@ void DXGenerator::renderBankGroup(int n) {
 		// LFOs (unused ones are not computed; their output is not read)
 		for (int i = 0; i < 3; i++)
 			if (lfoOn[i])
-				for (int l = 0; l < kLanes; l++)
-					b.src.cenv[4 + i][l] = b.lfo[i].step(l, lfoLevel[i], lfoRate[i]);
+				b.lfo[i].stepAll(b.src.cenv[4 + i], lfoLevel[i], lfoRate[i]);
 
 		// modulation type (doNoMod / doPhaseMod / doFreqMod / doDetuneMod): the modulator runs,
 		// then its output modulates the carrier
-		if (modType == 3)
-			for (int l = 0; l < kLanes; l++)
-				mod.oscFo[l] = mod.oscFo[l] + ((bpm / 60) * ((controls[MOD_BEAT_] + static_cast<int>(controls[MOD_BEAT_ENV] * Sbeat[l] * 13)) / 4));
+		// Scalar reference, per lane:
+		//   detune: modOscFo += (bpm / 60) * ((MOD_BEAT + int(MOD_BEAT_ENV * env * 13)) / 4)
+		//   amount = rsMax(0.003, rsMin(1.0, MOD_GAIN ramp + exprFm + MOD_GAIN_ENV * env))
+		//   phase: carrier phaseMod = amount * osc2out; freq / detune: foModLin = amount * 4 (8) * (oscFo * osc2out)
+		if (modType == 3) {
+			const __m128 beat = _mm_div_ps(_mm_add_ps(_mm_set1_ps(controls[MOD_BEAT_]),
+			                                          _mm_cvtepi32_ps(_mm_cvttps_epi32(_mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[MOD_BEAT_ENV]), _mm_loadu_ps(Sbeat)), _mm_set1_ps(13.0f))))),
+			                               _mm_set1_ps(4.0f));
+			_mm256_storeu_pd(mod.oscFo, _mm256_add_pd(_mm256_loadu_pd(mod.oscFo), _mm256_mul_pd(_mm256_set1_pd(bpm / 60), _mm256_cvtps_pd(beat))));
+		}
 		mod.updateAll();
 		double oscOut[kLanes];
 		mod.stepAll(oscOut);
-		_mm_storeu_ps(b.osc2out, _mm256_cvtpd_ps(_mm256_loadu_pd(oscOut)));  // double -> float
-		switch (modType) {
-		case 0:
-			for (int l = 0; l < kLanes; l++) {
-				car.foModLin[l] = 0.0;
-				car.phaseMod[l] = 0.0;
+		const __m128 o2f = _mm256_cvtpd_ps(_mm256_loadu_pd(oscOut));  // double -> float
+		_mm_storeu_ps(b.osc2out, o2f);
+		{
+			const __m256d dzero = _mm256_setzero_pd();
+			if (modType == 0) {
+				_mm256_storeu_pd(car.foModLin, dzero);
+				_mm256_storeu_pd(car.phaseMod, dzero);
 			}
-			break;
-		case 1:
-			for (int l = 0; l < kLanes; l++) {
-				car.phaseMod[l] = (rsMax(0.003, rsMin(1.0, ((ramp[MOD_GAIN_RAMPINDEX]) + b.exprFm[l] + (controls[MOD_GAIN_ENV] * SmodGain[l]))))) *  b.osc2out[l];
-				car.foModLin[l] = 0.0;
+			else {
+				const __m128 sum = _mm_add_ps(_mm_add_ps(_mm_set1_ps(ramp[MOD_GAIN_RAMPINDEX]), _mm_loadu_ps(b.exprFm)), _mm_mul_ps(_mm_set1_ps(controls[MOD_GAIN_ENV]), _mm_loadu_ps(SmodGain)));
+				const __m256d amount = _mm256_max_pd(_mm256_min_pd(_mm256_cvtps_pd(sum), _mm256_set1_pd(1.0)), _mm256_set1_pd(0.003));
+				const __m256d o2d = _mm256_cvtps_pd(o2f);
+				if (modType == 1) {
+					_mm256_storeu_pd(car.phaseMod, _mm256_mul_pd(amount, o2d));
+					_mm256_storeu_pd(car.foModLin, dzero);
+				}
+				else {
+					const __m256d depth = _mm256_set1_pd(modType == 2 ? 4.0 : 8.0);
+					_mm256_storeu_pd(car.foModLin, _mm256_mul_pd(_mm256_mul_pd(amount, depth), _mm256_mul_pd(_mm256_loadu_pd(car.oscFo), o2d)));
+					_mm256_storeu_pd(car.phaseMod, dzero);
+				}
 			}
-			break;
-		case 2:
-			for (int l = 0; l < kLanes; l++) {
-				car.foModLin[l] = (rsMax(0.003, rsMin(1.0, ((ramp[MOD_GAIN_RAMPINDEX]) + b.exprFm[l] + (controls[MOD_GAIN_ENV] * SmodGain[l])))) * 4) * (car.oscFo[l] * b.osc2out[l]);
-				car.phaseMod[l] = 0.0;
-			}
-			break;
-		case 3:
-			for (int l = 0; l < kLanes; l++) {
-				car.foModLin[l] = (rsMax(0.003, rsMin(1.0, ((ramp[MOD_GAIN_RAMPINDEX]) + b.exprFm[l] + (controls[MOD_GAIN_ENV] * SmodGain[l])))) * 8) * (car.oscFo[l] * b.osc2out[l]);
-				car.phaseMod[l] = 0.0;
-			}
-			break;
 		}
 
 		// carrier tuning, then (used from the next sample on) modulator tuning, AVX2. Scalar
@@ -206,10 +208,15 @@ void DXGenerator::renderBankGroup(int n) {
 
 		// carrier, gain
 		car.stepAll(oscOut);
-		_mm_storeu_ps(b.osc1pure, _mm256_cvtpd_ps(_mm256_loadu_pd(oscOut)));
-		for (int l = 0; l < kLanes; l++) {
-			b.gainerTemp[l] = ParamClamp2((ramp[GAIN_RAMPINDEX]) + (controls[GAIN_ENV] * Sgain[l]), silenceCutoff, 1.0);
-			b.o[l] = b.gainerTemp[l] * (Samp[l] * (b.osc1pure[l] + (b.osc2out[l] * (ramp[MOD_OSC_GAIN_RAMPINDEX]))));
+		const __m128 o1f = _mm256_cvtpd_ps(_mm256_loadu_pd(oscOut));
+		_mm_storeu_ps(b.osc1pure, o1f);
+		// gainerTemp = ParamClamp2(GAIN ramp + GAIN_ENV * env, silenceCutoff, 1.0)
+		// o = gainerTemp * (ampEnv * (osc1pure + osc2out * MOD_OSC_GAIN ramp))
+		{
+			const __m128 sum = _mm_add_ps(_mm_set1_ps(ramp[GAIN_RAMPINDEX]), _mm_mul_ps(_mm_set1_ps(controls[GAIN_ENV]), _mm_loadu_ps(Sgain)));
+			const __m128 gt = _mm256_cvtpd_ps(_mm256_max_pd(_mm256_min_pd(_mm256_cvtps_pd(sum), _mm256_set1_pd(1.0)), _mm256_set1_pd(static_cast<double>(silenceCutoff))));
+			_mm_storeu_ps(b.gainerTemp, gt);
+			_mm_storeu_ps(b.o, _mm_mul_ps(gt, _mm_mul_ps(_mm_loadu_ps(Samp), _mm_add_ps(o1f, _mm_mul_ps(o2f, _mm_set1_ps(ramp[MOD_OSC_GAIN_RAMPINDEX]))))));
 		}
 
 		// filter: coefficient from the table, then the filter
@@ -234,11 +241,18 @@ void DXGenerator::renderBankGroup(int n) {
 		b.filter.processAll(b.o);
 
 		// pan
-		for (int l = 0; l < kLanes; l++) {
-			b.pan[l] = ParamClamp2(((ramp[PAN_LR_RAMPINDEX]) + b.driftPan[l] + (ramp[PAN_LR_ENV_RAMPINDEX] * Span[l])), -1, 1 );
-			b.prePan[l] += panSmoothCoef * (b.pan[l] - b.prePan[l]);
-			b.o1[l] = ((b.prePan[l] + 1.0f) / 2.0f) * b.o[l];
-			b.o2[l] = ((b.prePan[l] - 1.0f) / -2.0f) * b.o[l];
+		// pan = ParamClamp2(PAN ramp + driftPan + PAN_ENV ramp * env, -1, 1); prePan glides to it;
+		// o1 = (prePan + 1) / 2 * o, o2 = (prePan - 1) / -2 * o
+		{
+			const __m128 sum = _mm_add_ps(_mm_add_ps(_mm_set1_ps(ramp[PAN_LR_RAMPINDEX]), _mm_loadu_ps(b.driftPan)), _mm_mul_ps(_mm_set1_ps(ramp[PAN_LR_ENV_RAMPINDEX]), _mm_loadu_ps(Span)));
+			const __m128 pan = _mm256_cvtpd_ps(_mm256_max_pd(_mm256_min_pd(_mm256_cvtps_pd(sum), _mm256_set1_pd(1.0)), _mm256_set1_pd(-1.0)));
+			_mm_storeu_ps(b.pan, pan);
+			__m128 pp = _mm_loadu_ps(b.prePan);
+			pp = _mm_add_ps(pp, _mm_mul_ps(_mm_set1_ps(panSmoothCoef), _mm_sub_ps(pan, pp)));
+			_mm_storeu_ps(b.prePan, pp);
+			const __m128 o = _mm_loadu_ps(b.o);
+			_mm_storeu_ps(b.o1, _mm_mul_ps(_mm_div_ps(_mm_add_ps(pp, _mm_set1_ps(1.0f)), _mm_set1_ps(2.0f)), o));
+			_mm_storeu_ps(b.o2, _mm_mul_ps(_mm_div_ps(_mm_sub_ps(pp, _mm_set1_ps(1.0f)), _mm_set1_ps(-2.0f)), o));
 		}
 
 		for (int l = 0; l < L; l++) {

@@ -206,9 +206,12 @@ struct alignas(32) Envelope4 {
 		env[l] = e * cdec[l];
 		cenv += catt[l] * (e - cenv);
 	}
+	// step() for all lanes (SSE, 4 floats)
 	void stepAll(float* e, float* cenv) {
-		for (int l = 0; l < kLanes; l++)
-			step(l, e[l], cenv[l]);
+		const __m128 ev = _mm_loadu_ps(env), c = _mm_loadu_ps(cenv);
+		_mm_storeu_ps(e, ev);
+		_mm_storeu_ps(env, _mm_mul_ps(ev, _mm_loadu_ps(cdec)));
+		_mm_storeu_ps(cenv, _mm_add_ps(c, _mm_mul_ps(_mm_loadu_ps(catt), _mm_sub_ps(ev, c))));
 	}
 };
 
@@ -309,6 +312,56 @@ struct alignas(32) Lfo4 {
 		}
 		m_dModulo += m_dInc;
 		return out * m_dAmplitude*ampMod[l];
+	}
+
+	// step() for all lanes into out[], SSE/AVX2 for sine, triangle and square when every lane has the
+	// same waveform (it comes from the global LFO setting); saw (its reset glide) lane by lane.
+	void stepAll(float* res, float m_dAmplitude, float m_dOscFo) {
+		const unsigned w = wave[0];
+		if (w == 1 || w > 3 || wave[1] != w || wave[2] != w || wave[3] != w) {
+			for (int l = 0; l < kLanes; l++)
+				res[l] = step(l, m_dAmplitude, m_dOscFo);
+			return;
+		}
+		const __m128 zero = _mm_setzero_ps(), one = _mm_set1_ps(1.0f);
+		// update
+		__m128 dc = _mm_loadu_ps(delayCounter);
+		const __m128 delaying = _mm_cmplt_ps(dc, one);
+		_mm_storeu_ps(delayCounter, _mm_blendv_ps(dc, _mm_add_ps(dc, _mm_loadu_ps(delayInc)), delaying));
+		__m128 f = _mm_blendv_ps(_mm_mul_ps(_mm_mul_ps(_mm_set1_ps(m_dOscFo), _mm_loadu_ps(foRatio)), _mm_loadu_ps(psf)), zero, delaying);
+		f = _mm_add_ps(f, _mm_loadu_ps(foModLin));
+		_mm_storeu_ps(fo, f);
+		const __m128 in = _mm_div_ps(f, _mm_loadu_ps(srF));
+		_mm_storeu_ps(inc, in);
+		// checkWrapModulo
+		__m128 m = _mm_loadu_ps(mod);
+		const __m128 up = _mm_and_ps(_mm_cmpgt_ps(in, zero), _mm_cmpge_ps(m, one));
+		const __m128 down = _mm_andnot_ps(up, _mm_and_ps(_mm_cmplt_ps(in, zero), _mm_cmple_ps(m, zero)));
+		m = _mm_blendv_ps(m, _mm_sub_ps(m, one), up);
+		m = _mm_blendv_ps(m, _mm_add_ps(m, one), down);
+		const __m256d md = _mm256_cvtps_pd(m);
+		const __m256d d1 = _mm256_set1_pd(1.0), d2 = _mm256_set1_pd(2.0);
+		__m128 o;
+		if (w == 0) {  // doSine: parabolicSine((m * 2.0*pi - pi) * -1.0), high precision
+			const __m256d x = _mm256_mul_pd(_mm256_sub_pd(_mm256_mul_pd(_mm256_mul_pd(md, d2), _mm256_set1_pd(pi)), _mm256_set1_pd(pi)), _mm256_set1_pd(-1.0));
+			__m256d y = _mm256_add_pd(_mm256_mul_pd(_mm256_set1_pd(B), x), _mm256_mul_pd(_mm256_mul_pd(_mm256_set1_pd(C), x), vabs(x)));
+			y = _mm256_add_pd(_mm256_mul_pd(_mm256_set1_pd(P), _mm256_sub_pd(_mm256_mul_pd(y, vabs(y)), y)), y);
+			o = _mm256_cvtpd_ps(y);
+		}
+		else if (w == 2) {  // doTri
+			const __m128 lo = _mm256_cvtpd_ps(_mm256_mul_pd(d2, md));
+			const __m128 hi = _mm256_cvtpd_ps(_mm256_sub_pd(d1, _mm256_mul_pd(d2, _mm256_sub_pd(md, _mm256_set1_pd(0.5)))));
+			const __m128 tv = _mm_blendv_ps(hi, lo, _mm_cmplt_ps(m, _mm_set1_ps(0.5f)));  // m < 0.5 ? 2m : 1 - 2(m - 0.5)
+			o = _mm256_cvtpd_ps(_mm256_sub_pd(_mm256_mul_pd(d2, _mm256_cvtps_pd(tv)), d1));  // unipolarToBipolar
+		}
+		else {  // doSqu: m > pw / 100.0 ? -1 : +1 (compare in double)
+			const int bits = _mm256_movemask_pd(_mm256_cmp_pd(md, _mm256_div_pd(_mm256_cvtps_pd(_mm_loadu_ps(pw)), _mm256_set1_pd(100.0)), _CMP_GT_OQ));
+			const __m128 gt = _mm_castsi128_ps(_mm_cmpgt_epi32(_mm_and_si128(_mm_set1_epi32(bits), _mm_setr_epi32(1, 2, 4, 8)), _mm_setzero_si128()));
+			o = _mm_blendv_ps(one, _mm_set1_ps(-1.0f), gt);
+		}
+		_mm_storeu_ps(dOut, o);
+		_mm_storeu_ps(mod, _mm_add_ps(m, in));
+		_mm_storeu_ps(res, _mm_mul_ps(_mm_mul_ps(o, _mm_set1_ps(m_dAmplitude)), _mm_loadu_ps(ampMod)));
 	}
 };
 
