@@ -163,6 +163,9 @@
     <ClCompile Include="source\DXGeneratorBank.cpp">
       <Filter>Source Files\VSTSource</Filter>
     </ClCompile>
+    <ClCompile Include="source\buildstamp.cpp">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClCompile>
     <ClCompile Include="source\RSView.cpp">
       <Filter>Source Files\VSTSource</Filter>
     </ClCompile>
@@ -400,6 +403,9 @@
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>
     <ClInclude Include="source\VoiceBank.h">
+      <Filter>Source Files\VSTSource</Filter>
+    </ClInclude>
+    <ClInclude Include="source\buildstamp.h">
       <Filter>Source Files\VSTSource</Filter>
     </ClInclude>
     <ClInclude Include="source\RSView.h">

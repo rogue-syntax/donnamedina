@@ -34,3 +34,6 @@ ipch/
 
 # test build output
 /tests/*/bin/
+
+# generated at every build by tools/buildstamp.ps1
+/source/buildstamp.cpp

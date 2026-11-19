@@ -114,6 +114,10 @@
       <EnableCOMDATFolding>false</EnableCOMDATFolding>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
+    <PreBuildEvent>
+      <Command>powershell -NoProfile -ExecutionPolicy Bypass -File "$(ProjectDir)tools\buildstamp.ps1" "$(ProjectDir)."</Command>
+      <Message>Build stamp (source\buildstamp.cpp)</Message>
+    </PreBuildEvent>
     <PostBuildEvent>
       <Command>if not exist "$(CommonProgramW6432)\VST3" mkdir "$(CommonProgramW6432)\VST3"
 copy /y "$(TargetPath)" "$(CommonProgramW6432)\VST3\DonnaMedinaVST64.vst3"
@@ -183,6 +187,10 @@ if exist "$(OutDir)DonnaMedinaVST64.pdb" copy /y "$(OutDir)DonnaMedinaVST64.pdb"
       <StackReserveSize>8388608</StackReserveSize>
       <TreatLinkerWarningAsErrors>false</TreatLinkerWarningAsErrors>
     </Link>
+    <PreBuildEvent>
+      <Command>powershell -NoProfile -ExecutionPolicy Bypass -File "$(ProjectDir)tools\buildstamp.ps1" "$(ProjectDir)."</Command>
+      <Message>Build stamp (source\buildstamp.cpp)</Message>
+    </PreBuildEvent>
     <PostBuildEvent>
       <Command>if not exist "$(CommonProgramW6432)\VST3" mkdir "$(CommonProgramW6432)\VST3"
 copy /y "$(TargetPath)" "$(CommonProgramW6432)\VST3\DonnaMedinaVST64.vst3"
@@ -220,6 +228,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClCompile Include="source\DCA.cpp" />
     <ClCompile Include="source\DXGenerator.cpp" />
     <ClCompile Include="source\DXGeneratorBank.cpp" />
+    <ClCompile Include="source\buildstamp.cpp" />
     <ClCompile Include="source\Env.cpp" />
     <ClCompile Include="source\mdaBaseController.cpp" />
     <ClCompile Include="source\mdaBaseProcessor.cpp" />
@@ -313,6 +322,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\DCA.h" />
     <ClInclude Include="source\DXGenerator.h" />
     <ClInclude Include="source\VoiceBank.h" />
+    <ClInclude Include="source\buildstamp.h" />
     <ClInclude Include="source\Env.h" />
     <ClInclude Include="source\fontstash.h" />
     <ClInclude Include="source\glIncludes.h" />

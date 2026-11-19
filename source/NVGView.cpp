@@ -4,6 +4,7 @@
 //or needs threading
 #include "REvent.h"
 #include "NVGView.h"
+#include "buildstamp.h"
 #include "blockMap.h"
 #include "presetBarView.h"
 #include "lfoShape.h"
@@ -4267,18 +4268,9 @@ no viewindex at 153!*/
 			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
 			nvgFillColor(vg, reg ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 150, 80, 255));
 			nvgText(vg, tx, kInfoY, reg ? "REGISTERED" : "UNREGISTERED", NULL);
-			// __DATE__ is "Mmm dd yyyy": shown as yyyy-mm-dd
-			static const std::string build = [] {
-				const char* d = __DATE__;
-				static const char* const kMon = "JanFebMarAprMayJunJulAugSepOctNovDec";
-				int m = 1;
-				for (int i = 0; i < 12; i++)
-					if (std::strncmp(d, kMon + 3 * i, 3) == 0) { m = i + 1; break; }
-				char b[32];
-				std::snprintf(b, sizeof(b), "%.4s-%02d-%02d", d + 7, m, std::atoi(d + 4));
-				return std::string(b);
-			}();
-			const std::string fmt = "VST3  |  64-BIT  |  BUILD " + build;
+			// build stamp: branch, commit and build time, written at every build (tools/buildstamp.ps1;
+			// __DATE__ used to be here, but that is when this file was last compiled, not the build)
+			const std::string fmt = std::string("VST3  |  64-BIT  |  BUILD ") + kBuildStamp;
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
 			nvgFillColor(vg, nvgRGBA(150, 160, 185, 230));
 			nvgText(vg, tx + tw, kInfoY, fmt.c_str(), NULL);

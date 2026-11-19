@@ -14,6 +14,8 @@ Command line: `MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Pla
 
 Output: `x64\<Config>\RSSynth001donnaMedina.vst3` (Debug also writes `DonnaMedinaVST64.pdb`).
 
+Build stamp: a pre-build step (`tools\buildstamp.ps1`, PowerShell + git) writes `source\buildstamp.cpp` (not in git) with the branch, short commit and build time; the About window shows it in its info row, e.g. `BUILD simd-voices 448d975  2026-11-19 11:33`. The commit is the last one at build time: uncommitted changes in the working copy are not marked. Without git it says `unknown unknown`.
+
 ### Debug vs Release
 - **Debug**: no optimisation, debug C runtime (`/MDd`). For stepping and asserts only: several times slower, and it needs Visual Studio's debug runtime DLLs, so it does not load on users' machines. Never ship it.
 - **Release** (2026-11-18): `/O2`, favour speed, fast floating point, **AVX2** (`/arch:AVX2`), whole-program optimisation (`/GL` + `/LTCG`), function-level linking with unreferenced-code removal and identical-code folding (`/Gy`, `/OPT:REF`, `/OPT:ICF`), parallel compile (`/MP`).
