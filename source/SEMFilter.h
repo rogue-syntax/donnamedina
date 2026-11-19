@@ -135,7 +135,11 @@ public:
 
 	};
 
-	inline void doFilter2(float &xn) { 
+	// voice bank (DXGenerator::renderBankGroup): the integrator state, read and written once per block
+	inline void getZ(double& z1, double& z2) const { z1 = m_dZ11; z2 = m_dZ12; }
+	inline void setZ(double z1, double z2) { m_dZ11 = z1; m_dZ12 = z2; }
+	inline double qValue() const { return m_dQ; }
+	inline void doFilter2(float &xn) {
 		double aaa = m_dAlpha0 * (xn - m_dRho * m_dZ11 - m_dZ12);
 		double bbb = m_dAlpha * aaa + m_dZ11;
 		double ccc = m_dAlpha * bbb + m_dZ12;

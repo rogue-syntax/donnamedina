@@ -254,6 +254,8 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	proc->initialize(&host);
 	IConnectionPoint* usedPeer = opt.peer ? opt.peer : static_cast<IConnectionPoint*>(&peer);
 	proc->connect(usedPeer);
+	// NO_BANK set: every voice through singleVoiceProcessing (simd-voices A/B: golden, perf)
+	if (std::getenv("NO_BANK")) proc->generators[0].useVoiceBank = false;
 	if (opt.onCreated) opt.onCreated(*proc);
 	ProcessSetup setup{kRealtime, kSample32, kBlock, sr};
 	proc->setupProcessing(setup);
@@ -605,6 +607,9 @@ int monoProbe(int argc, char** argv) {
 int goldenProbe(int argc, char** argv) {
 	const bool save = argc > 2 && std::strcmp(argv[2], "save") == 0;
 	const bool hq = std::getenv("GOLDEN_HQ") != nullptr;
+	const bool keySync = std::getenv("GOLDEN_KEYSYNC") != nullptr;
+	int ovC = 0, ovM = 0, ovT = 0;
+	const bool oscOverride = std::getenv("GOLDEN_OSC") && std::sscanf(std::getenv("GOLDEN_OSC"), "%d,%d,%d", &ovC, &ovM, &ovT) == 3;
 	const double seconds = 3.0;
 	std::vector<float> all;
 	for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
@@ -625,8 +630,19 @@ int goldenProbe(int argc, char** argv) {
 		o.keepPatchEnvelopes = true;
 		o.params = {{0.0, {rs::BaseController::kPresetParam, (prog + 0.5) / rs::DX10Processor::kNumPrograms}},
 		            {1.4, {FILTER_, 0.35}}, {1.8, {FILTER_, 0.8}}, {2.2, {MOD_GAIN_, 0.6}}};
+		// GOLDEN_KEYSYNC: key sync and drift on, so repeated notes fade and restart (voices on the
+		// scalar path mixed with voices in the bank)
+		if (keySync) {
+			o.params.push_back({0.09, {KEY_SYNC, 1.0}});
+			o.params.push_back({0.09, {DRIFT_AMOUNT, 0.5}});
+		}
 		bool hqEnd = false;
-		o.inspect = [&hqEnd](rs::DX10Processor& p) { hqEnd = p.hqActive; };
+		unsigned long long bankVs = 0, scalarVs = 0;
+		o.inspect = [&](rs::DX10Processor& p) {
+			hqEnd = p.hqActive;
+			bankVs = p.generators[0].bankVoiceSamples;
+			scalarVs = p.generators[0].scalarVoiceSamples;
+		};
 		static HostApplication ghost;
 		auto* ctrl = new rs::DX10Controller();
 		ctrl->initialize(&ghost);
@@ -640,7 +656,19 @@ int goldenProbe(int argc, char** argv) {
 		// deterministic message delivery: what the 15 ms main-thread timer does, but after every
 		// block instead of at wall-clock times (the render runs much faster than real time)
 		int hqBlocks = 0, allBlocks = 0;
-		o.perBlock = [&](rs::DX10Processor& p, double) { p.flushMessageQueue(); allBlocks++; hqBlocks += p.hqActive; };
+		o.perBlock = [&](rs::DX10Processor& p, double t) {
+			p.flushMessageQueue();
+			allBlocks++;
+			hqBlocks += p.hqActive;
+			// GOLDEN_OSC=c,m,t: carrier and modulator waveform and mod type (step values), forced
+			// once the preset has arrived (before the first note at 0.1 s)
+			if (oscOverride && t >= 0.09) {
+				auto& g = p.generators[0];
+				g.ctrlValues[OSC_] = ovC; g.controls[OSC_] = float(ovC);
+				g.ctrlValues[MOD_OSC_] = ovM; g.controls[MOD_OSC_] = float(ovM);
+				g.ctrlValues[MOD_TYPE_] = ovT; g.controls[MOD_TYPE_] = float(ovT);
+			}
+		};
 		std::vector<float> L, R;
 		o.captureL = &L;
 		o.captureR = &R;
@@ -650,8 +678,11 @@ int goldenProbe(int argc, char** argv) {
 		ctrl->release();
 		for (size_t i = 0; i < L.size(); i++) { all.push_back(L[i]); all.push_back(R[i]); }
 		if (hq) std::printf("  preset %d: HQ %s at the end, %d of %d blocks in HQ\n", prog, hqEnd ? "on" : "OFF", hqBlocks, allBlocks);
+		std::printf("  preset %d: voice-samples through the bank %llu, scalar %llu\n", prog, bankVs, scalarVs);
 	}
-	const char* path = hq ? "tests\\note_off\\bin\\golden_hq.f32" : "tests\\note_off\\bin\\golden.f32";
+	// GOLDEN_FILE overrides the reference file (A/B runs, e.g. NO_BANK=1 ... golden save, then golden)
+	const char* path = std::getenv("GOLDEN_FILE") ? std::getenv("GOLDEN_FILE")
+	                 : hq ? "tests\\note_off\\bin\\golden_hq.f32" : "tests\\note_off\\bin\\golden.f32";
 	if (save) {
 		FILE* f = std::fopen(path, "wb");
 		if (!f) { std::printf("cannot write %s\n", path); return 2; }

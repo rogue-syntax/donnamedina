@@ -869,8 +869,21 @@ void DXGenerator::renderBlock(int n) {
 	const unsigned long long clock0 = sampleClock;
 	// notes does not change inside a block: a fade ending restarts the voice in place (processNoteOn).
 	const int nSize = notes.size();
+	bank.count = 0;
 	for (int v = 0; v < nSize; v++) {
 		RVoice& voice = RVoicesMap[notes[v]];
+		if (useVoiceBank && bankEligible(voice)) {
+			bank.voice[bank.count] = &voice;
+			bank.row[bank.count] = v;
+			if (++bank.count == VoiceBank::kLanes) {
+				renderBankGroup(n);
+				bank.count = 0;
+			}
+			continue;
+		}
+		float* rowL = voiceRowL[v];
+		float* rowR = voiceRowR[v];
+		scalarVoiceSamples += n;
 		for (int s = 0; s < n; s++) {
 			sampleClock = clock0 + s;  // read by processNoteOn when a fade ends here
 			if (rampsMove)
@@ -880,8 +893,21 @@ void DXGenerator::renderBlock(int n) {
 				interpolateVoice(voice);
 			else
 				singleVoiceProcessing(voice);
-			renderL[s] += voice.o1;  // same summing order as mainProcessing: voices in notes order
-			renderR[s] += voice.o2;
+			rowL[s] = voice.o1;
+			rowR[s] = voice.o2;
+		}
+	}
+	if (bank.count > 0) {
+		renderBankGroup(n);
+		bank.count = 0;
+	}
+	// same summing order as mainProcessing: voices in notes order
+	for (int v = 0; v < nSize; v++) {
+		const float* rowL = voiceRowL[v];
+		const float* rowR = voiceRowR[v];
+		for (int s = 0; s < n; s++) {
+			renderL[s] += rowL[s];
+			renderR[s] += rowR[s];
 		}
 	}
 	for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++)

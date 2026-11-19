@@ -8,6 +8,7 @@
 #include "Map.h"
 #include "base/source/timer.h"
 #include "RVoice.h"
+#include "VoiceBank.h"
 #include "REvents.h"
 #include "REventable.h"
 #include "immintrin.h"
@@ -764,6 +765,16 @@ public:
 	float renderR[kRenderMax] = {};
 	float rampRows[kRenderMax][GENRAMPEDPARAMSLENGTH] = {};
 	void renderBlock(int n);
+	// Step 2: voices that qualify (bankEligible) render in groups of VoiceBank::kLanes through
+	// renderBankGroup (DXGeneratorBank.cpp); the rest through singleVoiceProcessing as before. Every
+	// voice writes its own output row; the rows are summed in notes order.
+	bool useVoiceBank = true;  // false: every voice through singleVoiceProcessing (tests, A/B)
+	unsigned long long bankVoiceSamples = 0, scalarVoiceSamples = 0;  // statistics (tests)
+	float voiceRowL[VoiceList::kCapacity][kRenderMax];
+	float voiceRowR[VoiceList::kCapacity][kRenderMax];
+	VoiceBank bank;
+	bool bankEligible(const RVoice& v) const;
+	void renderBankGroup(int n);  // renders bank.voice[0..count-1] into their rows
 	//virtual void voiceProcessing(RVoice& obj) override;
 	float getRelVal1D(float rangeAStart, float rangeAStop, float rangeBStart, float rangeBStop, float value);
 	void setActive();

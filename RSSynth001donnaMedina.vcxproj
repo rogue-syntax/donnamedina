@@ -219,6 +219,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClCompile Include="source\CParamSmooth.cpp" />
     <ClCompile Include="source\DCA.cpp" />
     <ClCompile Include="source\DXGenerator.cpp" />
+    <ClCompile Include="source\DXGeneratorBank.cpp" />
     <ClCompile Include="source\Env.cpp" />
     <ClCompile Include="source\mdaBaseController.cpp" />
     <ClCompile Include="source\mdaBaseProcessor.cpp" />
@@ -311,6 +312,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\CParamSmooth.h" />
     <ClInclude Include="source\DCA.h" />
     <ClInclude Include="source\DXGenerator.h" />
+    <ClInclude Include="source\VoiceBank.h" />
     <ClInclude Include="source\Env.h" />
     <ClInclude Include="source\fontstash.h" />
     <ClInclude Include="source\glIncludes.h" />
