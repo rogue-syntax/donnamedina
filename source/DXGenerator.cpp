@@ -869,18 +869,9 @@ void DXGenerator::renderBlock(int n) {
 	const unsigned long long clock0 = sampleClock;
 	// notes does not change inside a block: a fade ending restarts the voice in place (processNoteOn).
 	const int nSize = notes.size();
-	bank.count = 0;
-	for (int v = 0; v < nSize; v++) {
+	// one voice (notes index v) through singleVoiceProcessing / interpolateVoice
+	auto renderScalar = [&](int v) {
 		RVoice& voice = RVoicesMap[notes[v]];
-		if (useVoiceBank && bankEligible(voice)) {
-			bank.voice[bank.count] = &voice;
-			bank.row[bank.count] = v;
-			if (++bank.count == VoiceBank::kLanes) {
-				renderBankGroup(n);
-				bank.count = 0;
-			}
-			continue;
-		}
 		float* rowL = voiceRowL[v];
 		float* rowR = voiceRowR[v];
 		scalarVoiceSamples += n;
@@ -896,11 +887,29 @@ void DXGenerator::renderBlock(int n) {
 			rowL[s] = voice.o1;
 			rowR[s] = voice.o2;
 		}
+	};
+	bank.count = 0;
+	for (int v = 0; v < nSize; v++) {
+		RVoice& voice = RVoicesMap[notes[v]];
+		if (useVoiceBank && bankEligible(voice)) {
+			bank.voice[bank.count] = &voice;
+			bank.row[bank.count] = v;
+			if (++bank.count == VoiceBank::kLanes) {
+				renderBankGroup(n);
+				bank.count = 0;
+			}
+			continue;
+		}
+		renderScalar(v);
 	}
-	if (bank.count > 0) {
+	// a leftover group of 1 or 2 voices is cheaper on the scalar path than with 2-3 spare lanes
+	// (perf: 2 voices 92 vs 84 ns per voice-sample; 3 voices 62 vs 70)
+	if (bank.count <= 2)
+		for (int i = 0; i < bank.count; i++)
+			renderScalar(bank.row[i]);
+	else
 		renderBankGroup(n);
-		bank.count = 0;
-	}
+	bank.count = 0;
 	// same summing order as mainProcessing: voices in notes order
 	for (int v = 0; v < nSize; v++) {
 		const float* rowL = voiceRowL[v];

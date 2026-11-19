@@ -102,6 +102,10 @@ struct alignas(32) Envelope4 {
 		env[l] = e * cdec[l];
 		cenv += catt[l] * (e - cenv);
 	}
+	void stepAll(float* e, float* cenv) {
+		for (int l = 0; l < kLanes; l++)
+			step(l, e[l], cenv[l]);
+	}
 };
 
 // LFO (CLFO: update() then doOscillate())
@@ -230,6 +234,10 @@ struct alignas(32) Osc4 {
 		fo[l] += foModLin[l];
 		inc[l] = fo[l]/(sr[l]);
 	}
+	void updateAll() {
+		for (int l = 0; l < kLanes; l++)
+			update(l);
+	}
 
 	// CQBLimitedOscillator::doOscillate
 	double step(int l) {
@@ -282,6 +290,14 @@ struct alignas(32) Filter4 {
 		z1[l] = a[l] * aaa + bbb;
 		z2[l] = a[l] * bbb + ccc;
 		xn = ccc;
+	}
+	void setGAll(const double* gg) {
+		for (int l = 0; l < kLanes; l++)
+			setG(l, gg[l]);
+	}
+	void processAll(float* xn) {
+		for (int l = 0; l < kLanes; l++)
+			process(l, xn[l]);
 	}
 };
 
