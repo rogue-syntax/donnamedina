@@ -119,8 +119,9 @@ void DXGenerator::renderBankGroup(int n) {
 			for (int l = 0; l < kLanes; l++)
 				mod.oscFo[l] = mod.oscFo[l] + ((bpm / 60) * ((controls[MOD_BEAT_] + static_cast<int>(controls[MOD_BEAT_ENV] * Sbeat[l] * 13)) / 4));
 		mod.updateAll();
-		for (int l = 0; l < kLanes; l++)
-			b.osc2out[l] = mod.step(l);
+		double oscOut[kLanes];
+		mod.stepAll(oscOut);
+		_mm_storeu_ps(b.osc2out, _mm256_cvtpd_ps(_mm256_loadu_pd(oscOut)));  // double -> float
 		switch (modType) {
 		case 0:
 			for (int l = 0; l < kLanes; l++) {
@@ -204,8 +205,8 @@ void DXGenerator::renderBankGroup(int n) {
 		}
 
 		// carrier, gain
-		for (int l = 0; l < kLanes; l++)
-			b.osc1pure[l] = car.step(l);
+		car.stepAll(oscOut);
+		_mm_storeu_ps(b.osc1pure, _mm256_cvtpd_ps(_mm256_loadu_pd(oscOut)));
 		for (int l = 0; l < kLanes; l++) {
 			b.gainerTemp[l] = ParamClamp2((ramp[GAIN_RAMPINDEX]) + (controls[GAIN_ENV] * Sgain[l]), silenceCutoff, 1.0);
 			b.o[l] = b.gainerTemp[l] * (Samp[l] * (b.osc1pure[l] + (b.osc2out[l] * (ramp[MOD_OSC_GAIN_RAMPINDEX]))));

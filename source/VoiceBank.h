@@ -82,6 +82,109 @@ inline double tri2(double dCalcModulo, double triCutoff, double dInc) {
 	return doOscOut;
 }
 
+// ---- the same, 4 lanes (AVX2) --------------------------------------------------------------------
+// Each is the scalar function above with the branches turned into lane masks; the arithmetic
+// (operations, order, float or double) is the same, so the results are too.
+
+inline __m256d vabs(__m256d x) { return _mm256_andnot_pd(_mm256_set1_pd(-0.0), x); }
+inline __m256d vsel(__m256d mask, __m256d a, __m256d b) { return _mm256_blendv_pd(b, a, mask); }  // mask ? a : b
+inline bool vany(__m256d mask) { return _mm256_movemask_pd(mask) != 0; }
+
+// doBLEP_N(table, 4096, d, inc, 1.0, false (falling edge), N, false) with inc = |dInc|.
+// The scalar loops over i = 1..N ("d > 1 - i*inc", "d < i*inc") hold for some i exactly when they
+// hold for i = N (1 - i*inc decreases with i), so each side is one compare. Index and interpolation
+// are float, as in doBLEP_N / dLinTerp (dx = (frac - 0) / (1 - 0) = frac).
+inline __m256d blepN(const double* table, __m256d d, __m256d inc, double N) {
+	const __m256d zero = _mm256_setzero_pd(), one = _mm256_set1_pd(1.0);
+	inc = vsel(_mm256_cmp_pd(inc, zero, _CMP_EQ_OQ), _mm256_set1_pd(0.003), inc);  // dInc == 0 -> 0.003
+	const __m256d nInc = _mm256_mul_pd(_mm256_set1_pd(N), inc);
+	const __m256d left = _mm256_cmp_pd(d, _mm256_sub_pd(one, nInc), _CMP_GT_OQ);
+	const __m256d right = _mm256_andnot_pd(left, _mm256_cmp_pd(d, nInc, _CMP_LT_OQ));
+	const __m256d edge = _mm256_or_pd(left, right);
+	if (!vany(edge))
+		return zero;  // no lane next to the edge (most samples)
+	const double center = 4096 / 2.0 - 1;  // dTableCenter
+	const __m256d C = _mm256_set1_pd(center);
+	// left: fIndex = (1.0 + t) * center, t = (d - 1) / (N*inc); right: t * center + (center + 1), t = d / (N*inc)
+	const __m256d fl = _mm256_mul_pd(_mm256_add_pd(one, _mm256_div_pd(_mm256_sub_pd(d, one), nInc)), C);
+	const __m256d fr = _mm256_add_pd(_mm256_mul_pd(_mm256_div_pd(d, nInc), C), _mm256_set1_pd(center + 1.0));
+	// lanes without an edge read index 0 (result discarded)
+	const __m128 fIndex = _mm256_cvtpd_ps(_mm256_and_pd(edge, vsel(left, fl, fr)));
+	const __m128i i0 = _mm_cvttps_epi32(fIndex);
+	const __m128 frac = _mm_sub_ps(fIndex, _mm_cvtepi32_ps(i0));
+	__m128i i1 = _mm_add_epi32(i0, _mm_set1_epi32(1));
+	i1 = _mm_and_si128(i1, _mm_cmplt_epi32(i1, _mm_set1_epi32(4096)));  // right side: index + 1 >= len -> table[0]
+	const __m128 y1 = _mm256_cvtpd_ps(_mm256_i32gather_pd(table, i0, 8));
+	const __m128 y2 = _mm256_cvtpd_ps(_mm256_i32gather_pd(table, i1, 8));
+	const __m128 r = _mm_add_ps(_mm_mul_ps(frac, y2), _mm_mul_ps(_mm_sub_ps(_mm_set1_ps(1.0f), frac), y1));
+	// falling edge: dBLEP *= -1.0; height 1.0
+	return _mm256_and_pd(edge, _mm256_xor_pd(_mm256_cvtps_pd(r), _mm256_set1_pd(-0.0)));
+}
+
+// sawO
+inline __m256d sawV(__m256d d, __m256d inc, __m256d fo, __m256d sr) {
+	const __m256d triv = _mm256_sub_pd(_mm256_mul_pd(_mm256_set1_pd(2.0), d), _mm256_set1_pd(1.0));  // unipolarToBipolar
+	const __m256d absInc = vabs(inc);
+	const __m256d m8 = _mm256_cmp_pd(fo, _mm256_div_pd(sr, _mm256_set1_pd(8.0)), _CMP_LE_OQ);  // fo <= sr / 8: 4-point table
+	const int bits = _mm256_movemask_pd(m8);
+	__m256d blep;
+	if (bits == 0xF)
+		blep = blepN(&dBLEPTable_8_BLKHAR[0], d, absInc, 4);
+	else if (bits == 0)
+		blep = blepN(&dBLEPTable[0], d, absInc, 1);
+	else
+		blep = vsel(m8, blepN(&dBLEPTable_8_BLKHAR[0], d, absInc, 4), blepN(&dBLEPTable[0], d, absInc, 1));
+	return _mm256_add_pd(triv, blep);
+}
+
+// squareO
+inline __m256d squareV(__m256d d, __m256d inc, __m256d pw, __m256d fo, __m256d sr) {
+	const __m256d zero = _mm256_setzero_pd(), one = _mm256_set1_pd(1.0), half = _mm256_set1_pd(0.5);
+	const __m256d s1 = sawV(d, inc, fo, sr);
+	const __m256d pos = _mm256_cmp_pd(inc, zero, _CMP_GT_OQ), neg = _mm256_cmp_pd(inc, zero, _CMP_LT_OQ);
+	d = vsel(pos, _mm256_add_pd(d, pw), _mm256_sub_pd(d, pw));
+	d = vsel(_mm256_and_pd(pos, _mm256_cmp_pd(d, one, _CMP_GE_OQ)), _mm256_sub_pd(d, one), d);
+	d = vsel(_mm256_and_pd(neg, _mm256_cmp_pd(d, zero, _CMP_LE_OQ)), _mm256_add_pd(d, one), d);
+	const __m256d s2 = sawV(d, inc, fo, sr);
+	const __m256d out = _mm256_sub_pd(_mm256_mul_pd(half, s1), _mm256_mul_pd(half, s2));
+	const __m256d corr = vsel(_mm256_cmp_pd(pw, half, _CMP_LT_OQ), _mm256_div_pd(one, _mm256_sub_pd(one, pw)), _mm256_div_pd(one, pw));
+	return _mm256_mul_pd(out, corr);
+}
+
+// polyBlep
+inline __m256d polyBlepV(__m256d t, __m256d dt) {
+	const __m256d zero = _mm256_setzero_pd(), one = _mm256_set1_pd(1.0);
+	const __m256d valid = _mm256_cmp_pd(dt, zero, _CMP_GT_OQ);  // dt <= 0 -> 0
+	const __m256d lo = _mm256_and_pd(valid, _mm256_cmp_pd(t, dt, _CMP_LT_OQ));
+	const __m256d hi = _mm256_andnot_pd(lo, _mm256_and_pd(valid, _mm256_cmp_pd(t, _mm256_sub_pd(one, dt), _CMP_GT_OQ)));
+	if (!vany(_mm256_or_pd(lo, hi)))
+		return zero;
+	const __m256d a = _mm256_div_pd(t, dt);                       // t < dt: t /= dt; t + t - t*t - 1
+	const __m256d ra = _mm256_sub_pd(_mm256_sub_pd(_mm256_add_pd(a, a), _mm256_mul_pd(a, a)), one);
+	const __m256d bq = _mm256_div_pd(_mm256_sub_pd(t, one), dt);  // t > 1 - dt: t = (t - 1)/dt; t*t + t + t + 1
+	const __m256d rb = _mm256_add_pd(_mm256_add_pd(_mm256_add_pd(_mm256_mul_pd(bq, bq), bq), bq), one);
+	return _mm256_and_pd(_mm256_or_pd(lo, hi), vsel(lo, ra, rb));
+}
+
+// tri2
+inline __m256d triV(__m256d d, __m256d tri, __m256d inc) {
+	const __m256d one = _mm256_set1_pd(1.0), half = _mm256_set1_pd(0.5), two = _mm256_set1_pd(2.0);
+	const __m256d mirrored = _mm256_cmp_pd(tri, half, _CMP_GT_OQ);
+	const __m256d w = vsel(mirrored, _mm256_sub_pd(one, tri), tri);
+	const __m256d phase = vsel(mirrored, _mm256_sub_pd(one, d), d);
+	const __m256d tm = _mm256_mul_pd(phase, _mm256_add_pd(w, half));
+	const __m256d ts = vsel(_mm256_cmp_pd(tm, half, _CMP_GT_OQ), _mm256_sub_pd(one, tm), tm);
+	__m256d out = _mm256_add_pd(_mm256_mul_pd(two, _mm256_sub_pd(_mm256_mul_pd(two, ts), one)), one);  // 2 * (2.0*ts - 1.0) + 1
+	const __m256d stepHalf = _mm256_mul_pd(_mm256_sub_pd(two, _mm256_mul_pd(_mm256_set1_pd(4.0), w)), half);
+	const __m256d doIt = _mm256_cmp_pd(stepHalf, _mm256_setzero_pd(), _CMP_GT_OQ);
+	if (vany(doIt)) {
+		const __m256d blep = polyBlepV(d, vabs(inc));
+		const __m256d sh = vsel(mirrored, stepHalf, _mm256_xor_pd(stepHalf, _mm256_set1_pd(-0.0)));  // mirrored ? stepHalf : -stepHalf
+		out = vsel(doIt, _mm256_add_pd(out, _mm256_mul_pd(sh, blep)), out);
+	}
+	return out;
+}
+
 // ---- components --------------------------------------------------------------------------------
 
 // Modulation sources, as RVoice::envBank: 0 = none (always 0), 1..3 envelopes, 4..6 LFOs. The
@@ -263,6 +366,41 @@ struct alignas(32) Osc4 {
 		}
 		mod[l] += inc[l];  // incModulo
 		return doOscOut;
+	}
+
+	// step() for all lanes into out[], AVX2 when every lane has the same waveform (the usual case:
+	// the waveform comes from the patch; spare lanes copy lane 0), otherwise lane by lane.
+	void stepAll(double* out) {
+		const unsigned w = wave[0];
+		if (w > 3 || wave[1] != w || wave[2] != w || wave[3] != w) {
+			for (int l = 0; l < kLanes; l++)
+				out[l] = step(l);
+			return;
+		}
+		const __m256d zero = _mm256_setzero_pd(), one = _mm256_set1_pd(1.0);
+		__m256d m = _mm256_loadu_pd(mod);
+		m = _mm256_sub_pd(m, _mm256_round_pd(m, _MM_FROUND_TO_ZERO | _MM_FROUND_NO_EXC));  // checkWrapModulo2: m -= (int)m
+		__m256d dc = _mm256_add_pd(m, _mm256_loadu_pd(phaseMod));
+		// checkWrapIndex: while (< 0) += 1; while (>= 1) -= 1 (per lane, the same steps)
+		for (__m256d k; vany(k = _mm256_cmp_pd(dc, zero, _CMP_LT_OQ)); )
+			dc = vsel(k, _mm256_add_pd(dc, one), dc);
+		for (__m256d k; vany(k = _mm256_cmp_pd(dc, one, _CMP_GE_OQ)); )
+			dc = vsel(k, _mm256_sub_pd(dc, one), dc);
+		const __m256d vinc = _mm256_loadu_pd(inc);
+		__m256d r;
+		switch (w) {
+		case 0: {  // doSine: x = -1.0 * (dc * 2.0 * pi - pi); swB * x + swC * x * fabs(x)
+			const __m256d ang = _mm256_sub_pd(_mm256_mul_pd(_mm256_mul_pd(dc, _mm256_set1_pd(2.0)), _mm256_set1_pd((double)pi)), _mm256_set1_pd((double)pi));
+			const __m256d x = _mm256_mul_pd(_mm256_set1_pd(-1.0), ang);
+			r = _mm256_add_pd(_mm256_mul_pd(_mm256_set1_pd(SineWave::swB), x), _mm256_mul_pd(_mm256_mul_pd(_mm256_set1_pd(SineWave::swC), x), vabs(x)));
+			break;
+		}
+		case 1: r = sawV(dc, vinc, _mm256_loadu_pd(fo), _mm256_loadu_pd(sr)); break;
+		case 2: r = triV(dc, _mm256_loadu_pd(tri), vinc); break;
+		default: r = squareV(dc, vinc, _mm256_loadu_pd(tri), _mm256_loadu_pd(fo), _mm256_loadu_pd(sr)); break;
+		}
+		_mm256_storeu_pd(out, r);
+		_mm256_storeu_pd(mod, _mm256_add_pd(m, vinc));  // incModulo
 	}
 };
 
