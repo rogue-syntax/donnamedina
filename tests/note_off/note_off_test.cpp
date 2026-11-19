@@ -676,6 +676,35 @@ int goldenProbe(int argc, char** argv) {
 	return 0;
 }
 
+// Voice setup probe (simd-voices): per factory preset, the waveforms, mod type and LFO use a held
+// note's voice ends up with. Run: note_off_test.exe voices
+int voicesProbe(int, char**) {
+	for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
+		Options o;
+		o.keepPatchEnvelopes = true;
+		o.params = {{0.0, {rs::BaseController::kPresetParam, (prog + 0.5) / rs::DX10Processor::kNumPrograms}}};
+		static HostApplication vhost;
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&vhost);
+		o.peer = ctrl;
+		o.onCreated = [ctrl](rs::DX10Processor& p) { ctrl->connect(&p); };
+		o.perBlock = [](rs::DX10Processor& p, double) { p.flushMessageQueue(); };
+		o.inspect = [prog](rs::DX10Processor& p) {
+			auto& g = p.generators[0];
+			const RVoice& v = g.RVoicesMap[60];
+			std::printf("  preset %d: carrier wave %d, modulator wave %d, mod type %d, lfoUsedMask 0x%02x, sounding %d\n", prog,
+			            (int)v.WTOsc.m_uWaveform, (int)v.WTOsc2.m_uWaveform, g.ctrlValues[MOD_TYPE_ + g.paramStartIdx], g.lfoUsedMask,
+			            g.notes.size());
+		};
+		render(Settings{"voices", 0.0, 0.0}, {{at(0.1), true, 60}}, 0.5, o);
+		ctrl->disconnect(nullptr);
+		ctrl->terminate();
+		ctrl->release();
+	}
+	std::printf("waves: 0 SINE 1 SAW 2 TRI 3 SQUARE 4 SAW2 5 SAW3 6 NOISE 7 PNOISE 8 RSINE (oscChoice); mod: 0 none 1 phase 2 freq 3 detune\n");
+	return 0;
+}
+
 // Poor man's sampling profiler: a second thread suspends the rendering thread every ~1 ms and
 // records its instruction pointer; report() names the functions via DbgHelp (exe built with /DEBUG).
 namespace sampler {
@@ -857,6 +886,7 @@ int main(int argc, char** argv) {
 	if (argc > 1 && std::strcmp(argv[1], "mono") == 0) return monoProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "perf") == 0) return perfProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "golden") == 0) return goldenProbe(argc, argv);
+	if (argc > 1 && std::strcmp(argv[1], "voices") == 0) return voicesProbe(argc, argv);
 	const Settings settings[] = {
 		{"decay=HOLD", 1.0, 0.5},
 		{"decay=0.6 ", 0.6, 0.5},
