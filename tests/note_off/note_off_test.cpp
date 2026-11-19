@@ -601,8 +601,10 @@ int monoProbe(int argc, char** argv) {
 // Golden-audio check (optimization safety net): renders every factory preset through the real
 // processor + controller path with a fixed note/automation pattern. `golden save` writes the output
 // to bin\golden.f32; `golden` compares a new render against it and reports the difference.
+// With the environment variable GOLDEN_HQ set, the voices run in HQ (2x) and the file is golden_hq.f32.
 int goldenProbe(int argc, char** argv) {
 	const bool save = argc > 2 && std::strcmp(argv[2], "save") == 0;
+	const bool hq = std::getenv("GOLDEN_HQ") != nullptr;
 	const double seconds = 3.0;
 	std::vector<float> all;
 	for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
@@ -623,14 +625,22 @@ int goldenProbe(int argc, char** argv) {
 		o.keepPatchEnvelopes = true;
 		o.params = {{0.0, {rs::BaseController::kPresetParam, (prog + 0.5) / rs::DX10Processor::kNumPrograms}},
 		            {1.4, {FILTER_, 0.35}}, {1.8, {FILTER_, 0.8}}, {2.2, {MOD_GAIN_, 0.6}}};
+		bool hqEnd = false;
+		o.inspect = [&hqEnd](rs::DX10Processor& p) { hqEnd = p.hqActive; };
 		static HostApplication ghost;
 		auto* ctrl = new rs::DX10Controller();
 		ctrl->initialize(&ghost);
 		o.peer = ctrl;
-		o.onCreated = [ctrl](rs::DX10Processor& p) { ctrl->connect(&p); };
+		// HQ on both sides, as a host does: the controller's preset message carries its HQ value
+		if (hq) ctrl->setParamNormalized(HQ_MODE, 1.0);
+		o.onCreated = [ctrl, hq](rs::DX10Processor& p) {
+			if (hq) { p.hqWanted = true; p.floatParams[HQ_MODE] = 1.0; }
+			ctrl->connect(&p);
+		};
 		// deterministic message delivery: what the 15 ms main-thread timer does, but after every
 		// block instead of at wall-clock times (the render runs much faster than real time)
-		o.perBlock = [](rs::DX10Processor& p, double) { p.flushMessageQueue(); };
+		int hqBlocks = 0, allBlocks = 0;
+		o.perBlock = [&](rs::DX10Processor& p, double) { p.flushMessageQueue(); allBlocks++; hqBlocks += p.hqActive; };
 		std::vector<float> L, R;
 		o.captureL = &L;
 		o.captureR = &R;
@@ -639,8 +649,9 @@ int goldenProbe(int argc, char** argv) {
 		ctrl->terminate();
 		ctrl->release();
 		for (size_t i = 0; i < L.size(); i++) { all.push_back(L[i]); all.push_back(R[i]); }
+		if (hq) std::printf("  preset %d: HQ %s at the end, %d of %d blocks in HQ\n", prog, hqEnd ? "on" : "OFF", hqBlocks, allBlocks);
 	}
-	const char* path = "tests\\note_off\\bin\\golden.f32";
+	const char* path = hq ? "tests\\note_off\\bin\\golden_hq.f32" : "tests\\note_off\\bin\\golden.f32";
 	if (save) {
 		FILE* f = std::fopen(path, "wb");
 		if (!f) { std::printf("cannot write %s\n", path); return 2; }

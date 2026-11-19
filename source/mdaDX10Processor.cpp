@@ -1295,35 +1295,36 @@ void DX10Processor::doProcessing(ProcessData& data) {
 		// delay time for this chunk: the division at the host tempo, in samples at the host rate
 		const float fxDelaySamples = static_cast<float>(fx::delayBeats(fxDelayDiv) * 60.0 / (bpm > 1.0 ? bpm : 120.0) *
 		                                                (getSampleRate() > 0.0 ? getSampleRate() : 44100.0));
-		for (int32 i = 0; i < sampleFrames; i++) {
-			// Generate audio for all active generators
-			float gl, gr;
-			if (hqActive) {  // HQ: two voice samples at twice the rate, filtered down to one
-				generators[0].mainProcessing();
-				generators[0].sampleClock++;
-				const float l0 = generators[0].o1, r0 = generators[0].o2;
-				generators[0].mainProcessing();
-				generators[0].sampleClock++;
-				gl = hqLeft.process(l0, generators[0].o1);
-				gr = hqRight.process(r0, generators[0].o2);
+		// The voices render a sub-block at a time (DXGenerator::renderBlock), then the FX strip and
+		// master gain run per sample over it. HQ: two engine samples per output sample.
+		DXGenerator& gen = generators[0];
+		const int32 maxOut = hqActive ? DXGenerator::kRenderMax / 2 : DXGenerator::kRenderMax;
+		for (int32 done = 0; done < sampleFrames; ) {
+			const int32 m = (std::min) (maxOut, sampleFrames - done);
+			gen.renderBlock (hqActive ? 2 * m : m);
+			for (int32 i = 0; i < m; i++) {
+				float gl, gr;
+				if (hqActive) {  // HQ: two voice samples at twice the rate, filtered down to one
+					gl = hqLeft.process (gen.renderL[2 * i], gen.renderL[2 * i + 1]);
+					gr = hqRight.process (gen.renderR[2 * i], gen.renderR[2 * i + 1]);
+				}
+				else {
+					gl = gen.renderL[i];
+					gr = gen.renderR[i];
+				}
+				// FX strip (fxStrip.h): chorus, then the ping-pong delay; with a mix of 0 they add exactly 0
+				fxChorus.process(gl, gr, fxChorusRate, fxChorusDepth, fxChorusMix);
+				fxDelay.process(gl, gr, fxDelaySamples, fxDelayFb, fxDelayToneCoef, fxDelayMix);
+				masterGain += (masterTarg - masterGain) * masterGainCoef;
+				const float l = gl * masterGain, r = gr * masterGain;
+				*out1++ = l;
+				*out2++ = r;
+				if (scopeOn) {
+					scope.push (0.5f * (l + r));
+					blockPeak = (std::max) (blockPeak, (std::max) (std::fabs (l), std::fabs (r)));
+				}
 			}
-			else {
-				generators[0].mainProcessing();
-				generators[0].sampleClock++;  // playheads
-				gl = generators[0].o1;
-				gr = generators[0].o2;
-			}
-			// FX strip (fxStrip.h): chorus, then the ping-pong delay; with a mix of 0 they add exactly 0
-			fxChorus.process(gl, gr, fxChorusRate, fxChorusDepth, fxChorusMix);
-			fxDelay.process(gl, gr, fxDelaySamples, fxDelayFb, fxDelayToneCoef, fxDelayMix);
-			masterGain += (masterTarg - masterGain) * masterGainCoef;
-			const float l = gl * masterGain, r = gr * masterGain;
-			*out1++ = l;
-			*out2++ = r;
-			if (scopeOn) {
-				scope.push (0.5f * (l + r));
-				blockPeak = (std::max) (blockPeak, (std::max) (std::fabs (l), std::fabs (r)));
-			}
+			done += m;
 		}
 		if (scopeOn)
 			notePeak (blockPeak);

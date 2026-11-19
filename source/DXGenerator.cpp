@@ -847,6 +847,52 @@ void DXGenerator::mainProcessing() {
 
 
 
+void DXGenerator::renderBlock(int n) {
+	if (n <= 0) return;
+	if (n > kRenderMax) n = kRenderMax;
+	// Ramped parameters, as mainProcessing: each sample advances them first, then the voices read.
+	// Usually none is moving; then the levels are set once, not per voice and sample.
+	bool rampsMove = false;
+	for (int s = 0; s < n; s++) {
+		for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++) {
+			const float before = rampedParams[k].level;
+			rampedParams[k].processLevel();
+			rampRows[s][k] = rampedParams[k].level;
+			rampsMove |= rampRows[s][k] != before;
+		}
+		renderL[s] = 0.0f;
+		renderR[s] = 0.0f;
+	}
+	// Routing (and so the LFO mask) only changes when parameters change, between blocks.
+	updateLfoUsage();
+
+	const unsigned long long clock0 = sampleClock;
+	// notes does not change inside a block: a fade ending restarts the voice in place (processNoteOn).
+	const int nSize = notes.size();
+	for (int v = 0; v < nSize; v++) {
+		RVoice& voice = RVoicesMap[notes[v]];
+		for (int s = 0; s < n; s++) {
+			sampleClock = clock0 + s;  // read by processNoteOn when a fade ends here
+			if (rampsMove)
+				for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++)
+					rampedParams[k].level = rampRows[s][k];
+			if (voice.rampingDown)
+				interpolateVoice(voice);
+			else
+				singleVoiceProcessing(voice);
+			renderL[s] += voice.o1;  // same summing order as mainProcessing: voices in notes order
+			renderR[s] += voice.o2;
+		}
+	}
+	for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++)
+		rampedParams[k].level = rampRows[n - 1][k];
+	sampleClock = clock0 + n;
+	o1 = renderL[n - 1];
+	o2 = renderR[n - 1];
+}
+
+
+
 // Filter coefficient table: g(x) for the normalised cutoff x in [kFiltXMin, 1], built with the
 // exact formulas (LogScaleParameter::toPlain + CSEMFilter::gFor) for the filter's sample interval.
 // Rebuilt automatically when the sample rate changes.

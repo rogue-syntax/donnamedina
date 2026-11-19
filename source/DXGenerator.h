@@ -755,6 +755,15 @@ public:
 	void detectSilence(int32 * activeVoices);
 	void DXGenerator::signalProcessing();
 	virtual void mainProcessing() override;
+	// Block rendering (2026-11-19, step 1 of the SIMD voice work): renders n (1..kRenderMax) engine
+	// samples into renderL/renderR, voice by voice instead of sample by sample. Same output as n
+	// mainProcessing() calls with sampleClock++ after each (per-sample ramp levels are precomputed,
+	// voices are summed in the same order). Advances sampleClock by n.
+	static const int kRenderMax = 256;
+	float renderL[kRenderMax] = {};
+	float renderR[kRenderMax] = {};
+	float rampRows[kRenderMax][GENRAMPEDPARAMSLENGTH] = {};
+	void renderBlock(int n);
 	//virtual void voiceProcessing(RVoice& obj) override;
 	float getRelVal1D(float rangeAStart, float rangeAStop, float rangeBStart, float rangeBStop, float value);
 	void setActive();
