@@ -14,6 +14,7 @@
 // (DXGenerator::renderBankGroup: gather, render the block, scatter).
 #include "RVoice.h"
 #include <cmath>
+#include <immintrin.h>
 
 namespace voicebank {
 
@@ -234,9 +235,12 @@ struct alignas(32) Osc4 {
 		fo[l] += foModLin[l];
 		inc[l] = fo[l]/(sr[l]);
 	}
+	// update() for all lanes, AVX2 (4 doubles)
 	void updateAll() {
-		for (int l = 0; l < kLanes; l++)
-			update(l);
+		__m256d f = _mm256_mul_pd(_mm256_mul_pd(_mm256_loadu_pd(oscFo), _mm256_loadu_pd(foRatio)), _mm256_loadu_pd(psf));
+		f = _mm256_add_pd(f, _mm256_loadu_pd(foModLin));
+		_mm256_storeu_pd(fo, f);
+		_mm256_storeu_pd(inc, _mm256_div_pd(f, _mm256_loadu_pd(sr)));
 	}
 
 	// CQBLimitedOscillator::doOscillate
@@ -267,7 +271,8 @@ struct alignas(32) Filter4 {
 	double q[kLanes], g[kLanes], r[kLanes], a0[kLanes], a[kLanes], rho[kLanes], z1[kLanes], z2[kLanes];
 
 	void gather(int l, const CSEMFilter& f) {
-		q[l] = f.qValue(); g[l] = f.g; r[l] = f.R; a0[l] = f.m_dAlpha0; a[l] = f.m_dAlpha; rho[l] = f.m_dRho;
+		q[l] = f.qValue(); g[l] = f.g; a0[l] = f.m_dAlpha0; a[l] = f.m_dAlpha; rho[l] = f.m_dRho;
+		r[l] = 1.0 / (2.0*q[l]);  // what setG sets every sample (q does not change within a block)
 		f.getZ(z1[l], z2[l]);
 	}
 	void scatter(int l, CSEMFilter& f) const {
@@ -291,13 +296,28 @@ struct alignas(32) Filter4 {
 		z2[l] = a[l] * bbb + ccc;
 		xn = ccc;
 	}
-	void setGAll(const double* gg) {
-		for (int l = 0; l < kLanes; l++)
-			setG(l, gg[l]);
+	// setG for all lanes, AVX2. r = 1 / (2q) does not change within a block (q is per voice), so it
+	// comes from gather (the same value setG computes every sample).
+	void setGAll(__m256d gg) {
+		const __m256d two = _mm256_set1_pd(2.0), one = _mm256_set1_pd(1.0);
+		const __m256d rr = _mm256_loadu_pd(r);
+		_mm256_storeu_pd(g, gg);
+		// a0 = 1.0 / (1.0 + 2.0*R*g + g * g)
+		_mm256_storeu_pd(a0, _mm256_div_pd(one, _mm256_add_pd(_mm256_add_pd(one, _mm256_mul_pd(_mm256_mul_pd(two, rr), gg)), _mm256_mul_pd(gg, gg))));
+		_mm256_storeu_pd(a, gg);
+		_mm256_storeu_pd(rho, _mm256_add_pd(_mm256_mul_pd(two, rr), gg));  // 2.0*R + g
 	}
+	// doFilter2 for all lanes, AVX2 (state in double, signal in and out float)
 	void processAll(float* xn) {
-		for (int l = 0; l < kLanes; l++)
-			process(l, xn[l]);
+		const __m256d x = _mm256_cvtps_pd(_mm_loadu_ps(xn));
+		const __m256d A0 = _mm256_loadu_pd(a0), A = _mm256_loadu_pd(a), RHO = _mm256_loadu_pd(rho);
+		const __m256d Z1 = _mm256_loadu_pd(z1), Z2 = _mm256_loadu_pd(z2);
+		const __m256d aaa = _mm256_mul_pd(A0, _mm256_sub_pd(_mm256_sub_pd(x, _mm256_mul_pd(RHO, Z1)), Z2));
+		const __m256d bbb = _mm256_add_pd(_mm256_mul_pd(A, aaa), Z1);
+		const __m256d ccc = _mm256_add_pd(_mm256_mul_pd(A, bbb), Z2);
+		_mm256_storeu_pd(z1, _mm256_add_pd(_mm256_mul_pd(A, aaa), bbb));
+		_mm256_storeu_pd(z2, _mm256_add_pd(_mm256_mul_pd(A, bbb), ccc));
+		_mm_storeu_ps(xn, _mm256_cvtpd_ps(ccc));
 	}
 };
 

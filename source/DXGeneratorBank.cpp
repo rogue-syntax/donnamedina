@@ -148,39 +148,59 @@ void DXGenerator::renderBankGroup(int n) {
 			break;
 		}
 
-		// carrier tuning
-		for (int l = 0; l < kLanes; l++) {
-			b.newInt[l] = intBase + static_cast<int>(controls[INT_ENV] * SnewInt[l] * 13);
-			b.newOct[l] = (octBase) + static_cast<int>((controls[OCT_ENV] * SnewOct[l] * 6));
-			if (b.newOct[l] < 1) {
-				b.newOct[l] = 1;
-			}
-			if (b.newOct[l] > 5) {
-				b.newOct[l] = 5;
-			}
-			b.newNote[l] = car.note[l] + (b.newInt[l] + ((b.newOct[l] - 3 )* 12.0));
-			b.newNote[l] = ParamClamp2(b.newNote[l], 0, 127);
-			b.tuneC[l] = (((controls[TUNE_]) + (controls[TUNE_ENV] * StuneC[l]))) + (((controls[FINE_] ) + (controls[FINE_ENV] * SfineC[l])) / 100 );
-			car.oscFo[l] = ((midiFreqTable[b.newNote[l]]) + (((midiFreqTable[b.newNote[l]]) * 2) *  b.tuneC[l])) * b.driftPitch[l];
-			car.oscFo[l] = rsMax(OSC_FO_MIN, car.oscFo[l]);
-		}
-		car.updateAll();
-		for (int l = 0; l < kLanes; l++) {
-			car.tri[l] = ((ramp[WIDTH_RAMPINDEX]) + b.exprWidth[l] + ((controls[WIDTH_ENV] * widthPole) * Stri[l]));
-			car.tri[l] = rsMax(rsMin(car.tri[l], 0.9), 0.1);
-		}
+		// carrier tuning, then (used from the next sample on) modulator tuning, AVX2. Scalar
+		// reference (singleVoiceProcessing), per lane:
+		//   newInt = INT + int(INT_ENV * env * 13); newOct = OCT + int(OCT_ENV * env * 6), 1..5
+		//   newNote = note + (newInt + (newOct - 3) * 12.0), clamped 0..127 (all integers: exact)
+		//   tuneC = (TUNE + TUNE_ENV * env) + (FINE + FINE_ENV * env) / 100
+		//   oscFo = max(20, (midi[newNote] + midi[newNote] * 2 * tuneC) * driftPitch)
+		//   triCutoff = clamp(WIDTH ramp + exprWidth + WIDTH_ENV * widthPole * env, 0.1, 0.9)
+		// The modulator: MOD_ values, octave * 13 and (newModOct - 6) * 12, no octave clamp, note 1..109.
+		{
+			const __m128 drift = _mm_loadu_ps(b.driftPitch);
+			const __m128 exprW = _mm_loadu_ps(b.exprWidth);
+			const __m128 two = _mm_set1_ps(2.0f), hundred = _mm_set1_ps(100.0f);
+			const __m256d foMin = _mm256_set1_pd(OSC_FO_MIN), triHi = _mm256_set1_pd(0.9), triLo = _mm256_set1_pd(0.1);
+			const __m128i twelve = _mm_set1_epi32(12);
 
-		// modulator tuning (used from the next sample on)
-		for (int l = 0; l < kLanes; l++) {
-			b.newModInt[l] = modIntBase + static_cast<int>(controls[MOD_INT_ENV] * SnewModInt[l] * 13);
-			b.newModOct[l] = (modOctBase) + static_cast<int>((controls[MOD_OCT_ENV] * SnewModOct[l] * 13));
-			b.newNote[l] = mod.note[l] + (b.newModInt[l] + ((b.newModOct[l] - 6) * 12.0));
-			b.newNote[l] = ParamClamp2(b.newNote[l], 1, 109);
-			b.tuneM[l] = (((controls[MOD_TUNE_]) + (controls[modTuneEnv] * SmodTuneC[l]))) + (((controls[MOD_FINE_]) + (controls[MOD_FINE_ENV] * SmodFineC[l])) / 100);
-			mod.oscFo[l] = ((midiFreqTable[b.newNote[l]]) + (((midiFreqTable[b.newNote[l]]) * 2) *  b.tuneM[l])) * b.driftPitch[l];
-			mod.oscFo[l] = rsMax(OSC_FO_MIN, mod.oscFo[l]);
-			mod.tri[l] = ((ramp[MOD_WIDTH_RAMPINDEX]) + b.exprWidth[l] + (((controls[MOD_WIDTH_ENV] * modWidthPole) * SmodTri[l])));
-			mod.tri[l] = rsMax(rsMin(mod.tri[l], 0.9), 0.1);
+			// carrier
+			__m128i nInt = _mm_add_epi32(_mm_set1_epi32(intBase), _mm_cvttps_epi32(_mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[INT_ENV]), _mm_loadu_ps(SnewInt)), _mm_set1_ps(13.0f))));
+			__m128i nOct = _mm_add_epi32(_mm_set1_epi32(octBase), _mm_cvttps_epi32(_mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[OCT_ENV]), _mm_loadu_ps(SnewOct)), _mm_set1_ps(6.0f))));
+			nOct = _mm_min_epi32(_mm_max_epi32(nOct, _mm_set1_epi32(1)), _mm_set1_epi32(5));
+			__m128i note = _mm_add_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(car.note)),
+			                             _mm_add_epi32(nInt, _mm_mullo_epi32(_mm_sub_epi32(nOct, _mm_set1_epi32(3)), twelve)));
+			note = _mm_min_epi32(_mm_max_epi32(note, _mm_set1_epi32(0)), _mm_set1_epi32(127));
+			_mm_storeu_si128(reinterpret_cast<__m128i*>(b.newInt), nInt);
+			_mm_storeu_si128(reinterpret_cast<__m128i*>(b.newOct), nOct);
+			__m128 tune = _mm_add_ps(_mm_add_ps(_mm_set1_ps(controls[TUNE_]), _mm_mul_ps(_mm_set1_ps(controls[TUNE_ENV]), _mm_loadu_ps(StuneC))),
+			                         _mm_div_ps(_mm_add_ps(_mm_set1_ps(controls[FINE_]), _mm_mul_ps(_mm_set1_ps(controls[FINE_ENV]), _mm_loadu_ps(SfineC))), hundred));
+			_mm_storeu_ps(b.tuneC, tune);
+			__m128 midi = _mm_i32gather_ps(midiFreqTable, note, 4);
+			__m128 fo = _mm_mul_ps(_mm_add_ps(midi, _mm_mul_ps(_mm_mul_ps(midi, two), tune)), drift);
+			_mm256_storeu_pd(car.oscFo, _mm256_max_pd(_mm256_cvtps_pd(fo), foMin));  // rsMax(OSC_FO_MIN, x)
+			car.updateAll();
+			__m128 tri = _mm_add_ps(_mm_add_ps(_mm_set1_ps(ramp[WIDTH_RAMPINDEX]), exprW),
+			                        _mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[WIDTH_ENV]), _mm_set1_ps(widthPole)), _mm_loadu_ps(Stri)));
+			_mm256_storeu_pd(car.tri, _mm256_max_pd(_mm256_min_pd(_mm256_cvtps_pd(tri), triHi), triLo));  // rsMax(rsMin(x, 0.9), 0.1)
+
+			// modulator
+			nInt = _mm_add_epi32(_mm_set1_epi32(modIntBase), _mm_cvttps_epi32(_mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[MOD_INT_ENV]), _mm_loadu_ps(SnewModInt)), _mm_set1_ps(13.0f))));
+			nOct = _mm_add_epi32(_mm_set1_epi32(modOctBase), _mm_cvttps_epi32(_mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[MOD_OCT_ENV]), _mm_loadu_ps(SnewModOct)), _mm_set1_ps(13.0f))));
+			note = _mm_add_epi32(_mm_loadu_si128(reinterpret_cast<const __m128i*>(mod.note)),
+			                     _mm_add_epi32(nInt, _mm_mullo_epi32(_mm_sub_epi32(nOct, _mm_set1_epi32(6)), twelve)));
+			note = _mm_min_epi32(_mm_max_epi32(note, _mm_set1_epi32(1)), _mm_set1_epi32(109));
+			_mm_storeu_si128(reinterpret_cast<__m128i*>(b.newModInt), nInt);
+			_mm_storeu_si128(reinterpret_cast<__m128i*>(b.newModOct), nOct);
+			_mm_storeu_si128(reinterpret_cast<__m128i*>(b.newNote), note);  // RVoice::newNote ends as the modulator's
+			tune = _mm_add_ps(_mm_add_ps(_mm_set1_ps(controls[MOD_TUNE_]), _mm_mul_ps(_mm_set1_ps(controls[modTuneEnv]), _mm_loadu_ps(SmodTuneC))),
+			                  _mm_div_ps(_mm_add_ps(_mm_set1_ps(controls[MOD_FINE_]), _mm_mul_ps(_mm_set1_ps(controls[MOD_FINE_ENV]), _mm_loadu_ps(SmodFineC))), hundred));
+			_mm_storeu_ps(b.tuneM, tune);
+			midi = _mm_i32gather_ps(midiFreqTable, note, 4);
+			fo = _mm_mul_ps(_mm_add_ps(midi, _mm_mul_ps(_mm_mul_ps(midi, two), tune)), drift);
+			_mm256_storeu_pd(mod.oscFo, _mm256_max_pd(_mm256_cvtps_pd(fo), foMin));
+			tri = _mm_add_ps(_mm_add_ps(_mm_set1_ps(ramp[MOD_WIDTH_RAMPINDEX]), exprW),
+			                 _mm_mul_ps(_mm_mul_ps(_mm_set1_ps(controls[MOD_WIDTH_ENV]), _mm_set1_ps(modWidthPole)), _mm_loadu_ps(SmodTri)));
+			_mm256_storeu_pd(mod.tri, _mm256_max_pd(_mm256_min_pd(_mm256_cvtps_pd(tri), triHi), triLo));
 		}
 
 		// carrier, gain
@@ -192,17 +212,24 @@ void DXGenerator::renderBankGroup(int n) {
 		}
 
 		// filter: coefficient from the table, then the filter
-		double gg[kLanes];
-		for (int l = 0; l < kLanes; l++) {
-			b.filterEnv[l] = controls[FILTER_ENV] * Sfilter[l];
-			const double fx = ParamClamp2((ramp[FILTER_RAMPINDEX]) + b.filterEnv[l] + b.exprFilter[l] + b.driftFilter[l], 0.01, 1.0);
-			const double pos = (fx - kFiltXMin) * filtGTableScale;
-			int idx = static_cast<int>(pos);
-			if (idx >= kFiltGTableSize) idx = kFiltGTableSize - 1;
-			const double frac = pos - idx;
-			gg[l] = filtGTable[idx] + (filtGTable[idx + 1] - filtGTable[idx]) * frac;
+		// AVX2. Scalar reference, per lane:
+		//   filterEnv = FILTER_ENV * env
+		//   fx = ParamClamp2(FILTER ramp + filterEnv + exprFilter + driftFilter, 0.01, 1.0)  (float)
+		//   pos = (fx - kFiltXMin) * filtGTableScale; idx = int(pos), at most size - 1
+		//   g = table[idx] + (table[idx + 1] - table[idx]) * (pos - idx)
+		{
+			const __m128 fEnv = _mm_mul_ps(_mm_set1_ps(controls[FILTER_ENV]), _mm_loadu_ps(Sfilter));
+			_mm_storeu_ps(b.filterEnv, fEnv);
+			const __m128 sum = _mm_add_ps(_mm_add_ps(_mm_add_ps(_mm_set1_ps(ramp[FILTER_RAMPINDEX]), fEnv), _mm_loadu_ps(b.exprFilter)), _mm_loadu_ps(b.driftFilter));
+			// ParamClamp2 takes float limits: 0.01 becomes 0.01f; the result is a float again
+			const __m256d fx = _mm256_cvtps_pd(_mm256_cvtpd_ps(_mm256_max_pd(_mm256_min_pd(_mm256_cvtps_pd(sum), _mm256_set1_pd(1.0)), _mm256_set1_pd(static_cast<double>(0.01f)))));
+			const __m256d pos = _mm256_mul_pd(_mm256_sub_pd(fx, _mm256_set1_pd(kFiltXMin)), _mm256_set1_pd(filtGTableScale));
+			const __m128i idx = _mm_min_epi32(_mm256_cvttpd_epi32(pos), _mm_set1_epi32(kFiltGTableSize - 1));
+			const __m256d frac = _mm256_sub_pd(pos, _mm256_cvtepi32_pd(idx));
+			const __m256d g0 = _mm256_i32gather_pd(filtGTable, idx, 8);
+			const __m256d g1 = _mm256_i32gather_pd(filtGTable + 1, idx, 8);
+			b.filter.setGAll(_mm256_add_pd(g0, _mm256_mul_pd(_mm256_sub_pd(g1, g0), frac)));
 		}
-		b.filter.setGAll(gg);
 		b.filter.processAll(b.o);
 
 		// pan
