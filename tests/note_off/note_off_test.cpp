@@ -2690,6 +2690,32 @@ int main(int argc, char** argv) {
 			std::printf("  %-52s %-48s %s\n", name, detail, ok ? "PASS" : "FAIL");
 		};
 		char buf[200];
+		{  // B-67: delay line reads stay inside the buffer. Line as the delay prepares it (8 s at
+		   // 44.1 kHz), buf[k] = k; d just above w used to wrap to buf[n] (one past the end).
+			fx::Line line;
+			line.prepare(int(44100.0 * 8.0) + 4);
+			const int n = int(line.buf.size());
+			for (int k = 0; k < n; k++) line.buf[k] = float(k);
+			int bad = 0, reads = 0;
+			double worst = 0.0;
+			for (int w = 0; w < n; w += 7) {
+				line.w = w;
+				const float ds[] = {float(w) + 0.01f, float(w) + 0.004f, float(w) + 0.5f, 1.0f, 1.3f, float(n - 2), 5167.969f, 11025.0f};
+				for (float d : ds) {
+					if (!(d >= 1.0f) || d > n - 2) continue;
+					const int di = int(d);
+					const double f = double(d) - di;
+					const int i0 = ((w - di) % n + n) % n, i1 = (i0 + n - 1) % n;
+					const double want = line.buf[i0] + (double(line.buf[i1]) - line.buf[i0]) * f;
+					const double got = line.read(d);
+					worst = (std::max)(worst, std::fabs(got - want));
+					if (!(std::fabs(got - want) < 0.1)) bad++;
+					reads++;
+				}
+			}
+			std::snprintf(buf, sizeof(buf), "%d of %d reads wrong, worst error %.3g", bad, reads, worst);
+			check("B-67: delay line read inside the buffer", bad == 0, buf);
+		}
 		const std::vector<NoteEvent> blip = {{at(0.05), true, 60}, {at(0.07), false, 60}};
 		auto renderFx = [&](std::vector<std::pair<double, std::pair<ParamID, double>>> params, std::vector<float>& L,
 		                    std::vector<float>& R) {

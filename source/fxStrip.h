@@ -1,8 +1,9 @@
 #pragma once
 // FX strip (2026-11-15): chorus and a tempo-synced ping-pong delay after the voices (and after the
 // HQ decimator), before the master volume. DX10Processor::doProcessing runs them per sample; buffers
-// are allocated in prepare() (DX10Processor::setActive), never on the audio thread. A mix of 0 skips
-// an effect completely, so the output is unchanged (bit exact) with both off.
+// are allocated in prepare() (DX10Processor::setActive), never on the audio thread. Both always run
+// (so turning one up does not replay an old buffer); with a mix of 0 they add exactly 0, so the
+// output is unchanged (bit exact) with both off, as long as the lines only hold finite values.
 
 #include <cmath>
 #include <vector>
@@ -40,15 +41,20 @@ struct Line {
 	void reset() { std::fill(buf.begin(), buf.end(), 0.0f); w = 0; }
 	void write(float x) { buf[w] = x; if (++w >= int(buf.size())) w = 0; }
 	// d samples behind the last write (1 = the last sample written)
+	// B-67: the position used to be computed in float (w - d, then + n while negative). When w - d
+	// was a tiny negative number, w - d + n rounded to exactly n (float spacing at n ~ 350000 is
+	// 1/32), so it read buf[n], one past the end: whatever lay on the heap there went into the
+	// output and the feedback loop. Now the whole part of d is an integer index, wrapped in int.
 	float read(float d) const {
 		const int n = int(buf.size());
-		if (d < 1.0f) d = 1.0f;
+		if (!(d >= 1.0f)) d = 1.0f;  // (also NaN)
 		if (d > n - 2) d = float(n - 2);
-		float pos = float(w) - d;
-		while (pos < 0.0f) pos += n;
-		const int i = int(pos);
-		const float f = pos - i;
-		const float a = buf[i], b = buf[i + 1 < n ? i + 1 : 0];
+		const int di = int(d);
+		const float f = d - float(di);
+		int i0 = w - di;              // di samples behind
+		if (i0 < 0) i0 += n;
+		const int i1 = i0 > 0 ? i0 - 1 : n - 1;  // one more behind
+		const float a = buf[i0], b = buf[i1];
 		return a + (b - a) * f;
 	}
 };
