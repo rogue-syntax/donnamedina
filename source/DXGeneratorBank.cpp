@@ -1,17 +1,20 @@
-// Voice bank kernel (2026-11-19, branch simd-voices; components in VoiceBank.h).
+// The voice path (2026-11-19, branch simd-voices; components in VoiceBank.h).
 //
 // renderBankGroup renders one block for up to kLanes voices: gather (RVoice -> bank), the sample
-// loop, scatter (bank -> RVoice). It is DXGenerator::singleVoiceProcessing, step for step: the
-// envelopes, LFOs, oscillators and filter are the bank components' step functions; the
-// generator-level parts (mod type, tuning, gain, pan) are here, expression for expression the same,
-// with the envBank pointers resolved to bank.src rows and the member-function dispatch replaced by
-// switches. Keep the two in step: a change to the voice path must be made in both places (golden
-// test: run it with the bank on and off, NO_BANK).
+// loop, scatter (bank -> RVoice). Per voice and sample: envelopes, LFOs, the modulator and the mod
+// type (none / phase / freq / detune), carrier and modulator tuning, the carrier, gain, the filter,
+// pan, and the retrigger / steal fade with its restart. The envelopes, LFOs, oscillators and
+// filter are the bank components' step functions; the rest is here. The modulation sources are
+// rows of bank.src (RVoice::envBank was a pointer per source).
 //
-// Inside a sample, each stage runs for all lanes before the next stage (lane loops per stage), so a
-// stage can be one SIMD operation over the lanes. The lanes are independent, so the order does not
-// change any result. A group with fewer than kLanes voices fills the spare lanes with a copy of
-// lane 0; their results are not stored.
+// Until 2026-11-19 this was DXGenerator::singleVoiceProcessing + interpolateVoice, one voice and one
+// sample at a time; the arithmetic is the same (golden test: 0 to ~2e-7 difference, see
+// docs/02-voices-and-dsp.md). The comments marked "per lane" give it in that scalar form.
+//
+// Inside a sample, each stage runs for all lanes before the next stage, mostly as one AVX2
+// operation over the lanes. The lanes are independent, so the order does not change any result. A
+// group with fewer than kLanes voices fills the spare lanes with a copy of lane 0; their results are
+// not stored and they never touch another voice's objects.
 #include "mdaDX10Processor.h"
 #include "DXGenerator.h"
 #include <cmath>
@@ -22,47 +25,34 @@ namespace rs {
 
 using voicebank::kLanes;
 
-bool DXGenerator::bankEligible(const RVoice& v) const {
-	if (v.rampingDown)
-		return false;  // fades (and the restart when they end) stay on the scalar path
-	if (v.WTOsc.m_uWaveform > 3 || v.WTOsc2.m_uWaveform > 3)
-		return false;  // SINE, SAW1, TRI, SQUARE only
-	const int mt = ctrlValues[MOD_TYPE_ + paramStartIdx];
-	if (mt < 0 || mt > 3)
-		return false;
-	const int srcs[] = {
-		newIntEnv, newOctEnv, tuneCEnv, fineCEnv, triEnvSrc,
-		newModIntEnv, newModOctEnv, modTuneCEnv, modFineCEnv, modTriEnvSrc,
-		filterSrc, panEnvSrc,
-		ctrlValues[GAIN_ENV_SRC + paramStartIdx], ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx],
-		ctrlValues[MOD_BEAT_ENV_SRC + paramStartIdx],
-	};
-	for (int s : srcs)
-		if (s < 0 || s > 6)
-			return false;
-	return true;
-}
-
 void DXGenerator::renderBankGroup(int n) {
 	VoiceBank& b = bank;
 	const int L = b.count;
 	bankVoiceSamples += static_cast<unsigned long long>(L) * n;
 
 	// ---- gather (spare lanes: a copy of lane 0)
-	for (int l = 0; l < kLanes; l++) {
-		RVoice& v = *b.voice[l < L ? l : 0];
-		b.gather(l, v);
-		// expression (singleVoiceProcessing recomputes it every sample; it is constant in a block)
+	auto gatherLane = [&](int l) {
+		const bool spare = l >= L;
+		RVoice& v = *b.voice[spare ? 0 : l];
+		b.gather(l, v, spare);
+		// expression (constant in a block)
 		const float e = exprVel ? exprAmount * (static_cast<float>(v.vel) * (1.0f / 127.0f)) : exprAmount;
 		b.exprFilter[l] = e * exprDepthFilter;
 		b.exprFm[l] = e * exprDepthFm;
 		b.exprWidth[l] = e * exprDepthWidth;
 		if (filtGTableT != v.m_Filter1.sampleInterval())
 			buildFilterGTable(v.m_Filter1);
-	}
+	};
+	for (int l = 0; l < kLanes; l++)
+		gatherLane(l);
+	const unsigned long long clock0 = sampleClock;
 
 	// ---- per-block constants (parameters change between blocks only)
-	const int modType = ctrlValues[MOD_TYPE_ + paramStartIdx];
+	// mod type 0..3 and modulation sources 0..6 (envBank indices), clamped: the switches only ever
+	// send these, and an index outside would read outside bank.src
+	auto clampTo = [](int x, int lo, int hi) { return x < lo ? lo : (x > hi ? hi : x); };
+	const int modType = clampTo(ctrlValues[MOD_TYPE_ + paramStartIdx], 0, 3);
+	auto row = [&](int k) { return b.src.cenv[clampTo(k, 0, 6)]; };
 	const int gainSrc = ctrlValues[GAIN_ENV_SRC + paramStartIdx];
 	const int modGainSrc = ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx];
 	const int beatSrc = ctrlValues[MOD_BEAT_ENV_SRC + paramStartIdx];
@@ -81,21 +71,21 @@ void DXGenerator::renderBankGroup(int n) {
 	voicebank::Osc4& car = b.carrier;
 	voicebank::Osc4& mod = b.modulator;
 	float* const S0 = b.src.cenv[0];
-	const float* const Sgain = b.src.cenv[gainSrc];
-	const float* const SmodGain = b.src.cenv[modGainSrc];
-	const float* const Sbeat = b.src.cenv[beatSrc];
-	const float* const SnewInt = b.src.cenv[newIntEnv];
-	const float* const SnewOct = b.src.cenv[newOctEnv];
-	const float* const StuneC = b.src.cenv[tuneCEnv];
-	const float* const SfineC = b.src.cenv[fineCEnv];
-	const float* const Stri = b.src.cenv[triEnvSrc];
-	const float* const SnewModInt = b.src.cenv[newModIntEnv];
-	const float* const SnewModOct = b.src.cenv[newModOctEnv];
-	const float* const SmodTuneC = b.src.cenv[modTuneCEnv];
-	const float* const SmodFineC = b.src.cenv[modFineCEnv];
-	const float* const SmodTri = b.src.cenv[modTriEnvSrc];
-	const float* const Sfilter = b.src.cenv[filterSrc];
-	const float* const Span = b.src.cenv[panEnvSrc];
+	const float* const Sgain = row(gainSrc);
+	const float* const SmodGain = row(modGainSrc);
+	const float* const Sbeat = row(beatSrc);
+	const float* const SnewInt = row(newIntEnv);
+	const float* const SnewOct = row(newOctEnv);
+	const float* const StuneC = row(tuneCEnv);
+	const float* const SfineC = row(fineCEnv);
+	const float* const Stri = row(triEnvSrc);
+	const float* const SnewModInt = row(newModIntEnv);
+	const float* const SnewModOct = row(newModOctEnv);
+	const float* const SmodTuneC = row(modTuneCEnv);
+	const float* const SmodFineC = row(modFineCEnv);
+	const float* const SmodTri = row(modTriEnvSrc);
+	const float* const Sfilter = row(filterSrc);
+	const float* const Span = row(panEnvSrc);
 	const float* const Samp = b.src.cenv[1];  // amp envelope
 
 	// ---- the block
@@ -114,7 +104,7 @@ void DXGenerator::renderBankGroup(int n) {
 
 		// modulation type (doNoMod / doPhaseMod / doFreqMod / doDetuneMod): the modulator runs,
 		// then its output modulates the carrier
-		// Scalar reference, per lane:
+		// Per lane:
 		//   detune: modOscFo += (bpm / 60) * ((MOD_BEAT + int(MOD_BEAT_ENV * env * 13)) / 4)
 		//   amount = rsMax(0.003, rsMin(1.0, MOD_GAIN ramp + exprFm + MOD_GAIN_ENV * env))
 		//   phase: carrier phaseMod = amount * osc2out; freq / detune: foModLin = amount * 4 (8) * (oscFo * osc2out)
@@ -152,7 +142,7 @@ void DXGenerator::renderBankGroup(int n) {
 		}
 
 		// carrier tuning, then (used from the next sample on) modulator tuning, AVX2. Scalar
-		// reference (singleVoiceProcessing), per lane:
+		// per lane:
 		//   newInt = INT + int(INT_ENV * env * 13); newOct = OCT + int(OCT_ENV * env * 6), 1..5
 		//   newNote = note + (newInt + (newOct - 3) * 12.0), clamped 0..127 (all integers: exact)
 		//   tuneC = (TUNE + TUNE_ENV * env) + (FINE + FINE_ENV * env) / 100
@@ -220,7 +210,7 @@ void DXGenerator::renderBankGroup(int n) {
 		}
 
 		// filter: coefficient from the table, then the filter
-		// AVX2. Scalar reference, per lane:
+		// AVX2. Per lane:
 		//   filterEnv = FILTER_ENV * env
 		//   fx = ParamClamp2(FILTER ramp + filterEnv + exprFilter + driftFilter, 0.01, 1.0)  (float)
 		//   pos = (fx - kFiltXMin) * filtGTableScale; idx = int(pos), at most size - 1
@@ -253,6 +243,49 @@ void DXGenerator::renderBankGroup(int n) {
 			const __m128 o = _mm_loadu_ps(b.o);
 			_mm_storeu_ps(b.o1, _mm_mul_ps(_mm_div_ps(_mm_add_ps(pp, _mm_set1_ps(1.0f)), _mm_set1_ps(2.0f)), o));
 			_mm_storeu_ps(b.o2, _mm_mul_ps(_mm_div_ps(_mm_sub_ps(pp, _mm_set1_ps(1.0f)), _mm_set1_ps(-2.0f)), o));
+		}
+
+		// retrigger / steal fade (was interpolateVoice): an S-curve gain after the filter; when it ends,
+		// the voice restarts (processNoteOn: key-sync retrigger) or goes silent (stolen). The restart
+		// works on the RVoice, so that lane is scattered, restarted and gathered again.
+		for (int l = 0; l < L; l++) {
+			if (!b.fading[l])
+				continue;
+			const float fs = b.fadePos[l];
+			const float g = fs * fs * (3.0f - 2.0f * fs);
+			b.o[l] *= g;
+			b.o1[l] *= g;
+			b.o2[l] *= g;
+			b.fadePos[l] -= b.fadeStep[l];
+			if (b.fadePos[l] <= 0.0f) {
+				b.fadePos[l] = 0.0f;
+				b.fading[l] = false;
+				RVoice& v = *b.voice[l];
+				b.scatter(l, v, lfoOn, lfoLevel, lfoRate, lfoPhase);
+				sampleClock = clock0 + s;  // processNoteOn stamps the restart
+				for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++)  // and reads this sample's ramp levels
+					rampedParams[k].level = ramp[k];
+				if (v.killIt == false) {
+					// end of a key-sync retrigger fade: restart (resets oscillators, LFOs and the filter; B-56)
+					processNoteOn(v, &v.note, &v.vel, true);
+					if (v.releasePending == true) {  // B-18: note-off arrived during the fade
+						v.releasePending = false;
+						releaseVoice(v);
+					}
+				}
+				else {
+					// stolen: silent from here (detectSilence drops it); clear the filter so nothing rings on
+					v.voiceEnvLfo[1].env = 0.0f;
+					v.voiceEnvLfo[1].cenv = 0.0f;
+					v.m_Filter1.reset();
+				}
+				for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++)
+					rampedParams[k].level = rampRows[n - 1][k];  // block end (renderBlock's state)
+				const float out1 = b.o1[l], out2 = b.o2[l];  // this sample's (faded) output
+				gatherLane(l);
+				b.o1[l] = out1;
+				b.o2[l] = out2;
+			}
 		}
 
 		for (int l = 0; l < L; l++) {

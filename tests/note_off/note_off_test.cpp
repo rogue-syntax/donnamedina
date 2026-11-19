@@ -254,8 +254,6 @@ std::vector<float> render(const Settings& s, const std::vector<NoteEvent>& event
 	proc->initialize(&host);
 	IConnectionPoint* usedPeer = opt.peer ? opt.peer : static_cast<IConnectionPoint*>(&peer);
 	proc->connect(usedPeer);
-	// NO_BANK set: every voice through singleVoiceProcessing (simd-voices A/B: golden, perf)
-	if (std::getenv("NO_BANK")) proc->generators[0].useVoiceBank = false;
 	if (opt.onCreated) opt.onCreated(*proc);
 	ProcessSetup setup{kRealtime, kSample32, kBlock, sr};
 	proc->setupProcessing(setup);
@@ -638,11 +636,10 @@ int goldenProbe(int argc, char** argv) {
 			o.params.push_back({0.09, {DRIFT_AMOUNT, 0.5}});
 		}
 		bool hqEnd = false;
-		unsigned long long bankVs = 0, scalarVs = 0;
+		unsigned long long bankVs = 0;
 		o.inspect = [&](rs::DX10Processor& p) {
 			hqEnd = p.hqActive;
 			bankVs = p.generators[0].bankVoiceSamples;
-			scalarVs = p.generators[0].scalarVoiceSamples;
 		};
 		static HostApplication ghost;
 		auto* ctrl = new rs::DX10Controller();
@@ -683,9 +680,10 @@ int goldenProbe(int argc, char** argv) {
 		ctrl->release();
 		for (size_t i = 0; i < L.size(); i++) { all.push_back(L[i]); all.push_back(R[i]); }
 		if (hq) std::printf("  preset %d: HQ %s at the end, %d of %d blocks in HQ\n", prog, hqEnd ? "on" : "OFF", hqBlocks, allBlocks);
-		std::printf("  preset %d: voice-samples through the bank %llu, scalar %llu\n", prog, bankVs, scalarVs);
+		std::printf("  preset %d: voice-samples rendered %llu\n", prog, bankVs);
 	}
-	// GOLDEN_FILE overrides the reference file (A/B runs, e.g. NO_BANK=1 ... golden save, then golden)
+	// GOLDEN_FILE overrides the reference file (A/B runs: `golden save` with the old code, then
+	// `golden` with the new; bin\golden_ks.f32 is the GOLDEN_KEYSYNC reference)
 	const char* path = std::getenv("GOLDEN_FILE") ? std::getenv("GOLDEN_FILE")
 	                 : hq ? "tests\\note_off\\bin\\golden_hq.f32" : "tests\\note_off\\bin\\golden.f32";
 	if (save) {

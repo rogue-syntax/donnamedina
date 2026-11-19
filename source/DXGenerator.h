@@ -208,15 +208,7 @@ public:
 
 	void recalc2(int paramId);
 
-	int(DXGenerator::*modChoice[4])(RVoice*);
-
-	int doPhaseMod(RVoice* voiceObj);
-
-	int doFreqMod(RVoice* voiceObj);
-
-	int doDetuneMod(RVoice* voiceObj);
-
-	int doNoMod(RVoice* voiceObj);
+	// (the mod types: renderBankGroup, DXGeneratorBank.cpp)
 	
 	//int(DXGenerator::*doRecalc[PARTPARAMS])();
 
@@ -549,15 +541,10 @@ public:
 
 	void resetFinished(RVoice& voiceObj);
 
-	void interpolateVoice(RVoice& voiceObj);
-
 	void retriggerVoice(RVoice& voiceObj, bool killIt);
 
-	void singleVoiceProcessing(RVoice& voiceObj);
-	
-	void deadVoiceProcessing(RVoice& voiceObj);
-
-	void calculateSingleOut(RVoice & voiceObj);
+	// (the voice path: renderBlock / renderBankGroup; it was singleVoiceProcessing + interpolateVoice
+	// per voice and sample until 2026-11-19)
 
 	
 	
@@ -755,25 +742,20 @@ public:
 	void recalculateRel(const float& sampleFloat, RVoice& voiceObj);
 	void detectSilence(int32 * activeVoices);
 	void DXGenerator::signalProcessing();
-	virtual void mainProcessing() override;
-	// Block rendering (2026-11-19, step 1 of the SIMD voice work): renders n (1..kRenderMax) engine
-	// samples into renderL/renderR, voice by voice instead of sample by sample. Same output as n
-	// mainProcessing() calls with sampleClock++ after each (per-sample ramp levels are precomputed,
-	// voices are summed in the same order). Advances sampleClock by n.
+	// Block rendering (2026-11-19, branch simd-voices): renders n (1..kRenderMax) engine samples into
+	// renderL/renderR (DX10Processor::doProcessing calls it per sub-block; HQ: 2 engine samples per
+	// output sample). Advances sampleClock by n.
 	static const int kRenderMax = 256;
 	float renderL[kRenderMax] = {};
 	float renderR[kRenderMax] = {};
 	float rampRows[kRenderMax][GENRAMPEDPARAMSLENGTH] = {};
 	void renderBlock(int n);
-	// Step 2: voices that qualify (bankEligible) render in groups of VoiceBank::kLanes through
-	// renderBankGroup (DXGeneratorBank.cpp); the rest through singleVoiceProcessing as before. Every
-	// voice writes its own output row; the rows are summed in notes order.
-	bool useVoiceBank = true;  // false: every voice through singleVoiceProcessing (tests, A/B)
-	unsigned long long bankVoiceSamples = 0, scalarVoiceSamples = 0;  // statistics (tests)
+	// The voices render in groups of VoiceBank::kLanes through renderBankGroup (DXGeneratorBank.cpp,
+	// components in VoiceBank.h), each into its own output row; the rows are summed in notes order.
+	unsigned long long bankVoiceSamples = 0;  // statistics (tests)
 	float voiceRowL[VoiceList::kCapacity][kRenderMax];
 	float voiceRowR[VoiceList::kCapacity][kRenderMax];
 	VoiceBank bank;
-	bool bankEligible(const RVoice& v) const;
 	void renderBankGroup(int n);  // renders bank.voice[0..count-1] into their rows
 	//virtual void voiceProcessing(RVoice& obj) override;
 	float getRelVal1D(float rangeAStart, float rangeAStop, float rangeBStart, float rangeBStop, float value);

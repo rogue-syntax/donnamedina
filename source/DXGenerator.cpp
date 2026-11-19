@@ -78,10 +78,6 @@ namespace rs {
 			combineValues[0] = &DXGenerator::combineAdd;
 			combineValues[1] = &DXGenerator::combineMultiply;
 
-			modChoice[0] = &DXGenerator::doNoMod;
-			modChoice[1] = &DXGenerator::doPhaseMod;
-			modChoice[2] = &DXGenerator::doFreqMod;
-			modChoice[3] = &DXGenerator::doDetuneMod;
 
 			//doRecalc = new recalcFunc_t[PARTPARAMS];
 
@@ -735,130 +731,15 @@ void DXGenerator::detectSilence( int32* activeVoices ) {
 
 
 
-void DXGenerator::interpolateVoice(RVoice& voiceObj) {
-	// B-64: a fading voice (retrigger or steal) renders through the full voice path. The fade is a
-	// gain on the output after the filter (2026-11-17; it used to ramp the amp envelope, which sits
-	// before the filter, so a resonant filter's ringing was cut off, not faded, at the restart).
-	singleVoiceProcessing(voiceObj);
-	const float s = voiceObj.fadePos;
-	const float g = s * s * (3.0f - 2.0f * s);  // S-curve: no corner where the fade starts or ends
-	voiceObj.o *= g;
-	voiceObj.o1 *= g;
-	voiceObj.o2 *= g;
-	voiceObj.fadePos -= voiceObj.fadeStep;
-	if (voiceObj.fadePos <= 0.0f) {
-		voiceObj.fadePos = 0.0f;
-		voiceObj.rampingDown = false;
-		if (voiceObj.killIt == false) {
-			// end of a key-sync retrigger fade: restart (resets oscillators, LFOs and the filter; B-56)
-			processNoteOn(voiceObj, &voiceObj.note, &voiceObj.vel, true);
-			if (voiceObj.releasePending == true) { // B-18: note-off arrived during the fade
-				voiceObj.releasePending = false;
-				releaseVoice(voiceObj);
-			}
-		}
-		else {
-			// stolen: silent from here (detectSilence drops it); clear the filter so nothing rings on
-			voiceObj.voiceEnvLfo[1].env = 0.0f;
-			voiceObj.voiceEnvLfo[1].cenv = 0.0f;
-			voiceObj.m_Filter1.reset();
-		}
-	}
-}
-
-
-
-void DXGenerator::mainProcessing() {
-	lastO = o;
-	o = 0.0f;
-	o1 = 0.0f;
-	o2 = 0.0f;
-	//PROCESS RAMPED PARAMS
-	for (int i = 0; i < GENRAMPEDPARAMSLENGTH; i++) {
-		rampedParams[i].processLevel();
-	}
-	/*
-	mainInt = ctrlValues[INT_ + paramStartIdx] + static_cast<int>(controls[INT_ENV] * 13);
-	mainOct = (ctrlValues[OCT_ + paramStartIdx] - 3) + static_cast<int>(controls[OCT_ENV] * 6);
-	mainTune = (controls[TUNE_] + controls[TUNE_ENV]) * 1000;
-	mainFine = (controls[FINE_] + controls[FINE_ENV]) * 10;
-
-	modInt = ctrlValues[MOD_INT_ + paramStartIdx] + static_cast<int>(controls[MOD_INT_ENV] * 13);
-	modOct = (ctrlValues[MOD_OCT_ + paramStartIdx] - 3) + static_cast<int>(controls[MOD_OCT_ENV] * 17);
-	modTune = (controls[MOD_TUNE_] + controls[MOD_TUNE_ENV]) * 1000;
-	modFine = (controls[MOD_FINE_] + controls[MOD_FINE_ENV]) * 10;
-	*/
-
-
-	/*
-
-
-		for (int n = 0; n < notes2.size(); n++) {
-			if (notes2[n].rampingDown == true) {
-				interpolateVoice(notes2[n]);
-				o += notes2[n].o;
-			}
-			else {
-				singleVoiceProcessing(&notes2[n]);
-				o += notes2[n].o;
-			}
-			
-		}
-	
-	*/
-	//method one: have two sets of vector registers , one for re-note smoothing interpolation, the other for voice processing,
-	//use branching to decide which register set the voice will be attached to,
-	//if (xyz) putVoceOnInterpBus, else putVoiceonProcessBus()
-	//method2:include interpolation process forallvoice processing,control numerically vi note on process
-	//so interpolateVoiceSet(voiceBus), voiceProcess(processBus)
-	//or use
-		//#pragma loop(hint_parallel(6))
-		//for (int n = 0; n < PARTVOICES; n++){
-		
-		updateLfoUsage();  // optimization: skip per-voice LFOs nothing reads
-
-		int nSize = notes.size();
-		//#pragma loop(hint_parallel(4))
-		for (int n = 0; n < nSize; n++) {
-			//change to functional switch
-			
-			int i = notes[n];
-			
-			if (RVoicesMap[i].rampingDown == true) {
-				interpolateVoice(RVoicesMap[i]);
-				o += RVoicesMap[i].o;
-				o1 += RVoicesMap[i].o1;
-				o2 += RVoicesMap[i].o2;
-			}
-			else {
-				singleVoiceProcessing(RVoicesMap[i]);
-				o += RVoicesMap[i].o;
-				o1 += RVoicesMap[i].o1;
-				o2 += RVoicesMap[i].o2;
-			}
-			
-			//singleVoiceProcessing(&RVoicesMap[i]);
-			//o += RVoicesMap[i].o;
-
-		}
-	
-	
-}
-
-
-
 void DXGenerator::renderBlock(int n) {
 	if (n <= 0) return;
 	if (n > kRenderMax) n = kRenderMax;
-	// Ramped parameters, as mainProcessing: each sample advances them first, then the voices read.
-	// Usually none is moving; then the levels are set once, not per voice and sample.
-	bool rampsMove = false;
+	// Ramped parameters: each sample advances them first, then the voices read that sample's level
+	// (rampRows; renderBankGroup).
 	for (int s = 0; s < n; s++) {
 		for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++) {
-			const float before = rampedParams[k].level;
 			rampedParams[k].processLevel();
 			rampRows[s][k] = rampedParams[k].level;
-			rampsMove |= rampRows[s][k] != before;
 		}
 		renderL[s] = 0.0f;
 		renderR[s] = 0.0f;
@@ -867,50 +748,22 @@ void DXGenerator::renderBlock(int n) {
 	updateLfoUsage();
 
 	const unsigned long long clock0 = sampleClock;
-	// notes does not change inside a block: a fade ending restarts the voice in place (processNoteOn).
+	// Voices in groups of VoiceBank::kLanes, each into its own output row. notes does not change
+	// inside a block: a fade ending restarts the voice in place (processNoteOn).
 	const int nSize = notes.size();
-	// one voice (notes index v) through singleVoiceProcessing / interpolateVoice
-	auto renderScalar = [&](int v) {
-		RVoice& voice = RVoicesMap[notes[v]];
-		float* rowL = voiceRowL[v];
-		float* rowR = voiceRowR[v];
-		scalarVoiceSamples += n;
-		for (int s = 0; s < n; s++) {
-			sampleClock = clock0 + s;  // read by processNoteOn when a fade ends here
-			if (rampsMove)
-				for (int k = 0; k < GENRAMPEDPARAMSLENGTH; k++)
-					rampedParams[k].level = rampRows[s][k];
-			if (voice.rampingDown)
-				interpolateVoice(voice);
-			else
-				singleVoiceProcessing(voice);
-			rowL[s] = voice.o1;
-			rowR[s] = voice.o2;
-		}
-	};
 	bank.count = 0;
 	for (int v = 0; v < nSize; v++) {
-		RVoice& voice = RVoicesMap[notes[v]];
-		if (useVoiceBank && bankEligible(voice)) {
-			bank.voice[bank.count] = &voice;
-			bank.row[bank.count] = v;
-			if (++bank.count == VoiceBank::kLanes) {
-				renderBankGroup(n);
-				bank.count = 0;
-			}
-			continue;
+		bank.voice[bank.count] = &RVoicesMap[notes[v]];
+		bank.row[bank.count] = v;
+		if (++bank.count == VoiceBank::kLanes) {
+			renderBankGroup(n);
+			bank.count = 0;
 		}
-		renderScalar(v);
 	}
-	// a leftover group of 1 or 2 voices is cheaper on the scalar path than with 2-3 spare lanes
-	// (perf: 2 voices 92 vs 84 ns per voice-sample; 3 voices 62 vs 70)
-	if (bank.count <= 2)
-		for (int i = 0; i < bank.count; i++)
-			renderScalar(bank.row[i]);
-	else
+	if (bank.count > 0)
 		renderBankGroup(n);
 	bank.count = 0;
-	// same summing order as mainProcessing: voices in notes order
+	// sum the rows, voices in notes order
 	for (int v = 0; v < nSize; v++) {
 		const float* rowL = voiceRowL[v];
 		const float* rowR = voiceRowR[v];
@@ -956,212 +809,6 @@ void DXGenerator::updateLfoUsage() {
 	lfoUsedMask = mask & 0x70;
 }
 
-void DXGenerator::singleVoiceProcessing(RVoice& voiceObj) {
-	// Expression: the knob alone, or scaled by this note's velocity (0..127)
-	{
-		const float e = exprVel ? exprAmount * (static_cast<float>(voiceObj.vel) * (1.0f / 127.0f)) : exprAmount;
-		voiceObj.exprFilter = e * exprDepthFilter;
-		voiceObj.exprFm = e * exprDepthFm;
-		voiceObj.exprWidth = e * exprDepthWidth;
-	}
-
-
-	//voiceObj.sampleCount = voiceObj.sampleCount + 1;
-	//update all envs
-	//find a way to optimize
-	voiceObj.voiceEnvLfo[0].env = 0.0;
-	voiceObj.voiceEnvLfo[0].cenv = 0.0;
-
-	voiceObj.e = voiceObj.voiceEnvLfo[1].env;
-	voiceObj.voiceEnvLfo[1].env = voiceObj.e * voiceObj.voiceEnvLfo[1].cdec;
-	voiceObj.voiceEnvLfo[1].cenv += voiceObj.voiceEnvLfo[1].catt * (voiceObj.e - voiceObj.voiceEnvLfo[1].cenv);
-
-	voiceObj.e = voiceObj.voiceEnvLfo[2].env;
-	voiceObj.voiceEnvLfo[2].env = voiceObj.e * voiceObj.voiceEnvLfo[2].cdec;
-	voiceObj.voiceEnvLfo[2].cenv += voiceObj.voiceEnvLfo[2].catt * (voiceObj.e - voiceObj.voiceEnvLfo[2].cenv);
-	
-	voiceObj.e = voiceObj.voiceEnvLfo[3].env;
-	voiceObj.voiceEnvLfo[3].env = voiceObj.e * voiceObj.voiceEnvLfo[3].cdec;
-	voiceObj.voiceEnvLfo[3].cenv += voiceObj.voiceEnvLfo[3].catt * (voiceObj.e - voiceObj.voiceEnvLfo[3].cenv);
-
-	
-	// Optimization: an LFO nothing is routed to is not computed (see updateLfoUsage); its output
-	// would not be read, so the sound is unchanged.
-	if (lfoUsedMask & (1 << 4)) {
-		voiceObj.voiceEnvLfo[4].m_dAmplitude = (*EnvLfoCtrls[4]).level;
-		voiceObj.voiceEnvLfo[4].m_dOscFo = (*EnvLfoCtrls[4]).rate;
-		voiceObj.voiceEnvLfo[4].update();
-		voiceObj.voiceEnvLfo[4].cenv = voiceObj.voiceEnvLfo[4].doOscillate();
-		voiceObj.voiceEnvLfo[4].moduloStart = (*EnvLfoCtrls[4]).phaseStart;
-	}
-
-	if (lfoUsedMask & (1 << 5)) {
-		voiceObj.voiceEnvLfo[5].m_dAmplitude = (*EnvLfoCtrls[5]).level;
-		voiceObj.voiceEnvLfo[5].m_dOscFo = (*EnvLfoCtrls[5]).rate;
-		voiceObj.voiceEnvLfo[5].update();
-		voiceObj.voiceEnvLfo[5].cenv = voiceObj.voiceEnvLfo[5].doOscillate(); //double to float here...
-		voiceObj.voiceEnvLfo[5].moduloStart = (*EnvLfoCtrls[5]).phaseStart;
-	}
-
-	if (lfoUsedMask & (1 << 6)) {
-		voiceObj.voiceEnvLfo[6].m_dAmplitude = (*EnvLfoCtrls[6]).level;
-		voiceObj.voiceEnvLfo[6].m_dOscFo = (*EnvLfoCtrls[6]).rate;
-		voiceObj.voiceEnvLfo[6].update();
-		voiceObj.voiceEnvLfo[6].cenv = voiceObj.voiceEnvLfo[6].doOscillate();
-		voiceObj.voiceEnvLfo[6].moduloStart = (*EnvLfoCtrls[6]).phaseStart;
-	}
-	/*
-	float dd = voiceObj.voiceEnvLfo[6].m_dFo;
-	float da = voiceObj.voiceEnvLfo[6].m_dFoModLin;
-	float db = voiceObj.voiceEnvLfo[6].m_dFoRatio;
-	float dc = voiceObj.voiceEnvLfo[6].pitchShiftFactor;
-	float dx = voiceObj.voiceEnvLfo[6].m_dSampleRateF;
-	*/
-	(this->*modChoice[ctrlValues[MOD_TYPE_ + paramStartIdx]])(&voiceObj);
-
-	//see if we can separate th vectorizable vs non vectorizable
-	//how many static cast can we get rid of?
-	//how many index lookups can we precompute?
-	//maybe env bank ones , choose env doesn't need to be real time
-
-	
-	voiceObj.newInt = ctrlValues[INT_ + paramStartIdx] + static_cast<int>(controls[INT_ENV] * (*voiceObj.envBank[newIntEnv]) * 13);
-	voiceObj.newOct = (ctrlValues[OCT_ + paramStartIdx]) + static_cast<int>((controls[OCT_ENV] * (*voiceObj.envBank[newOctEnv]) * 6));
-	if (voiceObj.newOct < 1) {
-		voiceObj.newOct = 1;
-	}
-	if (voiceObj.newOct > 5) {
-		voiceObj.newOct = 5;
-	}
-	voiceObj.newNote = voiceObj.WTOsc.note + (voiceObj.newInt + ((voiceObj.newOct - 3 )* 12.0));
-	// B-22: midiFreqTable has 128 entries; with high octave/interval settings (and env) on high
-	// notes, or low ones on low notes, the index left 0..127 and read past the table. Clamp like
-	// the modulator does (it uses 1..109).
-	voiceObj.newNote = ParamClamp2(voiceObj.newNote, 0, 127);
-	voiceObj.tuneC = (((controls[TUNE_]) + (controls[TUNE_ENV] * (*voiceObj.envBank[tuneCEnv])))) + (((controls[FINE_] ) + (controls[FINE_ENV] * (*voiceObj.envBank[fineCEnv]))) / 100 );
-	voiceObj.WTOsc.m_dOscFo = ((midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneC)) * voiceObj.driftPitch;
-	voiceObj.WTOsc.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc.m_dOscFo);
-	//DElETE ? REMOVE
-	/*
-	if (portamentoMode) {
-		
-		//foDifference = targOscFo - mergedOscFo;
-		if (std::abs(voiceObj.targOscFo - voiceObj.mergedOscFo) > 0.003f) {
-			voiceObj.mergedOscFo = voiceObj.mergedOscFo + (portoInc * ((voiceObj.targOscFo - voiceObj.mergedOscFo) / std::abs(voiceObj.targOscFo - voiceObj.mergedOscFo)));//sign of x/-x = 1 or -1
-			voiceObj.WTOsc.m_dOscFo = voiceObj.mergedOscFo;
-		}
-		else {
-			voiceObj.WTOsc.m_dOscFo = voiceObj.targOscFo;
-		}
-		lastOscFo = voiceObj.WTOsc.m_dOscFo;
-	}
-	*/
-	voiceObj.WTOsc.update();
-	voiceObj.WTOsc.triCutoff = ((rampedParams[WIDTH_RAMPINDEX].level) + voiceObj.exprWidth + ((controls[WIDTH_ENV] * widthPole) * (*voiceObj.envBank[triEnvSrc])));
-	voiceObj.WTOsc.triCutoff = rsMax(rsMin(voiceObj.WTOsc.triCutoff, 0.9), 0.1);
-	//MODULATOR TUNING
-	voiceObj.newModInt = ctrlValues[MOD_INT_ + paramStartIdx] + static_cast<int>(controls[MOD_INT_ENV] * (*voiceObj.envBank[newModIntEnv]) * 13);
-	voiceObj.newModOct = (ctrlValues[MOD_OCT_ + paramStartIdx]) + static_cast<int>((controls[MOD_OCT_ENV] * (*voiceObj.envBank[newModOctEnv]) * 13));
-	voiceObj.newNote = voiceObj.WTOsc2.note + (voiceObj.newModInt + ((voiceObj.newModOct - 6) * 12.0));
-	voiceObj.newNote = ParamClamp2(voiceObj.newNote, 1, 109);
-	voiceObj.tuneM = (((controls[MOD_TUNE_]) + (controls[modTuneEnv] * (*voiceObj.envBank[modTuneCEnv])))) + (((controls[MOD_FINE_]) + (controls[MOD_FINE_ENV] * (*voiceObj.envBank[modFineCEnv]))) / 100);
-
-	voiceObj.WTOsc2.m_dOscFo = ((midiFreqTable[voiceObj.newNote]) + (((midiFreqTable[voiceObj.newNote]) * 2) *  voiceObj.tuneM)) * voiceObj.driftPitch;
-	voiceObj.WTOsc2.m_dOscFo = rsMax(OSC_FO_MIN, voiceObj.WTOsc2.m_dOscFo);
-
-	
-
-	voiceObj.WTOsc2.triCutoff = ((rampedParams[MOD_WIDTH_RAMPINDEX].level) + voiceObj.exprWidth + (((controls[MOD_WIDTH_ENV] * modWidthPole) * (*voiceObj.envBank[modTriEnvSrc]))));
-	voiceObj.WTOsc2.triCutoff = rsMax(rsMin(voiceObj.WTOsc2.triCutoff, 0.9), 0.1);
-	
-	
-	//DO MODULATIONS 
-	/*
-	(this->*modChoice[ctrlValues[MOD_TYPE_ + paramStartIdx]])(&voiceObj);
-	*/
-	voiceObj.osc1pure = voiceObj.WTOsc.doOscillate();
-
-	/* make || vectorized */
-	voiceObj.gainerTemp = ParamClamp2((rampedParams[GAIN_RAMPINDEX].level) + (controls[GAIN_ENV] * (*voiceObj.envBank[ctrlValues[GAIN_ENV_SRC + paramStartIdx]])), silenceCutoff, 1.0);
-	//voiceObj.o = voiceObj.gainerTemp * (voiceObj.voiceEnvLfo[1].cenv * (voiceObj.WTOsc.doOscillate() + (voiceObj.osc2out * (rampedParams[MOD_OSC_GAIN_RAMPINDEX].level))));
-	voiceObj.o = voiceObj.gainerTemp * (voiceObj.voiceEnvLfo[1].cenv * (voiceObj.osc1pure + (voiceObj.osc2out * (rampedParams[MOD_OSC_GAIN_RAMPINDEX].level))));
-	//voiceObj.o1 = voiceObj.o;
-	//voiceObj.o2 = voiceObj.o;
-	
-		
-	//voiceObj.filterEnv = controls[FILTER_ENV] * (*voiceObj.envBank[static_cast<int>(filterEnvSrc)]);
-	// Optimization: the cutoff's log map (powf) and the filter's tan() were ~26% of the voice time.
-	// Both depend only on the normalised cutoff x (knob + modulation, clamped 0.01..1) and the sample
-	// rate, so the coefficient g(x) = tan(pi * toPlain(x) / fs) comes from a precomputed table with
-	// linear interpolation: still per sample, no added latency (see buildFilterGTable).
-	voiceObj.filterEnv = controls[FILTER_ENV] * (*voiceObj.envBank[filterSrc]);
-	const double fx = ParamClamp2((rampedParams[FILTER_RAMPINDEX].level) + voiceObj.filterEnv + voiceObj.exprFilter + voiceObj.driftFilter, 0.01, 1.0);
-	if (filtGTableT != voiceObj.m_Filter1.sampleInterval())
-		buildFilterGTable(voiceObj.m_Filter1);
-	const double pos = (fx - kFiltXMin) * filtGTableScale;
-	int idx = static_cast<int>(pos);
-	if (idx >= kFiltGTableSize) idx = kFiltGTableSize - 1;
-	const double frac = pos - idx;
-	voiceObj.m_Filter1.setG(filtGTable[idx] + (filtGTable[idx + 1] - filtGTable[idx]) * frac);
-	voiceObj.m_Filter1.doFilter2(voiceObj.o);
-
-
-	voiceObj.pan = ParamClamp2(((rampedParams[PAN_LR_RAMPINDEX].level) + voiceObj.driftPan + (rampedParams[PAN_LR_ENV_RAMPINDEX].level * (*voiceObj.envBank[panEnvSrc]))), -1, 1 );
-	//voiceObj.pan = voiceObj.pan  * voiceObj.voiceEnvLfo[1].cenv;
-	// B-55: pan smoothing. The old slew limiter set prePan = pan before computing the difference,
-	// so it never ran and pan jumps went straight to the output. Pan is applied after the filter,
-	// whose output is still non-zero when a retriggered note restarts and its per-voice pan LFO
-	// resets, so that jump was a click/pop. One-pole glide, ~3 ms.
-	voiceObj.prePan += panSmoothCoef * (voiceObj.pan - voiceObj.prePan);
-
-
-	voiceObj.o1 = ((voiceObj.prePan + 1.0f) / 2.0f) * voiceObj.o;
-	voiceObj.o2 = ((voiceObj.prePan - 1.0f) / -2.0f) * voiceObj.o;
-	
-	
-
-
-}
-
-
-void DXGenerator::deadVoiceProcessing(RVoice& voiceObj) {
-
-
-	voiceObj.e = voiceObj.voiceEnvLfo[1].env;
-	voiceObj.voiceEnvLfo[1].env = voiceObj.e * voiceObj.voiceEnvLfo[1].cdec;
-	voiceObj.voiceEnvLfo[1].cenv += voiceObj.voiceEnvLfo[1].catt * (voiceObj.e - voiceObj.voiceEnvLfo[1].cenv);
-
-	voiceObj.WTOsc.update();
-
-
-	//DO MODULATIONS
-
-	(this->*modChoice[ctrlValues[MOD_TYPE_ + paramStartIdx]])(&voiceObj);
-
-
-	//GAIN BLOCK
-
-	voiceObj.o = voiceObj.gainerTemp * (voiceObj.voiceEnvLfo[1].cenv * voiceObj.WTOsc.doOscillate());
-
-	voiceObj.m_Filter1.update();
-	voiceObj.o = voiceObj.m_Filter1.doFilter(voiceObj.o);
-	voiceObj.pan = ParamClamp2(((rampedParams[PAN_LR_RAMPINDEX].level) + (controls[PAN_LR_ENV] * (*voiceObj.envBank[panEnvSrc]))), -1, 1);
-	//voiceObj.pan = voiceObj.pan  * voiceObj.voiceEnvLfo[1].cenv;
-	voiceObj.prePan += panSmoothCoef * (voiceObj.pan - voiceObj.prePan);  // B-55, see singleVoiceProcessing
-
-
-	voiceObj.o1 = ((voiceObj.prePan + 1.0f) / 2.0f) * voiceObj.o;
-	voiceObj.o2 = ((voiceObj.prePan - 1.0f) / -2.0f) * voiceObj.o;
-
-}
-
-
-void DXGenerator::calculateSingleOut(RVoice& voiceObj) {
-
-}
-
-
-
 float DXGenerator::getRelVal1D(float rangeAStart, float rangeAStop, float rangeBStart, float rangeBStop, float value ) {
 	return ( rangeBStart + ( ( value / (rangeAStop - rangeAStart) )*( rangeBStop-rangeBStart) ) );
 }
@@ -1192,42 +839,6 @@ void DXGenerator::recalc2(int paramId) {
 }
 
 
-int DXGenerator::doPhaseMod(RVoice* voiceObj) {
-	voiceObj->WTOsc2.update();
-	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
-	//voiceObj->WTOsc.m_dPhaseMod = (fmax(0.0, fmin(1.0, (controls[MOD_GAIN_] + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]][0])))))) * ((voiceObj->WTOsc.m_dOscFo / 50) * voiceObj->WTOsc2.doOscillate());
-	voiceObj->WTOsc.m_dPhaseMod = (rsMax(0.003, rsMin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + voiceObj->exprFm + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]])))))) *  voiceObj->osc2out;
-	voiceObj->WTOsc.m_dFoModLin = 0.0;  // B-47: clear what freq/detune mod left behind
-	return 0;
-}
-
-int DXGenerator::doFreqMod(RVoice* voiceObj) {
-	voiceObj->WTOsc2.update();
-	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
-	voiceObj->WTOsc.m_dFoModLin = (rsMax(0.003, rsMin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + voiceObj->exprFm + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 4) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
-	voiceObj->WTOsc.m_dPhaseMod = 0.0;  // B-47: clear what phase mod left behind
-	return 0;
-}
-
-int DXGenerator::doDetuneMod(RVoice* voiceObj) {
-	voiceObj->WTOsc2.m_dOscFo = voiceObj->WTOsc2.m_dOscFo + ((bpm / 60) * ((controls[MOD_BEAT_] + static_cast<int>(controls[MOD_BEAT_ENV] * (*voiceObj->envBank[ctrlValues[MOD_BEAT_ENV_SRC + paramStartIdx]]) * 13)) / 4));
-	voiceObj->WTOsc2.update();
-	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
-	voiceObj->WTOsc.m_dFoModLin = (rsMax(0.003, rsMin(1.0, ((rampedParams[MOD_GAIN_RAMPINDEX].level) + voiceObj->exprFm + (controls[MOD_GAIN_ENV] * (*voiceObj->envBank[ctrlValues[MOD_GAIN_ENV_SRC + paramStartIdx]]))))) * 8) * (voiceObj->WTOsc.m_dOscFo * voiceObj->osc2out);
-	voiceObj->WTOsc.m_dPhaseMod = 0.0;  // B-47: clear what phase mod left behind
-	return 0;
-}
-
-int DXGenerator::doNoMod(RVoice* voiceObj) {
-	//do nothing here
-	voiceObj->WTOsc2.update();
-	voiceObj->osc2out = voiceObj->WTOsc2.doOscillate();
-	// B-47: no modulation means none: clear what a previous mod type left on the carrier
-	// (switching the type mid-note used to leave a frozen frequency/phase offset)
-	voiceObj->WTOsc.m_dFoModLin = 0.0;
-	voiceObj->WTOsc.m_dPhaseMod = 0.0;
-	return 0;
-}
 
 
 

@@ -371,12 +371,28 @@ struct alignas(32) Osc4 {
 	double sr[kLanes], tri[kLanes], mod[kLanes], phaseMod[kLanes];
 	unsigned wave[kLanes];
 	int note[kLanes];
+	// the oscillator object, for the waveforms the bank does not compute itself (SAW2, SAW3, NOISE,
+	// PNOISE, RSINE: objectStep); nullptr for a spare lane (it must not advance another voice's state)
+	CQBLimitedOscillator* obj[kLanes] = {};
 
-	void gather(int l, const CQBLimitedOscillator& o) {
+	void gather(int l, CQBLimitedOscillator& o, bool spare) {
 		oscFo[l] = o.m_dOscFo; foRatio[l] = o.m_dFoRatio; psf[l] = o.pitchShiftFactor;
 		foModLin[l] = o.m_dFoModLin; fo[l] = o.m_dFo; inc[l] = o.m_dInc; sr[l] = *o.m_dSampleRate;
 		tri[l] = o.triCutoff; mod[l] = o.m_dModulo; phaseMod[l] = o.m_dPhaseMod;
 		wave[l] = o.m_uWaveform; note[l] = o.note;
+		obj[l] = spare ? nullptr : &o;
+	}
+
+	// waveforms 4..8: the object's own doOscillate, with the bank's per-sample values written in first
+	double objectStep(int l) {
+		CQBLimitedOscillator* o = obj[l];
+		if (!o)
+			return 0.0;  // spare lane
+		o->m_dOscFo = oscFo[l]; o->m_dFoModLin = foModLin[l]; o->m_dFo = fo[l]; o->m_dInc = inc[l];
+		o->triCutoff = tri[l]; o->m_dModulo = mod[l]; o->m_dPhaseMod = phaseMod[l];
+		const double r = o->doOscillate();
+		mod[l] = o->m_dModulo;
+		return r;
 	}
 	// (scratch members such as doOscOut, dCalcModulo and m_dPulseWidth are rewritten before they
 	// are read, so they are not stored)
@@ -401,6 +417,8 @@ struct alignas(32) Osc4 {
 
 	// CQBLimitedOscillator::doOscillate
 	double step(int l) {
+		if (wave[l] > 3)
+			return objectStep(l);
 		const int wrappingBool = (int)(mod[l]);  // checkWrapModulo2
 		mod[l] = mod[l] - wrappingBool;
 		double dCalcModulo = mod[l] + phaseMod[l];
@@ -533,8 +551,12 @@ struct alignas(32) Voice4 {
 	float exprFilter[kLanes], exprFm[kLanes], exprWidth[kLanes];
 	float driftPitch[kLanes], driftFilter[kLanes], driftPan[kLanes];
 	int newInt[kLanes], newOct[kLanes], newModInt[kLanes], newModOct[kLanes], newNote[kLanes];
+	// retrigger / steal fade (RVoice::rampingDown, fadePos, fadeStep; DXGenerator::renderBankGroup)
+	float fadePos[kLanes], fadeStep[kLanes];
+	bool fading[kLanes];
 
-	void gather(int l, const RVoice& v) {
+	// spare: a lane past count, holding a copy of another voice (its results are not stored)
+	void gather(int l, RVoice& v, bool spare) {
 		for (int k = 0; k < 7; k++)
 			src.cenv[k][l] = v.voiceEnvLfo[k].cenv;
 		for (int k = 1; k <= 3; k++)
@@ -542,9 +564,11 @@ struct alignas(32) Voice4 {
 		e[l] = v.e;
 		for (int i = 0; i < 3; i++)
 			lfo[i].gather(l, v.voiceEnvLfo[4 + i]);
-		carrier.gather(l, v.WTOsc);
-		modulator.gather(l, v.WTOsc2);
+		carrier.gather(l, v.WTOsc, spare);
+		modulator.gather(l, v.WTOsc2, spare);
 		filter.gather(l, v.m_Filter1);
+		fadePos[l] = v.fadePos; fadeStep[l] = v.fadeStep;
+		fading[l] = v.rampingDown && !spare;
 		osc2out[l] = v.osc2out; osc1pure[l] = v.osc1pure; gainerTemp[l] = v.gainerTemp;
 		o[l] = v.o; o1[l] = v.o1; o2[l] = v.o2; pan[l] = v.pan; prePan[l] = v.prePan;
 		filterEnv[l] = v.filterEnv; tuneC[l] = v.tuneC; tuneM[l] = v.tuneM;
@@ -573,6 +597,7 @@ struct alignas(32) Voice4 {
 		v.newInt = newInt[l]; v.newOct = newOct[l]; v.newModInt = newModInt[l];
 		v.newModOct = newModOct[l]; v.newNote = newNote[l];
 		v.exprFilter = exprFilter[l]; v.exprFm = exprFm[l]; v.exprWidth = exprWidth[l];
+		v.fadePos = fadePos[l]; v.rampingDown = fading[l];
 	}
 };
 
