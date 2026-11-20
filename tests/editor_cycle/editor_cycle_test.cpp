@@ -140,9 +140,23 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 	ViewRect tmp(0, 0, w - 1, h - 1);
 	view->onSize(&tmp);
 	view->onSize(&vr);
-	// No processor here, so the registration overlay would hide the panel; drop it for the shot.
-	if (ctrl->nvgViewController && ctrl->nvgViewController->nvgView)
-		ctrl->nvgViewController->nvgView->badReg = false;
+	// The license screen would hide the panel on a machine without a license; for the shot the
+	// controller is told it has one (sample licensee, shown in the about screen's info row).
+	// EDITOR_SHOT_LICENSE=1 keeps the license screen; =2 also shows a failed paste and the button hovered.
+	if (const char* lv = std::getenv("EDITOR_SHOT_LICENSE")) {
+		ctrl->licensed = false;
+		if (std::atoi(lv) == 2) {
+			ctrl->licenseMsg = "That license is not valid.";
+			ctrl->licenseHover = 0;  // licenseZone::kPaste
+		}
+	} else {
+		ctrl->licensed = true;
+		ctrl->licenseInfo.name = "Jane Q. Tester";
+		ctrl->licenseInfo.email = "jane@example.com";
+		ctrl->licenseInfo.kind = "dev";
+		if (ctrl->licenseView)
+			ctrl->licenseView->setMouseEnabled(false);
+	}
 	pumpFor(1500);
 
 	// Copy the client area from the screen (the window is topmost): PrintWindow misses the

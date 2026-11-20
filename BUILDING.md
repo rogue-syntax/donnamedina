@@ -6,7 +6,7 @@
 - The SDK's CMake build folder `VST3_SDK\build` (generated with "Visual Studio 17 2022", x64). The solution builds its `base`, `sdk`, `vstgui*` libraries.
 - `VST3_SDK\external\revent` (shared with the modded VSTGUI `cbuttons.h`).
 
-Everything else (GLEW, libbcrypt) is in `external/` in this repo. Nothing is read from `C:\D` any more.
+Everything else (GLEW, Monocypher) is in `external/` in this repo. Nothing is read from `C:\D` any more.
 
 ## Build
 Open `RSSynth001donnaMedina.sln`, pick **Debug|x64** or **Release|x64**, Build.

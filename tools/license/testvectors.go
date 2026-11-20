@@ -13,7 +13,7 @@ var b64 = base64.RawURLEncoding
 
 func token(priv ed25519.PrivateKey, payload string) string {
 	sig := ed25519.Sign(priv, []byte(payload))
-	return "DM1." + b64.EncodeToString([]byte(payload)) + "." + b64.EncodeToString(sig)
+	return "RS1." + b64.EncodeToString([]byte(payload)) + "." + b64.EncodeToString(sig)
 }
 
 func p(kid, lid, kind, name, email, issued, product string) string {
@@ -37,7 +37,7 @@ func main() {
 	// tampered: re-encode a payload with a different name but keep T1's signature
 	parts := strings.Split(full, ".")
 	fake := b64.EncodeToString([]byte(p("0", "DM-TEST-0001", "full", "Someone Else", "jane@example.com", "2026-11-19", "donnamedina")))
-	fmt.Println("T4_tampered", "DM1."+fake+"."+parts[2])
+	fmt.Println("T4_tampered", "RS1."+fake+"."+parts[2])
 	fmt.Println("T5_wrong_product", token(priv, p("0", "DM-TEST-0005", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "othersynth")))
 	fmt.Println("T6_unknown_kid", token(priv, p("9", "DM-TEST-0006", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "donnamedina")))
 	// wrapped like an email client would: line breaks every 40 chars plus surrounding spaces

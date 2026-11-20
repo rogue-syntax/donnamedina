@@ -15,6 +15,7 @@
 #include "SynthParamLimits.h"
 #include "CParamSmooth.h"
 #include "constants.h"
+#include "license.h"
 
 namespace Steinberg {
 namespace Vst {
@@ -34,19 +35,20 @@ public:
 	//int linkTune = 0;
 	int64 linkTune = 0;
 
-	std::wstring valueFromRegistry;
-
-	const char* regErr1;
-
-	bool regKeyFound;
-
-	bool regKeyLegit;
+	// Licensing v1 (docs/07-licensing.md): this side's own check of the stored token (initialize),
+	// and the Paste license button of the registration screen (LicenseView, drawn by NVGView).
+	license::License licenseInfo;
+	bool licensed = false;
+	std::string licenseMsg;   // result of the last paste, shown under the button
+	int licenseHover = -1;    // licenseZone::Zone under the mouse
+	VSTGUI::CView* licenseView = nullptr;
+	void refreshLicense();
+	void pasteLicense();
+	void notifyLicenseChanged();
 
 	double lfo4Rate = 0.0;
 	double lfo5Rate = 0.0;
 	double lfo6Rate = 0.0;
-
-	bool badReg = false;
 
 	Map::hash<char*, int> pidMap;
 	tresult PLUGIN_API initialize (FUnknown* context) SMTG_OVERRIDE;

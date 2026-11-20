@@ -41,11 +41,10 @@ public:
 
 	void unLinkGenParams();
 	
-	std::wstring valueFromRegistry;
-	bool regKeyFound = false;
-	bool regKeyLegit = false;
-
-	std::string regErr1;
+	// Licensing v1: set from the stored token (refreshLicense: constructor and CMSG_LICENSE_CHANGED_CHAR,
+	// main thread), read by noteOn on the audio thread. Nothing plays without it.
+	std::atomic<bool> regKeyLegit {false};
+	void refreshLicense();
 
 	//DXGenerator generators[GENCOUNT];
 

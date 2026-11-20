@@ -99,8 +99,6 @@ public:
 	constants() {};
 	~constants() {};
 
-	static bool isRegLegit;
-
 	//static char* constants::NVGParamDef[PARTPARAMS];
 
 
@@ -293,6 +291,9 @@ const char PMSG_STATE_CHAR = 'j';
 // most recently started voices, newest first (pitch -1 = empty slot). Sent by the timer every tick
 // while any slot is used, then one all-empty message; only while an editor is open.
 const char PMSG_PLAYHEADS_CHAR = 'k';
+// Licensing v1 (docs/07-licensing.md): controller -> processor after a license was pasted and
+// stored. Carries nothing; the processor re-reads and verifies the stored token itself.
+const char CMSG_LICENSE_CHANGED_CHAR = 'l';
 const int kPlayheadSlots = 4;
 struct PlayheadSlot {
 	int pitch;     // -1 = empty

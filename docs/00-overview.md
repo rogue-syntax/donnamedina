@@ -32,7 +32,7 @@ EditControllerEx1 (SDK)
         createSubController("nvgViewController") -> NVGViewController -> NVGView (NanoVG GL view, ~2.9k lines)
 ```
 
-Support: `constants.h` (all param IDs + sizes), `pluginobjects.cpp` (Pirkle-style DSP objects), `synthfunctions.h`, `ska.h` (hash map), `regReader.h` + `libbcrypt` (registration check), `nanovg*.c/h`, `GLShader.*`, `revent/` (event system, see revents notes).
+Support: `constants.h` (all param IDs + sizes), `pluginobjects.cpp` (Pirkle-style DSP objects), `synthfunctions.h`, `ska.h` (hash map), `license.*` + `external/monocypher` (licensing v1, see docs/07-licensing.md), `nanovg*.c/h`, `GLShader.*`, `revent/` (event system, see revents notes).
 
 ## Key constants (`constants.h`)
 
@@ -52,20 +52,13 @@ Support: `constants.h` (all param IDs + sizes), `pluginobjects.cpp` (Pirkle-styl
 
 Special (non-GPARAMS) IDs are 4CC values in `mdaBaseController.h`: `kBypassParam 'bpas'`, `kPresetParam 'prst'`, `kModWheelParam 'modw'`, pitch bend, `kLinkGen1Param 'lg1p'`.
 
-## Registration / "bad reg" gate (traced pass 5)
+## Licensing gate (licensing v1, 2026-11-19)
 
-Flow:
-1. `DX10Processor::DX10Processor()` (`mdaDX10Processor.cpp:51-81`) holds the hard-coded secret `"4d01956a26c040343d6593d93bfe2e80"`.
-2. `GetStringValueFromHKLM` (`regReader.h`) reads `Software\Rogue-Syntax\Registrations\DonnaMedina\RSRegKey` (a REG_SZ). **Despite its name it opens `HKEY_CURRENT_USER`, not HKLM** (the function name and my earlier text were wrong). Failure to read throws; the ctor catches and stores the message in `regErr1`.
-3. The value is converted to UTF-8 and checked with `BCrypt::validatePassword(secret, storedHash)` (libbcrypt `bcrypt_checkpw`: hashes the secret using the salt/cost inside the stored hash, constant-time compares; a missing/garbage hash returns non-zero, i.e. false).
-4. Result is stored in two places: `DX10Processor::regKeyLegit` (member, default false) and `constants::isRegLegit` (static, `constants.cpp:4`, default false).
-
-What the flag blocks:
-- **Audio:** only `DX10Processor::noteOn` (`:1396`): `if (regKeyLegit == true) { ...note on/off handling... }`. Both note-on and note-off events go through this function, so unregistered = every MIDI note is dropped = silence. Parameters, presets, state, editor all still work.
-- **GUI:** `DX10Controller::createSubController` (`mdaDX10Controller.cpp:103-108`) copies `constants::isRegLegit` into `nvgView->badReg` once, when the editor is created; `drawOpenGL` then draws `drawBadReg()` on top of everything every frame (a black panel: "No registration detected! Please go on-line to rogue-syntax.com and register."). The panel covers only the middle of the window (237,90, 646x341); it does not disable controls under it. Other uses of `regKeyLegit`: a dead `NVGView::regKeyLegit = true` member and commented-out code in `BaseController` (the active controller is `DX10Controller`).
-- Not blocked: nothing in `process()`, state, presets or the DSP checks the flag; there is no demo/timeout mode.
-
-Notes (see B-45, B-46): the check runs only in the processor constructor (once per instance, a full bcrypt hash each time), so registering while the plugin is loaded needs a re-instantiate; the controller trusts the static, which is only correct if the processor was constructed first in the same process. If the synth is silent on a machine, check HKCU for the key for the **user the host runs as**.
+See `docs/07-licensing.md`. In short:
+- **Token:** an Ed25519-signed token (`RS1.` prefix) stored in `HKCU\Software\Rogue-Syntax\Registrations\DonnaMedina`, value `License`, written by the editor's **Paste license** button.
+- **Processor:** `DX10Processor::refreshLicense` (constructor, and on `CMSG_LICENSE_CHANGED_CHAR`) sets `regKeyLegit`. Only `noteOn` checks it, so unlicensed means silence.
+- **Controller:** `BaseController::refreshLicense` (`initialize`, every editor open) sets `licensed`. `NVGView` draws the license screen while it is false.
+- **Removed:** the old bcrypt check, its hard-coded password and `constants::isRegLegit`. The old `RSRegKey` value is ignored.
 
 ## Dead code candidates (confirm before deleting)
 

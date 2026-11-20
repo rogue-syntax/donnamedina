@@ -1,7 +1,6 @@
 #include "constants.h"
 
 
-bool constants::isRegLegit = false;
 /*
 char* constants::NVGParamDef[PARTPARAMS] = {
 		"OSC_",

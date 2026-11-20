@@ -54,7 +54,8 @@ Add 'NanoVG' (Strip (Lines (Join-Path $root 'source\nanovg.c') 2 17))
 $glew = Join-Path $root 'external\glew\include\GL\glew.h'
 Add 'GLEW (The OpenGL Extension Wrangler Library)' ((Strip (Lines $glew 1 31)) + @('') + (Strip (Lines $glew 33 54)) + @('') + (Strip (Lines $glew 56 76)))
 
-Add 'libbcrypt' (Strip (Get-Content -Encoding UTF8 (Join-Path $root 'external\libbcrypt\LICENSE')))
+# Monocypher is dual-licensed (2-clause BSD or CC-0); we use it under the BSD licence (its lines 14..41).
+Add 'Monocypher (license signature check), used under its 2-clause BSD licence' (Strip (Lines (Join-Path $root 'external\monocypher\LICENCE.md') 14 41))
 
 Add 'DejaVu Sans Mono (user interface font)' (Strip (Get-Content -Encoding UTF8 (Join-Path $root 'licenses\DejaVu-LICENSE.txt')))
 

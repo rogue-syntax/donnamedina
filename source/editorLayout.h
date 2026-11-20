@@ -56,6 +56,18 @@ constexpr ImageRect kMailZone {kLinks.x + kLinks.w - 150, kLinks.y, 150, 18};   
 constexpr float kInfoY = 424.0f;  // middle of the info row
 } // namespace about
 
+// Registration screen (licensing v1, 2026-11-19): drawn by NVGView::drawBadReg over everything while
+// the plugin has no valid license. The invisible custom view "licensePanel" (presetBarView.h,
+// vstgui.uidesc origin kBox.x,kBox.y size kBox.w x kBox.h, last in the template so it is on top)
+// takes the clicks; it is mouse-enabled only while unlicensed.
+namespace licenseScreen {
+constexpr ImageRect kBox {202, 75, 646, 341};      // the old box at art (237, 90)
+constexpr float kCx = 525.0f;                      // text centre, art x 560
+constexpr ImageRect kPaste {435, 296, 180, 30};    // "Paste license" button
+constexpr float kMsgY = 348.0f;                    // result of the last paste
+constexpr ImageRect kWeb {450, 374, 150, 18};      // WWW.ROGUE-SYNTAX.COM
+} // namespace licenseScreen
+
 // Convert a position in the original 1148x542 art to window coordinates.
 constexpr float artX (float x) { return x + kArtOffsetX; }
 constexpr float artY (float y) { return y + kArtOffsetY; }

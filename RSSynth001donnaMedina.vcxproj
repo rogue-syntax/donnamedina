@@ -73,7 +73,7 @@
     </Midl>
     <ClCompile>
       <Optimization>Disabled</Optimization>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\..\..;$(ProjectDir)..\..\..\..\..\vstgui4;$(ProjectDir)..\..\..\..\..\external\revent;$(ProjectDir)external\glew\include;$(ProjectDir)external\libbcrypt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\..\..;$(ProjectDir)..\..\..\..\..\vstgui4;$(ProjectDir)..\..\..\..\..\external\revent;$(ProjectDir)external\glew\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;DEVELOPMENT=1;_CRT_SECURE_NO_DEPRECATE=1;VSTGUI_LIVE_EDITING=1;VSTPLUGIN=1;_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -133,7 +133,7 @@ if exist "$(OutDir)DonnaMedinaVST64.pdb" copy /y "$(OutDir)DonnaMedinaVST64.pdb"
     </Midl>
     <ClCompile>
       <Optimization>MaxSpeed</Optimization>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\..\..;$(ProjectDir)..\..\..\..\..\vstgui4;$(ProjectDir)..\..\..\..\..\external\revent;$(ProjectDir)external\glew\include;$(ProjectDir)external\libbcrypt\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\..\..;$(ProjectDir)..\..\..\..\..\vstgui4;$(ProjectDir)..\..\..\..\..\external\revent;$(ProjectDir)external\glew\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PreprocessorDefinitions>NDEBUG;GLEW_STATIC;WIN32=1;VSTGUI_DIRECT2D_SUPPORT=1;WINDOWS=1;RELEASE=1;_CRT_SECURE_NO_DEPRECATE=1;VSTPLUGIN=1;_SILENCE_EXPERIMENTAL_FILESYSTEM_DEPRECATION_WARNING;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <MinimalRebuild>false</MinimalRebuild>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
@@ -240,18 +240,13 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClCompile Include="source\mdaDX10Processor.cpp" />
     <ClCompile Include="source\mdaParameter.cpp" />
     <ClCompile Include="source\MoogLadderFilter.cpp" />
-    <ClCompile Include="external\libbcrypt\src\bcrypt.c">
+    <ClCompile Include="external\monocypher\monocypher.c">
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
     </ClCompile>
-    <ClCompile Include="external\libbcrypt\src\crypt_blowfish.c">
+    <ClCompile Include="external\monocypher\monocypher-ed25519.c">
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
     </ClCompile>
-    <ClCompile Include="external\libbcrypt\src\crypt_gensalt.c">
-      <WarningLevel>TurnOffAllWarnings</WarningLevel>
-    </ClCompile>
-    <ClCompile Include="external\libbcrypt\src\wrapper.c">
-      <WarningLevel>TurnOffAllWarnings</WarningLevel>
-    </ClCompile>
+    <ClCompile Include="source\license.cpp" />
     <ClCompile Include="source\nanovg.c" />
     <ClCompile Include="source\NVGView.cpp" />
     <ClCompile Include="source\ParamRampObj.cpp" />
@@ -312,6 +307,9 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\CLFOscillator.h" />
     <ClInclude Include="source\GLShader.h" />
     <ClInclude Include="source\regReader.h" />
+    <ClInclude Include="source\license.h" />
+    <ClInclude Include="external\monocypher\monocypher.h" />
+    <ClInclude Include="external\monocypher\monocypher-ed25519.h" />
     <ClInclude Include="source\RSSynth002Voice.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="..\..\..\..\..\vstgui4\vstgui\plugin-bindings\vst3editor.h" />

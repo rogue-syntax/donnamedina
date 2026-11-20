@@ -1465,8 +1465,8 @@ no viewindex at 153!*/
 
 			drawMoreInfoWindow();
 
-			//need isRegValid bool here from processor
-			if (badReg == true) {
+			// licensing v1: the controller's own check of the stored license (BaseController::licensed)
+			if (!baseController || !baseController->licensed) {
 				drawBadReg();
 			}
 
@@ -2510,24 +2510,64 @@ no viewindex at 153!*/
 	}
 
 
+	// Registration screen (licensing v1, docs/07-licensing.md): over everything while unlicensed.
+	// LicenseView (presetBarView.h) takes the clicks: the Paste license button and the website link.
 	void NVGView::drawBadReg() {
-
+		using namespace ::editorLayout::licenseScreen;
+		const int hover = baseController ? baseController->licenseHover : -1;
 		nvgBeginPath(vg);
-		nvgRect(vg, ::editorLayout::artX(237), ::editorLayout::artY(90), 646, 341);
+		nvgRect(vg, kBox.x, kBox.y, kBox.w, kBox.h);
 		nvgFillColor(vg, nvgRGBA(0, 0, 0, 235));
 		nvgStrokeColor(vg, nvgRGBA(255, 102, 0, 255));
 		nvgStrokeWidth(vg, 1.0f);
-		nvgClosePath(vg);
 		nvgFill(vg);
 		nvgStroke(vg);
-		float bounds[4];
-		nvgFontSize(vg, 13.0f);
+
 		nvgFontFace(vg, "mono");
-		nvgTextAlign(vg, NVG_ALIGN_CENTER);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		nvgFontSize(vg, 15.0f);
 		nvgFillColor(vg, nvgRGB(255, 153, 255));
-		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(230), "No registration detected! ", NULL);
-		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(260), "Please go on-line to rogue-syntax.com and register.", NULL);
-		nvgText(vg, ::editorLayout::artX(560), ::editorLayout::artY(290), "Registration is quick, easy, and dirt cheap!", NULL);
+		nvgText(vg, kCx, 170.0f, "No license found", NULL);
+		nvgFontSize(vg, 12.0f);
+		nvgFillColor(vg, nvgRGBA(235, 225, 240, 230));
+		nvgText(vg, kCx, 212.0f, "Your license is in your receipt email and in license.txt", NULL);
+		nvgText(vg, kCx, 232.0f, "in the download. Copy it, then click Paste license.", NULL);
+		nvgText(vg, kCx, 262.0f, "No license yet? Get one at rogue-syntax.com.", NULL);
+
+		// Paste license button
+		const bool hot = hover == licenseZone::kPaste;
+		nvgBeginPath(vg);
+		nvgRect(vg, kPaste.x + 0.5f, kPaste.y + 0.5f, kPaste.w - 1.0f, kPaste.h - 1.0f);
+		nvgFillColor(vg, hot ? nvgRGBA(255, 102, 0, 70) : nvgRGBA(255, 102, 0, 25));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBA(255, 102, 0, hot ? 255 : 190));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		nvgFontSize(vg, 13.0f);
+		nvgFillColor(vg, hot ? nvgRGB(255, 235, 220) : nvgRGB(255, 170, 120));
+		nvgText(vg, kPaste.x + kPaste.w * 0.5f, kPaste.y + kPaste.h * 0.5f, "Paste license", NULL);
+
+		// result of the last paste
+		if (baseController && !baseController->licenseMsg.empty()) {
+			nvgFontSize(vg, 12.0f);
+			nvgFillColor(vg, nvgRGB(255, 110, 90));
+			nvgText(vg, kCx, kMsgY, baseController->licenseMsg.c_str(), NULL);
+		}
+
+		// website link
+		const bool webHot = hover == licenseZone::kWeb;
+		nvgFontSize(vg, 11.0f);
+		nvgFillColor(vg, webHot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(4, 186, 232, 230));
+		const float wy = kWeb.y + kWeb.h * 0.5f;
+		nvgText(vg, kCx, wy, "WWW.ROGUE-SYNTAX.COM", NULL);
+		if (webHot) {
+			const float half = nvgTextBounds(vg, 0, 0, "WWW.ROGUE-SYNTAX.COM", NULL, NULL) * 0.5f;
+			nvgBeginPath(vg);
+			nvgMoveTo(vg, kCx - half, floorf(wy + 8.0f) + 0.5f);
+			nvgLineTo(vg, kCx + half, floorf(wy + 8.0f) + 0.5f);
+			nvgStrokeColor(vg, nvgRGBA(220, 250, 255, 230));
+			nvgStroke(vg);
+		}
 	}
 
 
@@ -4263,14 +4303,32 @@ no viewindex at 153!*/
 		}
 		{
 			// registration (left) and format / build (right)
-			const bool reg = constants::isRegLegit;
-			nvgFontSize(vg, 10.0f);
-			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-			nvgFillColor(vg, reg ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 150, 80, 255));
-			nvgText(vg, tx, kInfoY, reg ? "REGISTERED" : "UNREGISTERED", NULL);
 			// build stamp: branch, commit and build time, written at every build (tools/buildstamp.ps1;
 			// __DATE__ used to be here, but that is when this file was last compiled, not the build)
 			const std::string fmt = std::string("VST3  |  64-BIT  |  BUILD ") + kBuildStamp;
+			nvgFontSize(vg, 10.0f);
+			// licensing v1: who it is licensed to; the email goes first, then the name is cut, if the
+			// line would run into the build stamp
+			const bool reg = baseController && baseController->licensed;
+			std::string lic = "UNLICENSED";
+			if (reg) {
+				const license::License& li = baseController->licenseInfo;
+				std::string tag = li.kind == "dev" ? "  |  DEV" : (li.kind == "nfr" ? "  |  NFR" : "");
+				const float room = tw - nvgTextBounds(vg, 0, 0, fmt.c_str(), NULL, NULL) - 24.0f;
+				std::string name = li.name;
+				lic = "LICENSED TO " + name + (li.email.empty() ? "" : "  (" + li.email + ")") + tag;
+				if (nvgTextBounds(vg, 0, 0, lic.c_str(), NULL, NULL) > room)
+					lic = "LICENSED TO " + name + tag;
+				while (nvgTextBounds(vg, 0, 0, lic.c_str(), NULL, NULL) > room && !name.empty()) {
+					name.pop_back();
+					while (!name.empty() && (static_cast<unsigned char>(name.back()) & 0xC0) == 0x80)
+						name.pop_back();  // keep whole UTF-8 characters
+					lic = "LICENSED TO " + name + "..." + tag;
+				}
+			}
+			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+			nvgFillColor(vg, reg ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 150, 80, 255));
+			nvgText(vg, tx, kInfoY, lic.c_str(), NULL);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
 			nvgFillColor(vg, nvgRGBA(150, 160, 185, 230));
 			nvgText(vg, tx + tw, kInfoY, fmt.c_str(), NULL);

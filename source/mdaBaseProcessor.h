@@ -15,7 +15,6 @@
 #include "scopeCapture.h"
 #include <atomic>
 #include <math.h>
-#include <bcrypt.h>
 
 namespace Steinberg {
 namespace Vst {

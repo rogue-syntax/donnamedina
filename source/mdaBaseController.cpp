@@ -119,36 +119,7 @@ namespace rs {
 			parameters.addParameter (peakParam);
 		}
 		*/
-		/*
-		std::string password = "gobots";
-		std::string password2 = "notgobots";
-		std::wstring regSubKey;
-		regSubKey = L"Software\\Rogue-Syntax\\Registrations\\DonnaMedina\\";
-
-		std::wstring regValue(L"RSRegKey");
-		try {
-			valueFromRegistry = GetStringValueFromHKLM(regSubKey, regValue);
-		}
-		catch (std::exception& e) {
-			regErr1 = e.what();
-		}
-		if (valueFromRegistry.size() > 0) {
-			regKeyFound = true;
-		}
-		using convert_type = std::codecvt_utf8<wchar_t>;
-		std::wstring_convert<convert_type, wchar_t> converter;
-		std::string hashd = converter.to_bytes(valueFromRegistry);
-
-		bool regIsValid = BCrypt::validatePassword(password2, hashd);
-		if (regIsValid == true) {
-			regKeyLegit = true;
-			//used in DX10Processor::noteOn
-		}
-		else {
-			//nvgViewController->nvgView->onBadReg(pid, 1.0);
-			//this is null at this point
-		}
-		*/
+		refreshLicense();  // licensing v1: this side's own check (the processor does its own)
 		return res;
 	}
 
@@ -726,7 +697,114 @@ VSTGUI::CView* BaseController::createCustomView(VSTGUI::UTF8StringPtr name, cons
 		attributes.getPointAttribute("size", size);
 		return new AboutLinksView(CRect(origin, size), this);
 	}
+	if (name && std::strcmp(name, "licensePanel") == 0) {
+		using namespace editorLayout::licenseScreen;
+		CPoint origin(kBox.x, kBox.y), size(kBox.w, kBox.h);
+		attributes.getPointAttribute("origin", origin);
+		attributes.getPointAttribute("size", size);
+		return new LicenseView(CRect(origin, size), this);
+	}
 	return nullptr;
+}
+
+// ---- licensing v1 (docs/07-licensing.md) ----
+void BaseController::refreshLicense() {
+	license::License l;
+	licensed = license::checkStored(l);
+	licenseInfo = licensed ? l : license::License();
+	if (licenseView)
+		licenseView->setMouseEnabled(!licensed);
+}
+
+void BaseController::pasteLicense() {
+	const std::string text = license::clipboardText();
+	license::License l;
+	if (text.empty()) {
+		licenseMsg = "The clipboard is empty. Copy your license first.";
+		return;
+	}
+	if (!license::verifyToken(text, l)) {
+		licenseMsg = "That license is not valid.";
+		return;
+	}
+	if (!license::storeToken(text)) {
+		licenseMsg = "The license is valid, but it could not be saved.";
+		return;
+	}
+	licensed = true;
+	licenseInfo = l;
+	licenseMsg.clear();
+	if (licenseView)
+		licenseView->setMouseEnabled(false);
+	notifyLicenseChanged();
+}
+
+// The processor checks the stored token itself; the message only says "look again".
+void BaseController::notifyLicenseChanged() {
+	if (IMessage* msg = allocateMessage()) {
+		msg->setMessageID(msgIdStr(CMSG_LICENSE_CHANGED_CHAR));
+		sendMessage(msg);
+		msg->release();
+	}
+}
+
+LicenseView::LicenseView(const CRect& size, BaseController* c) : CView(size), ctrl(c) {
+	setTransparency(true);
+	setWantsFocus(false);
+	setMouseEnabled(ctrl && !ctrl->licensed);
+	if (ctrl)
+		ctrl->licenseView = this;
+}
+
+LicenseView::~LicenseView() {
+	if (ctrl) {
+		ctrl->licenseHover = -1;
+		if (ctrl->licenseView == this)
+			ctrl->licenseView = nullptr;
+	}
+}
+
+int LicenseView::zoneFor(const CPoint& where) const {
+	const CRect r = getViewSize();
+	using namespace editorLayout::licenseScreen;
+	return licenseZone::zoneAt(float(where.x - r.left) + kBox.x, float(where.y - r.top) + kBox.y);
+}
+
+CMouseEventResult LicenseView::onMouseMoved(CPoint& where, const CButtonState&) {
+	if (!ctrl)
+		return kMouseEventNotHandled;
+	ctrl->licenseHover = zoneFor(where);
+	if (CFrame* f = getFrame())
+		f->setCursor(ctrl->licenseHover >= 0 ? kCursorHand : kCursorDefault);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult LicenseView::onMouseExited(CPoint&, const CButtonState&) {
+	if (ctrl)
+		ctrl->licenseHover = -1;
+	if (CFrame* f = getFrame())
+		f->setCursor(kCursorDefault);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult LicenseView::onMouseDown(CPoint& where, const CButtonState& buttons) {
+	// the whole box swallows clicks so the panel controls under it stay out of reach
+	if (!ctrl || !buttons.isLeftButton())
+		return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
+	const int z = zoneFor(where);
+	if (z == licenseZone::kPaste) {
+		ctrl->pasteLicense();
+		if (ctrl->licensed) {
+			ctrl->licenseHover = -1;
+			if (CFrame* f = getFrame())
+				f->setCursor(kCursorDefault);
+		}
+	}
+#ifdef _WIN32
+	else if (z == licenseZone::kWeb)
+		ShellExecuteW(nullptr, L"open", aboutLinks::kUrl[0], nullptr, nullptr, SW_SHOWNORMAL);
+#endif
+	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
 }
 
 // ---- about screen links ----

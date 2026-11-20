@@ -210,12 +210,12 @@ IController* DX10Controller::createSubController(const char* name, const IUIDesc
 
 		nvgViewController->nvgView->partParamsReady = true;
 
-		if (constants::isRegLegit == true) {
-			nvgViewController->nvgView->badReg = false;
-		}
-		else {
-			nvgViewController->nvgView->badReg = true;
-		}
+		// licensing v1: look again (a license may have been pasted in another instance); NVGView shows
+		// the registration screen from baseController->licensed. If it is licensed now, the processor
+		// is told to look too.
+		refreshLicense();
+		if (licensed)
+			notifyLicenseChanged();
 
 		modTypeNrml = EditController::getParamNormalized(MOD_TYPE_);
 		EditController::getParamStringByValue(MOD_TYPE_, modTypeNrml, modTypeCtrlTChar);//is there  beeter way to get string than like 15 lines of code?..

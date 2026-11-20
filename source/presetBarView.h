@@ -99,6 +99,36 @@ private:
 	BaseController* ctrl;
 };
 
+// Registration screen (licensing v1): an invisible view over editorLayout::licenseScreen::kBox, on top
+// of everything and mouse-enabled only while unlicensed. A click on the button pastes a license from
+// the clipboard (BaseController::pasteLicense); the link opens the website. NVGView draws it all.
+namespace licenseZone {
+enum Zone { kNone = -1, kPaste = 0, kWeb, kZoneCount };
+inline int zoneAt(float x, float y) {
+	using namespace editorLayout::licenseScreen;
+	const editorLayout::ImageRect z[kZoneCount] = {kPaste, kWeb};
+	for (int i = 0; i < kZoneCount; i++)
+		if (x >= z[i].x && x < z[i].x + z[i].w && y >= z[i].y && y < z[i].y + z[i].h)
+			return i;
+	return kNone;
+}
+} // namespace licenseZone
+
+class LicenseView : public VSTGUI::CView {
+public:
+	LicenseView(const VSTGUI::CRect& size, BaseController* c);
+	~LicenseView() override;
+
+	VSTGUI::CMouseEventResult onMouseMoved(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseExited(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	void draw(VSTGUI::CDrawContext*) override {}  // drawn by NVGView
+
+private:
+	int zoneFor(const VSTGUI::CPoint& where) const;
+	BaseController* ctrl;
+};
+
 class PolyView : public VSTGUI::CView {
 public:
 	PolyView(const VSTGUI::CRect& size, BaseController* c);

@@ -5,12 +5,7 @@
 #include "lfoShape.h"
 #include "hqDecimator.h"
 
-#include "regReader.h"
-#include <locale>
-#include <codecvt>
-#include "bcrypt/BCrypt.hpp"
-
-//#include "C:\Users\PC\libbcrypt\include\bcrypt\BCrypt.hpp"
+#include "license.h"
 
 
 #define debugLog(...) fprintf(stderr, __VA_ARGS__)
@@ -52,40 +47,10 @@ tresult PLUGIN_API DX10Processor::connect(IConnectionPoint* other) {
 //-----------------------------------------------------------------------------
 DX10Processor::DX10Processor () : currentProgram (0) {
 	setControllerClass(DX10Controller::uid);
-	std::string password = "4d01956a26c040343d6593d93bfe2e80";
 
-	std::wstring regSubKey;
-	regSubKey = L"Software\\Rogue-Syntax\\Registrations\\DonnaMedina\\";
-
-	std::wstring regValue(L"RSRegKey");
-	try{
-		valueFromRegistry = GetStringValueFromHKLM(regSubKey, regValue);
-	}
-	catch (std::exception& e){
-		regErr1 = e.what();
-	}
-	if (valueFromRegistry.size() > 0) {
-		regKeyFound = true;
-	}
-	using convert_type = std::codecvt_utf8<wchar_t>;
-	std::wstring_convert<convert_type, wchar_t> converter;
-	std::string hashd = converter.to_bytes(valueFromRegistry);
-
-	bool regIsValid = BCrypt::validatePassword(password, hashd);
-	if (regIsValid == true ) {
-		regKeyLegit = true;
-		//used in DX10Processor::noteOn
-		constants::isRegLegit = true;
-	}
-	else {
-		regKeyLegit = false;
-		constants::isRegLegit = false;
-	}
-
-	// TESTING ONLY - FORCE REGISTERED: overrides the registry/bcrypt check above so the plugin
-	// plays without a registration key. Comment these two lines out again before a release build.
-	//regKeyLegit = true;
-	//constants::isRegLegit = true;
+	// Licensing v1 (docs/07-licensing.md): the stored token, verified here; the controller checks
+	// it separately and tells us to look again after a paste (CMSG_LICENSE_CHANGED_CHAR).
+	refreshLicense();
 
 	// B-11: the factory preset table is shared (static) and read by the controller too; it used to
 	// be (re)filled here by every processor instance. Now it is filled exactly once, by whichever of
@@ -655,6 +620,11 @@ void DX10Processor::fillFactoryPresets () {
 
 
 //-----------------------------------------------------------------------------
+void DX10Processor::refreshLicense() {
+	license::License l;
+	regKeyLegit = license::checkStored(l);
+}
+
 DX10Processor::~DX10Processor (){
 
 }
@@ -892,6 +862,11 @@ tresult PLUGIN_API DX10Processor::notify(IMessage* message) {
 
 		return kResultTrue;
 		break;
+
+	case CMSG_LICENSE_CHANGED_CHAR:
+		// the message carries nothing: re-read and verify the stored token ourselves
+		refreshLicense();
+		return kResultTrue;
 
 	}
 	return ComponentBase::notify(message);

@@ -1,6 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
+    <ClCompile Include="source\license.cpp" />
+    <ClCompile Include="external\monocypher\monocypher.c" />
+    <ClCompile Include="external\monocypher\monocypher-ed25519.c" />
+    <ClInclude Include="source\license.h" />
+    <ClInclude Include="external\monocypher\monocypher.h" />
+    <ClInclude Include="external\monocypher\monocypher-ed25519.h" />
+  </ItemGroup>
+  <ItemGroup>
     <Filter Include="Source Files">
       <UniqueIdentifier>{4FC737F1-C7A5-4376-A066-2A32D752A2FF}</UniqueIdentifier>
       <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm;asmx</Extensions>

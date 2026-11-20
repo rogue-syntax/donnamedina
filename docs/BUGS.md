@@ -111,7 +111,7 @@ Fix: make `BPM` double, compare with a tolerance, initialise `bpm = 120`, and on
 ### B-14  NVGView lifecycle  · MED · **CHECKED 2026-11-12**: the editor-memory part was B-54 (fixed), the null `baseController` in `removed()` is B-30 (fixed). `nvgViewReady = true` in the constructor is still early, but with the B-33 guards the handlers it enables are safe before `attached()`; `onNVGViewReady()` per frame only replays queued updates. Left as is.
 `nvgViewReady = true` is set in the NVGView **constructor** (`NVGView.h:490`), before GL context/resources exist; `drawOpenGL` calls `onNVGViewReady()` every frame (`NVGView.cpp:1394`); `removed()` dereferences `baseController` without a null check (`:1140`) and clears containers but the commented-out section suggests cleanup of NanoVG context/shaders/textures may not be complete. Relevant to the 30 MB/open leak report.
 
-### B-15  Registration scheme  · INFO
+### B-15  Registration scheme  · INFO · **REPLACED 2026-11-19** by licensing v1 (signed per-customer tokens, docs/07-licensing.md)
 Password is a hard-coded string in the DLL and the registry value is its bcrypt hash; anyone who finds the string can generate a valid key; no per-user/machine data. If you intend this as real licensing, it needs per-license keys (signed). Also failure mode is total silence with no UI explanation except the "bad reg" view. Registry read is HKEY_CURRENT_USER, not HKLM (corrected pass 5; see B-45).
 
 ### B-16  Housekeeping  · INFO · **DONE 2026-11-12** (VST2 wrapper and `Source.cpp` out of the build, `BUILDING.md` replaces `HowToCompile_VS.txt`; dead files kept but not compiled)
@@ -234,10 +234,10 @@ No `_MM_SET_FLUSH_ZERO_MODE`, `_controlfp`, or denormal guard exists in the live
 
 ## F. Registration (pass 5)
 
-### B-45  Registration lives in HKEY_CURRENT_USER and is checked only once, in the processor constructor  · INFO / support risk · CONFIRMED in code
+### B-45  Registration lives in HKEY_CURRENT_USER and is checked only once, in the processor constructor  · INFO / support risk · CONFIRMED in code · **mostly FIXED 2026-11-19** (licensing v1: no bcrypt, a paste takes effect at once, the processor and the controller each check the token themselves; still HKCU, per Windows user)
 `regReader.h` opens `HKEY_CURRENT_USER` (function is named `...HKLM`). A host or service running as a different Windows user (or a different profile/roaming setup) will not see the key, and the synth is silently mute (`noteOn` is the only gate) apart from the "No registration detected" overlay if the editor is opened. The check runs once per processor instance; a bcrypt hash at the stored cost factor is computed on every instantiation (also during plugin scanning), which costs time on the constructing thread. Registering while a project is open needs the plugin to be reloaded. The GUI copies `constants::isRegLegit` when the editor is created (not live), and the static is set by the *processor*; if a host ever creates the controller/editor before (or without) a processor in the same process, the overlay shows even for a registered user.
 
-### B-46  Protection is weak by design  · INFO
+### B-46  Protection is weak by design  · INFO · **REPLACED 2026-11-19** by licensing v1 (per-customer Ed25519 tokens; the plugin holds only the public key)
 The shared secret is a plain string in the DLL and the stored value is just its bcrypt hash, so the same registry value works for every user and anyone who extracts the string can create a valid hash (`HKCU` is user-writable). Nothing is per-user, per-machine or time-limited. Fine if the goal is only to nudge honest users; not a licence enforcement. Unregistered behaviour is total silence rather than a demo mode, which also looks like a bug to a user who skipped registration.
 
 ### B-47  Changing the modulation type while a note is sounding leaves stale modulation on the carrier  · LOW-MED · **FIXED 2026-11-12** (reproduced: 77.8 Hz detune stuck after freq-mod -> none; see fix log B-20 + B-22 + B-47)
