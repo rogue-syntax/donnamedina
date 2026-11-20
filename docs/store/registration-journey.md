@@ -3,8 +3,8 @@
 ## Set up once
 
 1. **One installer recipe.** Rogue Syntax owns one Inno Setup script for every
-   plugin; each plugin fills in only its name, file and registry folder. It's
-   in the repo's `installer/` folder.
+   plugin, and `build.ps1` builds each plugin's release with it. It's in the
+   repo's `installer/` folder.
 2. **Private key** makes licences. It's on the server:
    `/etc/rogue-syntax/license_signing_key`. Only the owner has it.
 3. **Public key** checks licences. It's in every plugin's code:
@@ -25,12 +25,17 @@
 
 ## Packaging a plugin for the store
 
-1. **Operator sends the pack.** Operator dashboard → "Plugin developer pack" →
-   download the zip and send it. Each plugin's name tag is already in it.
-2. **Developer builds the installer** with it (steps in its README) and sends
-   back `<Plugin>Setup.exe`.
-3. **Operator puts it in the store:** dashboard → Products → "upload new"
-   on that product's row (add the product first if it's new).
+1. **Operator adds the product** (new plugins only): dashboard → Products →
+   Add product. The store works out its IDs from the name.
+2. **Operator sends the pack:** "developer pack" on that product's row. It
+   holds the recipe, these docs and `product.json` (the plugin's IDs).
+3. **Developer builds the release** with `build.ps1` and sends back one zip:
+   the installer plus `manifest.json`.
+4. **Operator uploads the zip** on that product's row. The store checks it
+   (IDs, version, recipe, EULA, fingerprints) and stages it, or says what's
+   wrong.
+5. **Operator tests and publishes:** "download to test", then Publish.
+   Customers and the update check get it from then on.
 
 Installers are **not code-signed** for now, so Windows shows "Unknown
 publisher" (More info → Run anyway). Buy a certificate later to remove it.

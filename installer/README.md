@@ -1,24 +1,32 @@
 # Installer recipe
 
 One Inno Setup script for every Rogue Syntax plugin: `rogue-syntax.iss`.
-Your plugin adds one small file in `plugins/` with its identity.
+`build.ps1` builds your plugin's installer with it and packs the release
+for the store (spec 1.9).
 
-**Set up once:** copy `plugins\example.iss` to `plugins\<PluginKey>.iss` and
-fill in your plugin's name, registry subkey (`PluginKey`), Installer ID
-(`AppGuid`) and `.vst3` file name. They come from the plugin's name (spec 1.7).
-They never change after release.
+**You need:** Windows, Inno Setup 6.3+, and `product.json` from the store
+owner. It's in your plugin's developer pack and holds your plugin's identity.
+Put it next to `build.ps1`. Don't edit it.
 
-**Build (on Windows, Inno Setup 6.3+):**
-1. Put the plugin's `.vst3` in `installer\in\`.
-2. `iscc plugins\<PluginKey>.iss /DPluginVersion=1.0.0`
-3. Result: `installer\output\<PluginKey>Setup.exe`. Send it, with its
-   version number, to the store owner.
+**Build a release:**
+
+    .\build.ps1 -Version 1.0.1 -Plugin C:\path\to\YourPlugin.vst3
+
+`-Plugin` is your `.vst3` file or bundle folder. The version must be newer
+than `newer_than` in `product.json`. The result is
+`output\<PluginKey>-<version>.zip`: the installer plus `manifest.json`.
+Send that zip to the store owner. The installer alone is
+`output\<PluginKey>Setup.exe`, for testing.
 
 **Licence agreement:** `eula.txt` is shown by every installer; the customer
 must accept it. Don't change it; the store owner updates it.
 
-**Sign it** (once Rogue Syntax has a certificate): add
-`/Ssigntool="signtool sign /fd sha256 /tr <timestamp url> /td sha256 $f" /DSignTool=signtool`.
+**Pack version:** `PACK_VERSION`. When the store owner sends a new pack, build
+with it; the store refuses packages built with an outdated recipe or EULA.
 
-**Tested** automatically on a Windows machine at GitHub whenever this folder
-changes (`.github/workflows/installer-test.yml`).
+**Sign it** (once Rogue Syntax has a certificate): the store owner will
+update the recipe.
+
+**Tested** automatically whenever this folder changes
+(`.github/workflows/installer-test.yml`): it builds `example-product.json`'s
+package on Windows, installs it, and runs the store's upload checks on it.

@@ -17,7 +17,8 @@
 You get this file, `registration-journey.md` and the installer recipe in one zip from the store owner. Do the steps in `PLUGIN-DEVELOPER-CHECKLIST.md`. You need:
 - **all of Section 1** (the contract: token format, registry, keys, test vectors, your plugin's identity, the update check);
 - **Section 2** (what to build in the plugin);
-- the installer recipe's `README.md` (how to build `<PluginKey>Setup.exe`).
+- the installer recipe's `README.md` (how to build the release package);
+- `product.json`, your plugin's own identity from the store (1.9).
 
 Section 3 is the store's side, for reference.
 
@@ -100,7 +101,7 @@ Also reject:
 The vectors are for the test product `testplugin`. Tests check them with `testplugin` as the expected product; the plugin itself expects its own product ID.
 
 ### 1.7 Plugin identity
-Every identifier comes from the plugin's name, by the rules below. It **never changes once the plugin ships**, even if the plugin is renamed later: it's built into issued licences and customers' registries. Before the first release, confirm the identity with the store owner, who checks that the product ID and prefix aren't already taken.
+Every identifier comes from the plugin's name, by the rules below. It **never changes once the plugin ships**, even if the plugin is renamed later: it's built into issued licences and customers' registries. The store works it out when the product is added, checks that nothing clashes, and sends it in `product.json` (1.9). Use the values in `product.json`.
 
 First, remove accents (`ñ` → `n`, `ë` → `e`) and split the name into words on spaces and punctuation, keeping letters and digits.
 
@@ -155,6 +156,46 @@ Once a day the plugin tells the store which version it is and which licence it r
 curl -d product=<your product ID> -d version=0.0.1 -d machine=$(printf 'rogue-syntax:test' | sha256sum | cut -c1-64) -d licence= https://rogue-syntax.com/v1/route_pluginCheck/
 ```
 
+### 1.9 Release package (every release)
+Each release goes to the store as one zip, built by the recipe's `build.ps1`. The store checks it before anything reaches customers.
+
+**From the store: `product.json`** (in the plugin's developer pack):
+
+| field | value |
+|---|---|
+| `brief` | `1` |
+| `name`, `product_id`, `registry_key`, `licence_prefix`, `shop_page`, `app_guid` | the plugin's identity (1.7) |
+| `store_product_no` | the store's product number |
+| `installer_file` | `<registry_key>Setup.exe` |
+| `newer_than` | the published version; the release must be newer (`""` = first release) |
+| `pack_version` | the developer pack it came with |
+
+**To the store: `<registry_key>-<version>.zip`**, holding exactly two files at its top level: `<registry_key>Setup.exe` and `manifest.json`:
+
+| field | value |
+|---|---|
+| `manifest` | `1` |
+| `name`, `product_id`, `registry_key`, `licence_prefix`, `shop_page`, `app_guid` | copied from `product.json` |
+| `version` | the release, digits and dots, up to 4 parts; the same as the plugin's own version (1.8) |
+| `installer_file`, `installer_sha256` | the installer's name and SHA-256 |
+| `plugin_file`, `plugin_sha256` | the `.vst3` file or bundle folder's name, and its fingerprint (below) |
+| `pack_version`, `recipe_sha256`, `eula_sha256` | the pack used: its `PACK_VERSION`, and fingerprints of `rogue-syntax.iss` and `eula.txt` |
+| `git_commit` | the plugin's source commit, if known (for the record) |
+| `built` | UTC time, e.g. `2026-11-20T17:00:00Z` |
+
+Fingerprints are lowercase hex SHA-256. A text file's (`rogue-syntax.iss`, `eula.txt`) is taken with every CRLF read as LF. A bundle folder's is the SHA-256 of one line per file inside it, `<path relative to the bundle, / separators> <file's SHA-256>` plus a newline, sorted by byte value and joined.
+
+**What the store checks on upload.** A failure rejects the package and changes nothing:
+- the zip holds just those two files, and `manifest.json` is valid;
+- the identity matches the store's record exactly, and the installer is named `<registry_key>Setup.exe`;
+- the version is newer than the published one;
+- the recipe is the current one (or one the store still accepts) and the EULA is the current one;
+- the installer's SHA-256 matches the manifest;
+- the installer's version info says `<name>™` and `<version>` (the recipe sets it);
+- the plugin file inside the installer matches `plugin_sha256`. The store unpacks the installer without running it. If it can't read the installer, this is shown as not checked and doesn't block.
+
+A package that passes is **staged**. The store owner downloads it, tests it, then publishes it. Only then do customers get it and does the update check (1.8) announce it.
+
 ---
 
 ## 2. Plugin side (every plugin)
@@ -182,7 +223,7 @@ What every plugin must do. How it's built inside the plugin is up to its develop
 - **Update available** badge on the main screen (1.8).
 
 ### 2.4 Installer
-Built with the store's installer recipe (its `README.md`), not a separate installer. It installs the `.vst3` and copies the key from `license.txt` (1.4). The developer sends the store owner the `<PluginKey>Setup.exe` and its version number.
+Built with the store's installer recipe (its `README.md`), not a separate installer. It installs the `.vst3` and copies the key from `license.txt` (1.4). The developer sends the store owner the release package (1.9).
 
 ### 2.5 Acceptance tests
 - T1–T7 and the reject cases in 1.6 give the stated results. The vectors are for product `testplugin`, so test with that as the expected product.

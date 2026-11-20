@@ -1,6 +1,6 @@
 ﻿; Rogue Syntax installer recipe: one script for every plugin (Inno Setup 6.3+).
 ; Saved as UTF-8 with a BOM, so Inno reads the ™ signs right. Keep it that way.
-; Don't compile this file directly. Compile a plugin file from plugins\, which
+; Don't compile this file directly: build.ps1 makes a small file in build\ that
 ; sets the defines below and includes this one. See README.md.
 ;
 ; What it does:
@@ -14,7 +14,7 @@
 ; The installer checks only the key's shape. The plugin checks the signature.
 
 #ifndef PluginName
-  #error Compile a file in plugins\, not this one
+  #error Build with build.ps1, not by compiling this file
 #endif
 
 #define Vst3Name ExtractFileName(Vst3Source)
@@ -29,7 +29,7 @@ AppName={#PluginTitle}
 AppVersion={#PluginVersion}
 AppPublisher=Rogue Syntax Sound Design™ LLC
 AppPublisherURL=https://rogue-syntax.com
-; the customer must accept this before installing (paths are from plugins\)
+; the customer must accept this before installing (paths are from build\)
 LicenseFile=..\eula.txt
 DefaultDirName={commonpf64}\Rogue Syntax\{#PluginKey}
 DisableDirPage=yes
@@ -43,6 +43,12 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName={#PluginTitle}
+; read by the store when the release package is uploaded (spec 1.9)
+VersionInfoVersion={#PluginVersion}
+VersionInfoProductName={#PluginTitle}
+VersionInfoProductTextVersion={#PluginVersion}
+VersionInfoCompany=Rogue Syntax Sound Design™ LLC
+VersionInfoDescription={#PluginTitle} Setup
 #ifdef SignTool
 SignTool={#SignTool}
 #endif

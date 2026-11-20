@@ -1,0 +1,13 @@
+{
+  "brief": 1,
+  "name": "Example Plugin",
+  "product_id": "exampleplugin",
+  "registry_key": "ExamplePlugin",
+  "licence_prefix": "EP",
+  "shop_page": "https://rogue-syntax.com/example-plugin",
+  "app_guid": "C6C0E64F-8AE7-510B-87FF-56A84B53A911",
+  "store_product_no": 0,
+  "installer_file": "ExamplePluginSetup.exe",
+  "newer_than": "",
+  "pack_version": "2"
+}

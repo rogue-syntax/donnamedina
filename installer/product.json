@@ -1,0 +1,13 @@
+{
+  "brief": 1,
+  "name": "Donna Medina",
+  "product_id": "donnamedina",
+  "registry_key": "DonnaMedina",
+  "licence_prefix": "DM",
+  "shop_page": "https://rogue-syntax.com/donna-medina",
+  "app_guid": "5B54E8DA-C62E-574D-B7D1-A0F7AD12F38E",
+  "store_product_no": 1,
+  "installer_file": "DonnaMedinaSetup.exe",
+  "newer_than": "",
+  "pack_version": "2"
+}

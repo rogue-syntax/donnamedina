@@ -3,18 +3,19 @@
 Everything you need is in this zip:
 - `registration-journey.md`: how registration works, in plain steps;
 - `licensing-v1.md`: the exact rules (sections 1 and 2 are yours);
-- `README.md` and the `.iss` files: the installer recipe.
+- `README.md`, `build.ps1` and `rogue-syntax.iss`: the installer recipe;
+- `product.json`: your plugin's identity and the version to beat.
 
 ## Your plugin's identity
 
-Work these out from your plugin's name (spec 1.7), then confirm them with
-the store owner. They never change once the plugin ships.
+It's in `product.json` (spec 1.7, 1.9). Use those values exactly; they never
+change once the plugin ships:
 
-- Product ID
-- Registry subkey (`PluginKey`)
-- Licence prefix
-- Shop page (the Buy button)
-- Installer ID (`AppGuid`)
+- Product ID (`product_id`)
+- Registry subkey (`registry_key`)
+- Licence prefix (`licence_prefix`)
+- Shop page, the Buy button (`shop_page`)
+- Installer ID (`app_guid`)
 
 ## Steps
 
@@ -31,8 +32,8 @@ the store owner. They never change once the plugin ships.
    switch (spec 1.8).
 7. **Dev licence:** ask the store owner for a `dev` licence for your plugin,
    paste it, check the plugin unlocks (spec 2.6).
-8. **Installer:** build `<PluginKey>Setup.exe` with this recipe
-   (`README.md`). Test it: put a `license.txt` next to it, run it, open the
+8. **Release package:** build it with `build.ps1` (`README.md`). Test the
+   installer in `output\`: put a `license.txt` next to it, run it, open the
    plugin. It should be licensed without pasting.
-9. **Hand over:** send the store owner the `.exe` and its version number
-   (e.g. `1.0.0`).
+9. **Hand over:** send the store owner `output\<registry_key>-<version>.zip`.
+   The store checks it (spec 1.9) and says what to fix if it's refused.
