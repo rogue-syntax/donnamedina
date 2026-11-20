@@ -2543,7 +2543,7 @@ no viewindex at 153!*/
 			nvgText(vg, kCx, 230.0f, baseController->licenseMsg.c_str(), NULL);
 			nvgFontSize(vg, 12.0f);
 			nvgFillColor(vg, nvgRGBA(235, 225, 240, 230));
-			nvgText(vg, kCx, 262.0f, "Thank you. Donna Medina is ready to play.", NULL);
+			nvgText(vg, kCx, 262.0f, "Thank you. Donna Medina" TM_SIGN " is ready to play.", NULL);
 			return;
 		}
 		nvgFontSize(vg, 15.0f);
@@ -3856,9 +3856,21 @@ no viewindex at 153!*/
 		std::string yearStr = std::to_string(year);
 
 		// Construct the result string
-		std::string result = copyrightSymbol + yearStr + " Rogue Syntax Sound Design, LLC.";
+		// the company name with the trademark sign (store checklist step 5), UTF-8 for NanoVG
+		std::string result = copyrightSymbol + yearStr + " Rogue Syntax Sound Design" TM_SIGN ", LLC.";
 
 		return result;
+	}
+
+	void NVGView::drawLogoTrademark(float x, float y, float w, float h) {
+		// in dmlogo_screenres.png (322x72) DONNA MEDINA's caps span y 25..41 and end at x 297;
+		// the frame starts at x 307. The sign sits at the top right of the last A.
+		const float s = h / 72.0f;
+		nvgFontFace(vg, "mono");
+		nvgFontSize(vg, 10.0f * s);
+		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
+		nvgFillColor(vg, nvgRGBA(255, 240, 250, 240));
+		nvgText(vg, x + w * (298.5f / 322.0f), y + 23.0f * s, TM_SIGN, NULL);
 	}
 	
 
@@ -3920,6 +3932,7 @@ no viewindex at 153!*/
 
 		// 2. the logo
 		drawImageAt(DM_LOGO, x, y, w, ht);
+		drawLogoTrademark(x, y, w, ht);
 
 		nvgSave(vg);
 		nvgScissor(vg, x, y, w, ht);
@@ -4240,6 +4253,7 @@ no viewindex at 153!*/
 			                                nvgRGBA(255, 60, 200, (unsigned char)(50 + 40 * br)), nvgRGBA(255, 60, 200, 0)));
 			nvgFill(vg);
 			drawImageAt(DM_LOGO, lx, ly, lw, lh);
+			drawLogoTrademark(lx, ly, lw, lh);
 			ly += lh;
 		}
 
@@ -4459,7 +4473,7 @@ no viewindex at 153!*/
 		if (!moreInfoWindowOpen) {
 			std::string v = version + "  CLICK FOR INFO";  // version: "Version x.y.z"
 			for (char& ch : v) ch = static_cast<char>(toupper(static_cast<unsigned char>(ch)));
-			targDisplayTxt.reset("ABOUT DONNA MEDINA", "#logo", 0.025f, 0.025f);
+			targDisplayTxt.reset("ABOUT DONNA MEDINA" TM_SIGN, "#logo", 0.025f, 0.025f);
 			targValueTxt.reset(v.c_str(), "#logo", 0.013f, 0.013f);
 			targDisplayTxt.hold = true;
 			targValueTxt.hold = true;
@@ -4692,6 +4706,19 @@ no viewindex at 153!*/
 	}
 
 
+	void RandyTxt::scrambleFront(int n) {
+		// replace the first n characters with random letters; a UTF-8 character (e.g. the TM sign)
+		// becomes one letter, so no stray continuation bytes are left (NanoVG drops the rest of a
+		// string after an invalid sequence)
+		for (int i = 0; i < n && i < static_cast<int>(selectedCtrlTarg.size()); i++) {
+			size_t j = static_cast<size_t>(i) + 1;
+			while (j < selectedCtrlTarg.size() && isUtf8Cont(selectedCtrlTarg[j]))
+				j++;
+			selectedCtrlTarg.replace(static_cast<size_t>(i), j - i, 1, getRandyChar());
+		}
+		valLen = static_cast<int>(selectedCtrlTarg.size());
+	}
+
 	void RandyTxt::processText() {
 
 		if (shouldInc == true) {
@@ -4701,13 +4728,15 @@ no viewindex at 153!*/
 				textDisplayIdx += 1;
 			}
 			valLen = static_cast<int>(selectedCtrlTarg.size());
+			// UTF-8 (e.g. the TM sign): reveal whole characters, one random letter per hidden character
+			while (textDisplayIdx < valLen && isUtf8Cont(selectedCtrlTarg[textDisplayIdx]))
+				textDisplayIdx++;
 			selectedCtrlTargBuilder = "";
 			if (textDisplayIdx < valLen) {
-				for (int i = 0; i < valLen; i++) {
-					selectedCtrlTargBuilder += getRandyChar();
-				}
-				for (int i = 0; i < textDisplayIdx; i++) {
-					selectedCtrlTargBuilder.at(i) = selectedCtrlTarg.at(i);
+				selectedCtrlTargBuilder = selectedCtrlTarg.substr(0, textDisplayIdx);
+				for (int i = textDisplayIdx; i < valLen; i++) {
+					if (!isUtf8Cont(selectedCtrlTarg[i]))
+						selectedCtrlTargBuilder += getRandyChar();
 				}
 			}
 			else {
@@ -4737,16 +4766,7 @@ no viewindex at 153!*/
 				}
 				valLen = static_cast<int>(selectedCtrlTarg.size());
 				selectedCtrlTargBuilder = selectedCtrlTarg;
-				if (textDisplayRevIdx < valLen) {
-					for (int i = 0; i < textDisplayRevIdx; i++) {
-						selectedCtrlTarg.at(i) = getRandyChar();
-					}
-				}
-				else {
-					for (int i = 0; i < valLen; i++) {
-						selectedCtrlTarg.at(i) = getRandyChar();
-					}
-				}
+				scrambleFront(textDisplayRevIdx);
 
 			}
 
@@ -4764,16 +4784,7 @@ no viewindex at 153!*/
 			}
 			valLen = static_cast<int>(selectedCtrlTarg.size());
 			selectedCtrlTargBuilder = selectedCtrlTarg;
-			if (textDisplayRevIdx < valLen) {
-				for (int i = 0; i < textDisplayRevIdx; i++) {
-					selectedCtrlTarg.at(i) = getRandyChar();
-				}
-			}
-			else {
-				for (int i = 0; i < valLen; i++) {
-					selectedCtrlTarg.at(i) = getRandyChar();
-				}
-			}
+			scrambleFront(textDisplayRevIdx);
 		}
 
 	}

@@ -1,8 +1,8 @@
 # Licensing v1: how Donna Medina meets the store spec
 
-**The spec is the store's**, not this file: [store/licensing-v1.md](store/licensing-v1.md) (master), with [store/registration-journey.md](store/registration-journey.md) and [store/PLUGIN-DEVELOPER-CHECKLIST.md](store/PLUGIN-DEVELOPER-CHECKLIST.md). These are verbatim copies of the store's plugin developer pack (2026-11-20). Section numbers below (1.2, 2.3, ...) refer to `store/licensing-v1.md`. This file says how the plugin does each part, where the code is, and what is left.
+**The spec is the store's**, not this file: [store/licensing-v1.md](store/licensing-v1.md) (master), with [store/registration-journey.md](store/registration-journey.md) and [store/PLUGIN-DEVELOPER-CHECKLIST.md](store/PLUGIN-DEVELOPER-CHECKLIST.md). These are verbatim copies of the store's plugin developer pack (2026-11-20, second update: EULA, trademark names; `licensing-v1.md` itself unchanged). Section numbers below (1.2, 2.3, ...) refer to `store/licensing-v1.md`. This file says how the plugin does each part, where the code is, and what is left.
 
-**Status (2026-11-20):** plugin side built for the pack of 2026-11-20 (generic spec: test product `testplugin`, identity from the plugin name, update check, installer recipe). Still to do: a real `dev` licence on this machine, and building the installer (needs Inno Setup); see 9.
+**Status (2026-11-20):** plugin side built for the pack of 2026-11-20 (generic spec: test product `testplugin`, identity from the plugin name, update check, installer recipe with the EULA, trademark names). `installer\output\DonnaMedinaSetup.exe` 1.0.1 builds. Still to do: a real `dev` licence on this machine, and running the installer with a `license.txt`; see 9.
 
 **In short:** the store signs one licence per customer with an Ed25519 private key; the plugin holds only the public key, so it can check a licence but never make one. Every customer gets the same plugin and the same installer. Before v1 the plugin checked a bcrypt hash of one password built into the source (`RSRegKey`); that is gone, and old `RSRegKey` values are ignored.
 
@@ -22,6 +22,15 @@ From the name "Donna Medina" (no tilde). These never change once the plugin ship
 | Version | `1.0.1` | `source/version.h` (`VERSION_STR`): the host, the About screen (`RSVERSION`), the update check and `installer\build.bat` all use it |
 
 The store owner still has to confirm the prefix `DM` and the product (spec 1.7: "confirm the identity with the store owner"). The first pack (2026-11-20, superseded) had a different AppGuid (`BDF363DC-...`); nothing shipped with it.
+
+**Names with the trademark sign** (checklist step 5): wherever the plugin draws its own name or the company's, it writes `Donna Medina™` and `Rogue Syntax Sound Design™` (`TM_SIGN`, UTF-8, in `source/constants.h`; the UI font DejaVu Sans Mono has the glyph):
+- the logo art (main window and About): a small ™ drawn after DONNA MEDINA (`NVGView::drawLogoTrademark`; the art itself is unchanged);
+- the readout on logo hover, `ABOUT DONNA MEDINA™` (the readout's scramble now works per UTF-8 character, `RandyTxt::scrambleFront`);
+- the About footer, `©<year> Rogue Syntax Sound Design™, LLC.`; the CREDITS page heading and first line (`tools/gen_notices.ps1` writes ™ into `licenses/THIRD-PARTY-NOTICES.txt` and `source/creditsText.h`);
+- "Thank you. Donna Medina™ is ready to play." after a good paste;
+- the installer: the recipe adds ™ to the name and publisher itself (`PluginTitle`).
+
+Not changed, on purpose: the name and vendor the plugin reports to the host (`source/factory.cpp`: "Donna Medina", "Rogue Syntax"), which hosts show in their plugin lists and may use to find the plugin in saved projects and their plugin databases; to settle with the store owner before the first release. Also unchanged: file and folder names (`Documents\VST3 Presets\Rogue Syntax\Donna Medina`), and `stringLegalCopyright` in `version.h` (no resource uses it).
 
 ## 2. Checking a licence (spec 1.2–1.6, 2.1)
 
@@ -70,11 +79,12 @@ The store owner still has to confirm the prefix `DM` and the product (spec 1.7: 
 
 ## 6. Installer (spec 1.4, 2.4)
 
-The store's recipe, copied into `installer/` (`rogue-syntax.iss`, `README.md`, `.gitignore`), plus our `installer/plugins/DonnaMedina.iss` and `installer/build.bat`:
+The store's recipe, copied into `installer/` (`rogue-syntax.iss` and `eula.txt`, both UTF-8 with a BOM, keep it; `README.md`, `.gitignore`), plus our `installer/plugins/DonnaMedina.iss` (the pack's `plugins/example.iss` filled in) and `installer/build.bat`:
 
 - `installer\build.bat` copies `x64\Release\RSSynth001donnaMedina.vst3` to `installer\in\DonnaMedinaVST64.vst3`, reads the version from `source\version.h` and runs `ISCC plugins\DonnaMedina.iss /DPluginVersion=<version>`. The result is `installer\output\DonnaMedinaSetup.exe`. `in\` and `output\` are not committed.
-- The installer copies the plugin into `C:\Program Files\Common Files\VST3\DonnaMedinaVST64.vst3`, and the licence from a `license.txt` next to it into the registry as the logged-in user. Without a `license.txt` it offers to paste the key.
-- Needs **Inno Setup 6.3+** (not installed on the build machine yet).
+- The installer shows the store's licence agreement (`eula.txt`, must be accepted; don't edit it, the store owner updates it), copies the plugin into `C:\Program Files\Common Files\VST3\DonnaMedinaVST64.vst3`, and the licence from a `license.txt` next to it into the registry as the logged-in user (anything before `RS1.` on the line, such as a BOM, is skipped). Without a `license.txt` it offers to paste the key.
+- The EULA's update check paragraph (5) matches section 5 above: product, version, the licence key and a one-way code from the computer's ID; the check can be turned off.
+- Needs **Inno Setup 6.3+** (6.7.3 installed for the user on the build machine, 2026-11-20; `build.bat` finds it in `%LOCALAPPDATA%\Programs`). Built 2026-11-20: `DonnaMedinaSetup.exe` 1.0.1, 3.6 MB, product "Donna Medina™", publisher "Rogue Syntax Sound Design™ LLC"; compiles without warnings. Not run yet (it installs into Program Files).
 - **Hand over:** the store owner gets `DonnaMedinaSetup.exe` and its version number (checklist step 8), and uploads it in the dashboard (Products → "upload new"). The store no longer serves the bare `.vst3`.
 
 ## 7. Tests (spec 2.5)
@@ -97,10 +107,11 @@ The store's recipe, copied into `installer/` (`rogue-syntax.iss`, `README.md`, `
 | 2 Tests T1–T7 and reject cases | done (54/54) |
 | 3 Not registered: no notes, Buy and Paste license | done |
 | 4 Registered: About says Licensed to <name> | done |
-| 5 Update check: daily, background, badge, About line, off switch | done; the store has no version to announce yet |
-| 6 Dev licence pasted and unlocking | **to do**: needs a `dev` licence for `donnamedina` from the store owner |
-| 7 Installer built and tested with a `license.txt` | **to do**: needs Inno Setup |
-| 8 Hand over the `.exe` and version | **to do** |
+| 5 Names: `Donna Medina™`, `Rogue Syntax Sound Design™` | done in the plugin's own text and the installer (1 above); the name reported to the host is unchanged, to settle |
+| 6 Update check: daily, background, badge, About line, off switch | done; the store has no version to announce yet |
+| 7 Dev licence pasted and unlocking | **to do**: needs a `dev` licence for `donnamedina` from the store owner |
+| 8 Installer built and tested with a `license.txt` | built (with the EULA); **to do**: run it with a `license.txt` |
+| 9 Hand over the `.exe` and version | **to do** |
 
 ## 9. Not done / limits
 

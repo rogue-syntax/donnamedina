@@ -25,12 +25,14 @@ the store owner. They never change once the plugin ships.
 3. **Not registered:** no notes, and a window with **Buy** and **Paste
    license** (spec 2.2, 2.3).
 4. **Registered:** About says "Licensed to <name>" (spec 2.3).
-5. **Update check:** once a day, in the background; badge, About line, off
+5. **Names:** wherever the plugin shows its own name or the company's, write
+   them as `<Plugin name>™` and `Rogue Syntax Sound Design™`.
+6. **Update check:** once a day, in the background; badge, About line, off
    switch (spec 1.8).
-6. **Dev licence:** ask the store owner for a `dev` licence for your plugin,
+7. **Dev licence:** ask the store owner for a `dev` licence for your plugin,
    paste it, check the plugin unlocks (spec 2.6).
-7. **Installer:** build `<PluginKey>Setup.exe` with this recipe
+8. **Installer:** build `<PluginKey>Setup.exe` with this recipe
    (`README.md`). Test it: put a `license.txt` next to it, run it, open the
    plugin. It should be licensed without pasting.
-8. **Hand over:** send the store owner the `.exe` and its version number
+9. **Hand over:** send the store owner the `.exe` and its version number
    (e.g. `1.0.0`).

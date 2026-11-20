@@ -367,6 +367,9 @@ public:
 	}
 	void processTextRev();
 	void processText();
+	// UTF-8 aware (the readout can show the TM sign): see NVGView.cpp
+	static bool isUtf8Cont(char c) { return (static_cast<unsigned char>(c) & 0xC0) == 0x80; }
+	void scrambleFront(int n);
 
 
 	
@@ -1080,6 +1083,9 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		const int TRACE_MASK = 14;  // white PCB traces (alpha from blockMap::kTrace), window sized (drawBlockFx)
 		const int DM_LOGO = 15;     // logo (dmlogo_screenres.png, 322x72), drawn over the UI (drawLogo)
 		void drawLogo();
+		// the store's name rule (PLUGIN-DEVELOPER-CHECKLIST step 5): a small "TM" sign after
+		// DONNA MEDINA in the logo art, for the logo drawn at x, y, w, h
+		void drawLogoTrademark(float x, float y, float w, float h);
 
 		// Fills the editor outside the art with the art's background grid (the area the wider
 		// window adds around the 1148x542 art, see editorLayout.h).

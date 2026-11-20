@@ -19,6 +19,10 @@ typedef unsigned int uint32;
 #define __RSVERSION__
 #include "version.h"  // the one version number: host, About screen and update check (2026-11-20)
 const char* const RSVERSION = "Version " VERSION_STR; // const pointer: internal linkage, one copy per TU is fine
+// The trademark sign (U+2122) in UTF-8, for text the plugin draws: the store's name rule
+// (docs/store/PLUGIN-DEVELOPER-CHECKLIST.md step 5) is "Donna Medina" TM_SIGN and
+// "Rogue Syntax Sound Design" TM_SIGN. A separate literal, so the \xA2 can't run into the next letter.
+#define TM_SIGN "\xE2\x84\xA2"
 #endif
 
 //

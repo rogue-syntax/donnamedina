@@ -14,6 +14,9 @@ They never change after release.
 3. Result: `installer\output\<PluginKey>Setup.exe`. Send it, with its
    version number, to the store owner.
 
+**Licence agreement:** `eula.txt` is shown by every installer; the customer
+must accept it. Don't change it; the store owner updates it.
+
 **Sign it** (once Rogue Syntax has a certificate): add
 `/Ssigntool="signtool sign /fd sha256 /tr <timestamp url> /td sha256 $f" /DSignTool=signtool`.
 

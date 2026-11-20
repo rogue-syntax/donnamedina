@@ -1,0 +1,77 @@
+﻿END USER LICENCE AGREEMENT
+
+This agreement is between you and Rogue Syntax Sound Design™ LLC ("Rogue
+Syntax", "we"). It covers the plugin software you are installing, its
+installer, updates and documentation (the "Software"). By installing or
+using the Software you agree to these terms. If you don't agree, don't
+install it.
+
+1. LICENCE
+We grant you a personal, non-exclusive licence to use the Software on up to
+2 computers that you own or control, for as long as you keep to these terms.
+The Software is licensed, not sold. We keep all rights we don't grant here.
+
+2. YOUR LICENCE KEY
+Your licence key is for you only. Don't share, publish or sell it. The
+licence is non-transferable: you may not sell, give, lend or rent the
+Software or your licence to anyone else.
+
+3. WHAT YOU MAKE IS YOURS
+You may use the sounds, music and recordings you make with the Software
+freely, including commercially, with no royalties or credit owed to us.
+This doesn't cover the Software's own presets, samples or files distributed
+on their own as a product.
+
+4. RESTRICTIONS
+You may not:
+  a. copy the Software except as needed to install it on your 2 computers
+     and to keep a backup;
+  b. reverse engineer, decompile or disassemble the Software, or try to
+     get its source code, except where the law allows this despite this
+     agreement;
+  c. change, remove or get around the licence check or any notices in the
+     Software;
+  d. modify, translate or make works based on the Software;
+  e. distribute, sublicense or host the Software for others.
+
+5. UPDATE CHECK
+The Software may contact rogue-syntax.com about once a day to check for
+updates. It sends the product, its version, your licence key, and a
+one-way code made from your computer's ID (not the ID itself). We use this
+only to tell you about updates and to see how many computers use each
+licence. You can turn the check off in the Software.
+
+6. NO REFUNDS
+All sales are final. We don't give refunds once the Software has been
+purchased and downloaded, except where the law requires it.
+
+7. NO WARRANTY
+The Software is provided "as is", without warranty of any kind, express or
+implied, including fitness for a particular purpose, merchantability and
+non-infringement. We don't promise that it will be error-free or work
+without interruption.
+
+8. LIMIT OF LIABILITY
+To the fullest extent the law allows, Rogue Syntax isn't liable for any
+indirect, incidental, special or consequential damages, or for lost data,
+lost work or lost profits, arising from the use of or inability to use the
+Software. Our total liability is limited to the amount you paid for the
+Software.
+
+9. ENDING THIS AGREEMENT
+This licence ends automatically if you break these terms. When it ends you
+must stop using the Software and delete all copies. Sections 3, 7, 8, 10
+and 11 survive.
+
+10. GENERAL
+This agreement is governed by the laws of the Commonwealth of
+Pennsylvania, USA. If any part of it can't be enforced, the
+rest still applies. It is the whole agreement between you and us about the
+Software. We may update it for future versions; the version shipped with a
+version of the Software applies to that version.
+
+11. TRADEMARKS
+Rogue Syntax Sound Design™ and the names of our plugins are trademarks of
+Rogue Syntax Sound Design LLC. This licence gives you no right to use them.
+
+Questions: support@rogue-syntax.com

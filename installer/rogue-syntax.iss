@@ -1,8 +1,10 @@
-; Rogue Syntax installer recipe: one script for every plugin (Inno Setup 6.3+).
+﻿; Rogue Syntax installer recipe: one script for every plugin (Inno Setup 6.3+).
+; Saved as UTF-8 with a BOM, so Inno reads the ™ signs right. Keep it that way.
 ; Don't compile this file directly. Compile a plugin file from plugins\, which
 ; sets the defines below and includes this one. See README.md.
 ;
 ; What it does:
+;   - shows eula.txt; the customer must accept it to go on
 ;   - copies the plugin's .vst3 into C:\Program Files\Common Files\VST3
 ;   - reads license.txt from the folder Setup was run from, and saves the
 ;     licence key to HKCU\Software\Rogue-Syntax\Registrations\<PluginKey>,
@@ -16,14 +18,19 @@
 #endif
 
 #define Vst3Name ExtractFileName(Vst3Source)
+; the name customers see, with the trademark sign
+#define PluginTitle PluginName + "™"
 #define RegPath "Software\Rogue-Syntax\Registrations\" + PluginKey
 
 [Setup]
-AppId={{#AppGuid}
-AppName={#PluginName}
+; {{ is a literal { in Inno, so this gives AppId={GUID}
+AppId={{{#AppGuid}}
+AppName={#PluginTitle}
 AppVersion={#PluginVersion}
-AppPublisher=Rogue Syntax
+AppPublisher=Rogue Syntax Sound Design™ LLC
 AppPublisherURL=https://rogue-syntax.com
+; the customer must accept this before installing (paths are from plugins\)
+LicenseFile=..\eula.txt
 DefaultDirName={commonpf64}\Rogue Syntax\{#PluginKey}
 DisableDirPage=yes
 DisableProgramGroupPage=yes
@@ -35,7 +42,7 @@ OutputBaseFilename={#PluginKey}Setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
-UninstallDisplayName={#PluginName}
+UninstallDisplayName={#PluginTitle}
 #ifdef SignTool
 SignTool={#SignTool}
 #endif
@@ -96,6 +103,9 @@ begin
     Exit;
   for i := 0 to GetArrayLength(Lines) - 1 do begin
     L := Trim(Lines[i]);
+    { skip anything before RS1. on the line, e.g. a UTF-8 BOM }
+    if Pos('RS1.', L) > 1 then
+      L := Copy(L, Pos('RS1.', L), Length(L));
     if Copy(L, 1, 4) = 'RS1.' then begin
       if LooksLikeToken(L) then
         Result := L;
@@ -111,7 +121,7 @@ begin
     'license.txt wasn''t found next to Setup.',
     'Paste your licence key (the line starting RS1. in your receipt email or ' +
     'license.txt), or leave it empty and click Next to skip. You can also ' +
-    'paste it later in {#PluginName}: click Paste license.');
+    'paste it later in {#PluginTitle}: click Paste license.');
   KeyPage.Add('Licence key:', False);
 end;
 
@@ -152,6 +162,6 @@ begin
   if not ExecAsOriginalUser(ExpandConstant('{sys}\reg.exe'),
        'add "HKCU\{#RegPath}" /v License /t REG_SZ /d "' + T + '" /f',
        '', SW_HIDE, ewWaitUntilTerminated, Code) or (Code <> 0) then
-    MsgBox('{#PluginName} is installed, but the licence key couldn''t be ' +
-      'saved. Open {#PluginName} and click Paste license.', mbError, MB_OK);
+    MsgBox('{#PluginTitle} is installed, but the licence key couldn''t be ' +
+      'saved. Open {#PluginTitle} and click Paste license.', mbError, MB_OK);
 end;
