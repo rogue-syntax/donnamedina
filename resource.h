@@ -36,9 +36,6 @@
 #define _USE_DECLSPECS_FOR_SAL          0
 #define _USE_ATTRIBUTES_FOR_SAL         0
 #define kLittleEndian                   0
-#define SUB_VERSION_INT                 0
-#define RELEASE_NUMBER_INT              0
-#define BUILD_NUMBER_INT                0
 #define CREATEPROCESS_MANIFEST_RESOURCE_ID 1
 #define MINIMUM_RESERVED_MANIFEST_RESOURCE_ID 1
 #define SW_SHOWNORMAL                   1
@@ -214,7 +211,6 @@
 #define kBigEndian                      1
 #define WINDOWS                         1
 #define WIN32                           1
-#define MAJOR_VERSION_INT               1
 #define ISOLATIONAWARE_MANIFEST_RESOURCE_ID 2
 #define SW_SHOWMINIMIZED                2
 #define SHOW_ICONWINDOW                 2

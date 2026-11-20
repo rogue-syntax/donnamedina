@@ -78,9 +78,12 @@ DMLOGO_SCREENRES.PNG    PNG                     "./resources/dmlogo_screenres.pn
 // Version
 //
 
+// The version comes from source/version.h, the plugin's one version number (host, About screen,
+// update check, release package).
+#include "source/version.h"
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
- PRODUCTVERSION 1,0,0,0
+ FILEVERSION MAJOR_VERSION_INT,SUB_VERSION_INT,RELEASE_NUMBER_INT,BUILD_NUMBER_INT
+ PRODUCTVERSION MAJOR_VERSION_INT,SUB_VERSION_INT,RELEASE_NUMBER_INT,BUILD_NUMBER_INT
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -97,12 +100,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Rogue Syntax"
             VALUE "FileDescription", "RSSynth001donnaMedina"
-            VALUE "FileVersion", "1.0.0.0"
+            VALUE "FileVersion", FULL_VERSION_STR
             VALUE "InternalName", "RSSynth001donnaMedina"
             VALUE "LegalCopyright", "  Rogue Syntax"
             VALUE "OriginalFilename", "RSSynth001donnaMedina.vst3"
             VALUE "ProductName", "RSSynth001donnaMedina"
-            VALUE "ProductVersion", "1.0.0.0"
+            VALUE "ProductVersion", VERSION_STR
         END
     END
     BLOCK "VarFileInfo"
