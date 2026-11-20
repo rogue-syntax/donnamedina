@@ -1,4 +1,4 @@
-// Prints the license test vectors in docs/07-licensing.md (TEST key only, seed 00..1f). Run: go run tools/license/testvectors.go
+// Prints the license test vectors of the store spec licensing-v1.md 1.6 (product testplugin) (TEST key only, seed 00..1f). Run: go run tools/license/testvectors.go
 package main
 
 import (
@@ -30,16 +30,16 @@ func main() {
 	pub := priv.Public().(ed25519.PublicKey)
 	fmt.Println("seed_hex", hex.EncodeToString(seed))
 	fmt.Println("pub_hex", hex.EncodeToString(pub))
-	full := token(priv, p("0", "DM-TEST-0001", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "donnamedina"))
+	full := token(priv, p("0", "TEST-0001", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "testplugin"))
 	fmt.Println("T1_valid_full", full)
-	fmt.Println("T2_valid_dev", token(priv, p("0", "DM-TEST-0002", "dev", "Rogue Syntax Dev", "dev@example.com", "2026-11-19", "donnamedina")))
-	fmt.Println("T3_valid_utf8", token(priv, p("0", "DM-TEST-0003", "full", "Zoë Müller = DJ", "zoe@example.com", "2026-11-19", "donnamedina")))
+	fmt.Println("T2_valid_dev", token(priv, p("0", "TEST-0002", "dev", "Rogue Syntax Dev", "dev@example.com", "2026-11-19", "testplugin")))
+	fmt.Println("T3_valid_utf8", token(priv, p("0", "TEST-0003", "full", "Zoë Müller = DJ", "zoe@example.com", "2026-11-19", "testplugin")))
 	// tampered: re-encode a payload with a different name but keep T1's signature
 	parts := strings.Split(full, ".")
-	fake := b64.EncodeToString([]byte(p("0", "DM-TEST-0001", "full", "Someone Else", "jane@example.com", "2026-11-19", "donnamedina")))
+	fake := b64.EncodeToString([]byte(p("0", "TEST-0001", "full", "Someone Else", "jane@example.com", "2026-11-19", "testplugin")))
 	fmt.Println("T4_tampered", "RS1."+fake+"."+parts[2])
-	fmt.Println("T5_wrong_product", token(priv, p("0", "DM-TEST-0005", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "othersynth")))
-	fmt.Println("T6_unknown_kid", token(priv, p("9", "DM-TEST-0006", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "donnamedina")))
+	fmt.Println("T5_wrong_product", token(priv, p("0", "TEST-0005", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "othersynth")))
+	fmt.Println("T6_unknown_kid", token(priv, p("9", "TEST-0006", "full", "Jane Q. Tester", "jane@example.com", "2026-11-19", "testplugin")))
 	// wrapped like an email client would: line breaks every 40 chars plus surrounding spaces
 	var w strings.Builder
 	w.WriteString("  ")

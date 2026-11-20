@@ -49,8 +49,14 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 	setControllerClass(DX10Controller::uid);
 
 	// Licensing v1 (docs/07-licensing.md): the stored token, verified here; the controller checks
-	// it separately and tells us to look again after a paste (CMSG_LICENSE_CHANGED_CHAR).
+	// it separately and tells us to look again after a paste (CMSG_LICENSE_CHANGED_CHAR). A paste in
+	// another instance sets license::sessionLicensed (same process) or is seen by the registry watch
+	// (another process), so every open instance unlocks at once (spec 2.2).
 	refreshLicense();
+	if (!regKeyLegit) {
+		license::watchAcquire();
+		watchingLicense = true;
+	}
 
 	// B-11: the factory preset table is shared (static) and read by the controller too; it used to
 	// be (re)filled here by every processor instance. Now it is filled exactly once, by whichever of
@@ -626,7 +632,8 @@ void DX10Processor::refreshLicense() {
 }
 
 DX10Processor::~DX10Processor (){
-
+	if (watchingLicense)
+		license::watchRelease();
 }
 
 //-----------------------------------------------------------------------------
@@ -1501,7 +1508,7 @@ void DX10Processor::sortEventsByOffset(int32* notes, int32 npos)
 //-----------------------------------------------------------------------------
 /*
 void DX10Processor::noteOn(int32 note, int32 velocity, int32 noteID){
-	if (regKeyLegit == true) {
+	if (licensedNow()) {
 		
 		if (velocity > 0) { //note on
 			if (mainEnv1Env > 0.0001) {
@@ -1540,7 +1547,7 @@ void DX10Processor::noteOn(int32 note, int32 velocity, int32 noteID){
 */
 
 void DX10Processor::noteOn(int32 note, int32 velocity, int32 noteID) {
-	if (regKeyLegit == true) {
+	if (licensedNow()) {
 
 		if (velocity > 0) { // note on
 			if (mainEnv1Env > 0.0001) {

@@ -16,6 +16,7 @@
 #include "CParamSmooth.h"
 #include "constants.h"
 #include "license.h"
+#include "updateCheck.h"
 
 namespace Steinberg {
 namespace Vst {
@@ -35,16 +36,35 @@ public:
 	//int linkTune = 0;
 	int64 linkTune = 0;
 
-	// Licensing v1 (docs/07-licensing.md): this side's own check of the stored token (initialize),
-	// and the Paste license button of the registration screen (LicenseView, drawn by NVGView).
+	// Licensing v1 (docs/07-licensing.md): this side's own check of the stored token (initialize,
+	// editor open, and when another instance's paste sets license::sessionLicensed), the Buy and Paste
+	// license buttons of the "Not registered" screen (LicenseView) and the About screen's Paste license.
 	license::License licenseInfo;
 	bool licensed = false;
-	std::string licenseMsg;   // result of the last paste, shown under the button
-	int licenseHover = -1;    // licenseZone::Zone under the mouse
+	std::string licenseMsg;      // result of the last paste
+	bool licenseMsgOk = false;   // the last paste worked ("Licensed to <name>")
+	double licenseMsgUntil = 0;  // licenseClock(): the message shows until then
+	double licenseScreenUntil = 0;  // a good paste on the "Not registered" screen keeps it up until then
+	int licenseHover = -1;       // licenseZone::Zone under the mouse
 	VSTGUI::CView* licenseView = nullptr;
 	void refreshLicense();
 	void pasteLicense();
+	void openShopPage();
 	void notifyLicenseChanged();
+	static double licenseClock();  // seconds, steady
+
+	// Update check (updateCheck.h, spec 1.8): the stored answer, reloaded when a check stores a new one.
+	updatecheck::State update;
+	unsigned updateGen = ~0u;
+	bool badgeHover = false;
+	VSTGUI::CView* updateBadgeView = nullptr;
+	void refreshUpdate();          // reload if a check finished (cheap; NVGView calls it every frame)
+	bool updateBadgeShown() const;
+	bool updateLineShown() const;  // the About screen's line (also while hidden from the badge)
+	void openUpdateUrl();
+	void hideUpdate();
+	void toggleUpdateCheck();
+	tresult PLUGIN_API terminate() SMTG_OVERRIDE;
 
 	double lfo4Rate = 0.0;
 	double lfo5Rate = 0.0;

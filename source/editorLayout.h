@@ -49,23 +49,35 @@ constexpr ImageRect kTabAbout {kBox.x + 8, kBox.y, 58, 24};
 constexpr ImageRect kTabCredits {kBox.x + 70, kBox.y, 72, 24};
 constexpr ImageRect kCreditsArea {kBox.x + 40, kBox.y + 36, kBox.w - 80, kBox.h - 76};  // scrolled text
 constexpr float kPad = 40.0f;
-constexpr float kInfoLineY = 384.0f;  // divider above the two rows
-constexpr ImageRect kLinks {kBox.x + 40, 392, kBox.w - 80, 18};
+// Licensing v1 / update check (2026-11-20): four rows under the divider: links, licence + build,
+// licence and update controls, and the update line (only while a newer version is known).
+constexpr float kInfoLineY = 360.0f;  // divider above the rows
+constexpr ImageRect kLinks {kBox.x + 40, 364, kBox.w - 80, 18};
 constexpr ImageRect kWebZone {kLinks.x, kLinks.y, 136, 18};                     // WWW.ROGUE-SYNTAX.COM
 constexpr ImageRect kMailZone {kLinks.x + kLinks.w - 150, kLinks.y, 150, 18};   // ADMIN@ROGUE-SYNTAX.COM
-constexpr float kInfoY = 424.0f;  // middle of the info row
+constexpr float kInfoY = 392.0f;  // middle of the info row
+constexpr ImageRect kPasteLic {kLinks.x, 402, 104, 17};       // [PASTE LICENSE], replaces the key
+constexpr ImageRect kUpdToggle {kLinks.x + 118, 402, 150, 17};  // [x] CHECK FOR UPDATES
+constexpr float kUpdY = 434.0f;                               // middle of the update line
+constexpr ImageRect kUpdLink {kLinks.x, 426, 200, 17};        // UPDATE AVAILABLE: x.y.z (opens the URL)
+constexpr ImageRect kUpdHide {kLinks.x + kLinks.w - 190, 426, 190, 17};  // HIDE UNTIL THE NEXT VERSION
 } // namespace about
 
-// Registration screen (licensing v1, 2026-11-19): drawn by NVGView::drawBadReg over everything while
-// the plugin has no valid license. The invisible custom view "licensePanel" (presetBarView.h,
-// vstgui.uidesc origin kBox.x,kBox.y size kBox.w x kBox.h, last in the template so it is on top)
-// takes the clicks; it is mouse-enabled only while unlicensed.
+// "Update available" badge on the main screen (update check, 2026-11-20): right of the PRESET label;
+// the invisible custom view "updateBadge" (presetBarView.h) takes the click while it is shown.
+constexpr ImageRect kUpdateBadge {1118, 78, 112, 15};
+
+// "Not registered" screen (licensing v1, 2026-11-19; Buy button 2026-11-20): drawn by
+// NVGView::drawBadReg over everything while the plugin has no valid license (and for a moment after a
+// successful paste). The invisible custom view "licensePanel" (presetBarView.h, vstgui.uidesc origin
+// kBox.x,kBox.y size kBox.w x kBox.h, last in the template so it is on top) takes the clicks; it is
+// mouse-enabled only while unlicensed.
 namespace licenseScreen {
 constexpr ImageRect kBox {202, 75, 646, 341};      // the old box at art (237, 90)
 constexpr float kCx = 525.0f;                      // text centre, art x 560
-constexpr ImageRect kPaste {435, 296, 180, 30};    // "Paste license" button
-constexpr float kMsgY = 348.0f;                    // result of the last paste
-constexpr ImageRect kWeb {450, 374, 150, 18};      // WWW.ROGUE-SYNTAX.COM
+constexpr ImageRect kBuy {345, 296, 170, 30};      // "Buy": the shop page (license::kShopUrl)
+constexpr ImageRect kPaste {535, 296, 170, 30};    // "Paste license"
+constexpr float kMsgY = 352.0f;                    // result of the last paste
 } // namespace licenseScreen
 
 // Convert a position in the original 1148x542 art to window coordinates.

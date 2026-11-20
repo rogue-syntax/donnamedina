@@ -142,12 +142,23 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 	view->onSize(&vr);
 	// The license screen would hide the panel on a machine without a license; for the shot the
 	// controller is told it has one (sample licensee, shown in the about screen's info row).
-	// EDITOR_SHOT_LICENSE=1 keeps the license screen; =2 also shows a failed paste and the button hovered.
+	// EDITOR_SHOT_LICENSE=1 keeps the "Not registered" screen; =2 also shows a failed paste and the
+	// Paste license button hovered; =3 the moment after a good paste ("Licensed to <name>").
+	// EDITOR_SHOT_UPDATE=1 pretends the store announced 1.0.3 (the badge and the About screen's line).
+	const double farFuture = rs::BaseController::licenseClock() + 3600.0;
 	if (const char* lv = std::getenv("EDITOR_SHOT_LICENSE")) {
 		ctrl->licensed = false;
 		if (std::atoi(lv) == 2) {
 			ctrl->licenseMsg = "That license is not valid.";
-			ctrl->licenseHover = 0;  // licenseZone::kPaste
+			ctrl->licenseMsgUntil = farFuture;
+			ctrl->licenseHover = 1;  // licenseZone::kPaste
+		} else if (std::atoi(lv) == 3) {
+			ctrl->licensed = true;
+			ctrl->licenseMsg = "Licensed to Jane Q. Tester";
+			ctrl->licenseMsgOk = true;
+			ctrl->licenseMsgUntil = ctrl->licenseScreenUntil = farFuture;
+			if (ctrl->licenseView)
+				ctrl->licenseView->setMouseEnabled(false);
 		}
 	} else {
 		ctrl->licensed = true;
@@ -156,6 +167,15 @@ int takeEditorShot(rs::DX10Controller* ctrl, const char* path) {
 		ctrl->licenseInfo.kind = "dev";
 		if (ctrl->licenseView)
 			ctrl->licenseView->setMouseEnabled(false);
+	}
+	if (const char* uv = std::getenv("EDITOR_SHOT_UPDATE")) {
+		if (std::atoi(uv) == 1) {
+			ctrl->update.enabled = true;
+			ctrl->update.latest = "1.0.3";
+			ctrl->update.url = "https://rogue-syntax.com/";
+			ctrl->update.skip.clear();
+			ctrl->updateGen = updatecheck::generation();  // keep it (no reload from the registry)
+		}
 	}
 	pumpFor(1500);
 
@@ -444,6 +464,7 @@ int main(int argc, char** argv) {
 	moduleHandle = GetModuleHandle(nullptr);
 	// A host has COM initialised on its UI thread; VSTGUI decodes PNGs through WIC (COM).
 	CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+	updatecheck::suppressChecks(true);  // no network and no LastCheck write from a test
 	std::printf("init controller\n");
 
 	static HostApplication host;

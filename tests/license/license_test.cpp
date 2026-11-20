@@ -59,14 +59,15 @@ static std::string sign(const std::string& payload, const char* prefix = "RS1.")
 }
 
 static std::string payload(const char* extra = "", const char* v = "1", const char* kind = "full",
-                           const char* product = "donnamedina", const char* name = "Jane Q. Tester") {
+                           const char* product = "testplugin", const char* name = "Jane Q. Tester") {
 	return std::string("v=") + v + "\nproduct=" + product + "\nkid=0\nlid=DM-000123\nkind=" + kind + "\nname=" + name +
 	       "\nemail=jane@example.com\nissued=2026-11-19\n" + extra;
 }
 
-static bool ok(const std::string& t, license::License* out = nullptr) {
+// the spec's vectors and the payloads signed here are for the test product "testplugin" (spec 1.6)
+static bool ok(const std::string& t, license::License* out = nullptr, const char* product = "testplugin") {
 	license::License l;
-	const bool r = license::verifyTokenWithKeys(t, &gTestKey, 1, l);
+	const bool r = license::verifyTokenWithKeys(t, &gTestKey, 1, product, l);
 	if (out)
 		*out = l;
 	return r;
@@ -86,7 +87,7 @@ int main() {
 	// shared vectors
 	license::License l;
 	check(ok(T1_valid_full, &l), "T1 valid");
-	check(l.name == "Jane Q. Tester" && l.email == "jane@example.com" && l.lid == "DM-TEST-0001" && l.kind == "full" &&
+	check(l.name == "Jane Q. Tester" && l.email == "jane@example.com" && l.lid == "TEST-0001" && l.kind == "full" &&
 	          l.issued == "2026-11-19" && l.kid == 0,
 	      "T1 fields");
 	check(ok(T2_valid_dev, &l) && l.kind == "dev" && l.name == "Rogue Syntax Dev", "T2 valid, kind dev");
@@ -99,7 +100,7 @@ int main() {
 		std::string w = "  ";
 		for (size_t i = 0; i < t1.size(); i += 40)
 			w += t1.substr(i, 40) + "\r\n";
-		check(ok(w, &l) && l.lid == "DM-TEST-0001", "T7 wrapped (spaces, CRLF every 40) valid");
+		check(ok(w, &l) && l.lid == "TEST-0001", "T7 wrapped (spaces, CRLF every 40) valid");
 		check(ok("\t" + t1 + " \n"), "tabs and trailing newline ignored");
 	}
 
@@ -132,18 +133,23 @@ int main() {
 	check(!ok(sign(payload("", "2"))), "v=2 rejected");
 	check(!ok(sign(payload("", "1", "trial"))), "unknown kind rejected");
 	check(ok(sign(payload("", "1", "nfr"))), "kind nfr valid");
-	check(!ok(sign(payload("", "1", "full", "Donnamedina"))), "product is case sensitive");
-	check(!ok(sign(payload("", "1", "full", "donnamedina", ""))), "empty name rejected");
+	check(!ok(sign(payload("", "1", "full", "Testplugin"))), "product is case sensitive");
+	check(!ok(sign(payload("", "1", "full", "testplugin", ""))), "empty name rejected");
+	check(!ok(T1_valid_full, nullptr, "donnamedina"), "a plugin rejects another product's license (T1 for testplugin)");
+	check(ok(sign(payload("", "1", "full", "donnamedina")), nullptr, "donnamedina"), "own product accepted");
+	check(!ok(sign(payload()), nullptr, ""), "empty expected product rejects everything");
 	check(!ok(sign(payload("name=Second\n"))), "repeated key rejected");
 	check(!ok(sign(payload("bad\x01=x\n"))), "control character rejected");
 	check(!ok(sign(payload("x=y"))), "last line without LF rejected");
 	check(!ok(sign(payload("=x\n"))), "empty key rejected");
 	check(!ok(sign(payload("noequals\n"))), "line without '=' rejected");
-	check(!ok(sign(std::string("v=1\nproduct=donnamedina\nkid=0\nlid=DM-1\nkind=full\nname=A\nemail=a@b\n"))),
+	check(ok(sign(std::string("v=1\nproduct=testplugin\nkid=0\nlid=DM-1\nkind=full\nname=A\nemail=a@b\nissued=2026-11-19\n"))),
+	      "minimal payload valid (the cases below change one thing)");
+	check(!ok(sign(std::string("v=1\nproduct=testplugin\nkid=0\nlid=DM-1\nkind=full\nname=A\nemail=a@b\n"))),
 	      "missing issued rejected");
-	check(!ok(sign(std::string("v=1\nproduct=donnamedina\nkid=0\nlid=DM 1\nkind=full\nname=A\nemail=a@b\nissued=2026-11-19\n"))),
+	check(!ok(sign(std::string("v=1\nproduct=testplugin\nkid=0\nlid=DM 1\nkind=full\nname=A\nemail=a@b\nissued=2026-11-19\n"))),
 	      "bad lid rejected");
-	check(!ok(sign(std::string("v=1\nproduct=donnamedina\nkid=0\nlid=DM-1\nkind=full\nname=A\nemail=a@b\nissued=2026-1-19\n"))),
+	check(!ok(sign(std::string("v=1\nproduct=testplugin\nkid=0\nlid=DM-1\nkind=full\nname=A\nemail=a@b\nissued=2026-1-19\n"))),
 	      "bad date rejected");
 	check(!ok(sign(payload(("pad=" + std::string(1100, 'x') + "\n").c_str()))), "payload over 1024 bytes rejected");
 	check(ok(sign(payload(("pad=" + std::string(1020 - payload().size() - 5, 'x') + "\n").c_str()))),
@@ -153,11 +159,21 @@ int main() {
 	// the plugin's built-in table: release builds hold kid 1 only
 	{
 		license::License r;
-		check(!license::verifyToken(t1, r), "release key table rejects the TEST key (kid 0)");
+		const std::string own = sign(payload("", "1", "full", license::kProduct));  // this plugin, TEST key
+		check(ok(own, nullptr, license::kProduct), "TEST-key token for this plugin valid against the TEST table");
+		check(!license::verifyToken(own, r), "release key table rejects the TEST key (kid 0)");
 		check(!license::verifyToken(sign(std::string(
 		              "v=1\nproduct=donnamedina\nkid=1\nlid=DM-1\nkind=full\nname=A\nemail=a@b\nissued=2026-11-19\n")),
 		          r),
 		      "kid 1 signed with the wrong key rejected");
+	}
+
+	// Paste license results that never reach the registry
+	{
+		license::License r;
+		check(license::acceptToken(" \r\n\t", r) == license::PasteResult::kEmpty, "paste: blank clipboard is 'empty'");
+		check(license::acceptToken(T5_wrong_product, r) == license::PasteResult::kInvalid, "paste: invalid token refused");
+		check(!license::sessionLicensed(), "nothing valid seen: not licensed for the session");
 	}
 
 	// store / load through a scratch key (not the plugin's own)

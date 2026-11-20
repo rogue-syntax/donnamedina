@@ -247,6 +247,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
     </ClCompile>
     <ClCompile Include="source\license.cpp" />
+    <ClCompile Include="source\updateCheck.cpp" />
     <ClCompile Include="source\nanovg.c" />
     <ClCompile Include="source\NVGView.cpp" />
     <ClCompile Include="source\ParamRampObj.cpp" />
@@ -308,6 +309,7 @@ if errorlevel 1 (echo Deploy failed: could not copy to $(CommonProgramW6432)\VST
     <ClInclude Include="source\GLShader.h" />
     <ClInclude Include="source\regReader.h" />
     <ClInclude Include="source\license.h" />
+    <ClInclude Include="source\updateCheck.h" />
     <ClInclude Include="external\monocypher\monocypher.h" />
     <ClInclude Include="external\monocypher\monocypher-ed25519.h" />
     <ClInclude Include="source\RSSynth002Voice.h" />

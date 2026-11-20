@@ -1463,10 +1463,20 @@ no viewindex at 153!*/
 			drawBeatModOn();
 			drawLogo();  // over everything but the about window and the registration screen
 
+			if (baseController) {
+				// a paste in another instance (license::sessionLicensed) unlocks this one too (spec 2.2)
+				if (!baseController->licensed && license::sessionLicensed())
+					baseController->refreshLicense();
+				baseController->refreshUpdate();  // a finished update check
+			}
+			drawUpdateBadge();
+
 			drawMoreInfoWindow();
 
-			// licensing v1: the controller's own check of the stored license (BaseController::licensed)
-			if (!baseController || !baseController->licensed) {
+			// licensing v1: the controller's own check of the stored license (BaseController::licensed);
+			// after a good paste the screen stays a moment with "Licensed to <name>"
+			if (!baseController || !baseController->licensed ||
+			    BaseController::licenseClock() < baseController->licenseScreenUntil) {
 				drawBadReg();
 			}
 
@@ -2510,64 +2520,86 @@ no viewindex at 153!*/
 	}
 
 
-	// Registration screen (licensing v1, docs/07-licensing.md): over everything while unlicensed.
-	// LicenseView (presetBarView.h) takes the clicks: the Paste license button and the website link.
+	// "Not registered" screen (licensing v1, store spec 2.3): over everything while unlicensed, and for
+	// a moment after a good paste ("Licensed to <name>"). LicenseView (presetBarView.h) takes the clicks:
+	// Buy (the shop page) and Paste license.
 	void NVGView::drawBadReg() {
 		using namespace ::editorLayout::licenseScreen;
-		const int hover = baseController ? baseController->licenseHover : -1;
+		const bool done = baseController && baseController->licensed;  // the moment after a good paste
+		const int hover = baseController && !done ? baseController->licenseHover : -1;
 		nvgBeginPath(vg);
 		nvgRect(vg, kBox.x, kBox.y, kBox.w, kBox.h);
 		nvgFillColor(vg, nvgRGBA(0, 0, 0, 235));
-		nvgStrokeColor(vg, nvgRGBA(255, 102, 0, 255));
+		nvgStrokeColor(vg, done ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 102, 0, 255));
 		nvgStrokeWidth(vg, 1.0f);
 		nvgFill(vg);
 		nvgStroke(vg);
 
 		nvgFontFace(vg, "mono");
 		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		if (done) {
+			nvgFontSize(vg, 15.0f);
+			nvgFillColor(vg, nvgRGB(120, 235, 170));
+			nvgText(vg, kCx, 230.0f, baseController->licenseMsg.c_str(), NULL);
+			nvgFontSize(vg, 12.0f);
+			nvgFillColor(vg, nvgRGBA(235, 225, 240, 230));
+			nvgText(vg, kCx, 262.0f, "Thank you. Donna Medina is ready to play.", NULL);
+			return;
+		}
 		nvgFontSize(vg, 15.0f);
 		nvgFillColor(vg, nvgRGB(255, 153, 255));
-		nvgText(vg, kCx, 170.0f, "No license found", NULL);
+		nvgText(vg, kCx, 160.0f, "Not registered", NULL);
 		nvgFontSize(vg, 12.0f);
 		nvgFillColor(vg, nvgRGBA(235, 225, 240, 230));
-		nvgText(vg, kCx, 212.0f, "Your license is in your receipt email and in license.txt", NULL);
-		nvgText(vg, kCx, 232.0f, "in the download. Copy it, then click Paste license.", NULL);
-		nvgText(vg, kCx, 262.0f, "No license yet? Get one at rogue-syntax.com.", NULL);
+		nvgText(vg, kCx, 200.0f, "Your license key is in your receipt email and in license.txt", NULL);
+		nvgText(vg, kCx, 220.0f, "in the download: the line starting RS1. The installer adds it", NULL);
+		nvgText(vg, kCx, 240.0f, "for you. If it didn't, copy the key and click Paste license.", NULL);
+		nvgText(vg, kCx, 266.0f, "No license yet? Click Buy.", NULL);
 
-		// Paste license button
-		const bool hot = hover == licenseZone::kPaste;
-		nvgBeginPath(vg);
-		nvgRect(vg, kPaste.x + 0.5f, kPaste.y + 0.5f, kPaste.w - 1.0f, kPaste.h - 1.0f);
-		nvgFillColor(vg, hot ? nvgRGBA(255, 102, 0, 70) : nvgRGBA(255, 102, 0, 25));
-		nvgFill(vg);
-		nvgStrokeColor(vg, nvgRGBA(255, 102, 0, hot ? 255 : 190));
-		nvgStrokeWidth(vg, 1.0f);
-		nvgStroke(vg);
-		nvgFontSize(vg, 13.0f);
-		nvgFillColor(vg, hot ? nvgRGB(255, 235, 220) : nvgRGB(255, 170, 120));
-		nvgText(vg, kPaste.x + kPaste.w * 0.5f, kPaste.y + kPaste.h * 0.5f, "Paste license", NULL);
+		// Buy and Paste license buttons
+		auto button = [&](const ::editorLayout::ImageRect& r, bool hot, const char* label) {
+			nvgBeginPath(vg);
+			nvgRect(vg, r.x + 0.5f, r.y + 0.5f, r.w - 1.0f, r.h - 1.0f);
+			nvgFillColor(vg, hot ? nvgRGBA(255, 102, 0, 70) : nvgRGBA(255, 102, 0, 25));
+			nvgFill(vg);
+			nvgStrokeColor(vg, nvgRGBA(255, 102, 0, hot ? 255 : 190));
+			nvgStrokeWidth(vg, 1.0f);
+			nvgStroke(vg);
+			nvgFontSize(vg, 13.0f);
+			nvgFillColor(vg, hot ? nvgRGB(255, 235, 220) : nvgRGB(255, 170, 120));
+			nvgText(vg, r.x + r.w * 0.5f, r.y + r.h * 0.5f, label, NULL);
+		};
+		button(kBuy, hover == licenseZone::kBuy, "Buy");
+		button(kPaste, hover == licenseZone::kPaste, "Paste license");
 
 		// result of the last paste
-		if (baseController && !baseController->licenseMsg.empty()) {
+		if (baseController && !baseController->licenseMsg.empty() &&
+		    BaseController::licenseClock() < baseController->licenseMsgUntil) {
 			nvgFontSize(vg, 12.0f);
 			nvgFillColor(vg, nvgRGB(255, 110, 90));
 			nvgText(vg, kCx, kMsgY, baseController->licenseMsg.c_str(), NULL);
 		}
+	}
 
-		// website link
-		const bool webHot = hover == licenseZone::kWeb;
-		nvgFontSize(vg, 11.0f);
-		nvgFillColor(vg, webHot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(4, 186, 232, 230));
-		const float wy = kWeb.y + kWeb.h * 0.5f;
-		nvgText(vg, kCx, wy, "WWW.ROGUE-SYNTAX.COM", NULL);
-		if (webHot) {
-			const float half = nvgTextBounds(vg, 0, 0, "WWW.ROGUE-SYNTAX.COM", NULL, NULL) * 0.5f;
-			nvgBeginPath(vg);
-			nvgMoveTo(vg, kCx - half, floorf(wy + 8.0f) + 0.5f);
-			nvgLineTo(vg, kCx + half, floorf(wy + 8.0f) + 0.5f);
-			nvgStrokeColor(vg, nvgRGBA(220, 250, 255, 230));
-			nvgStroke(vg);
-		}
+	// "Update available" badge right of the PRESET label (update check, spec 1.8); UpdateBadgeView
+	// takes the click (opens the URL of the last answer).
+	void NVGView::drawUpdateBadge() {
+		if (!baseController || !baseController->updateBadgeShown())
+			return;
+		const ::editorLayout::ImageRect& r = ::editorLayout::kUpdateBadge;
+		const bool hot = baseController->badgeHover;
+		nvgBeginPath(vg);
+		nvgRoundedRect(vg, r.x + 0.5f, r.y + 0.5f, r.w - 1.0f, r.h - 1.0f, 3.0f);
+		nvgFillColor(vg, hot ? nvgRGBA(4, 186, 232, 90) : nvgRGBA(4, 186, 232, 35));
+		nvgFill(vg);
+		nvgStrokeColor(vg, nvgRGBA(4, 186, 232, hot ? 255 : 200));
+		nvgStrokeWidth(vg, 1.0f);
+		nvgStroke(vg);
+		nvgFontFace(vg, "mono");
+		nvgFontSize(vg, 9.0f);
+		nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+		nvgFillColor(vg, hot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(150, 225, 245, 255));
+		nvgText(vg, r.x + r.w * 0.5f, r.y + r.h * 0.5f + 0.5f, "UPDATE AVAILABLE", NULL);
 	}
 
 
@@ -4238,7 +4270,7 @@ no viewindex at 153!*/
 
 		// description, two paragraphs with a divider between them
 		const float tx = x + pad, tw = w - 2.0f * pad;
-		float ty = rowY + 62.0f + 16.0f;
+		float ty = rowY + 62.0f + 4.0f;  // 16 before 2026-11-20 (room for the licence and update rows)
 		nvgFontSize(vg, 11.0f);
 		nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_TOP);
 		nvgTextLineHeight(vg, 1.35f);
@@ -4310,7 +4342,7 @@ no viewindex at 153!*/
 			// licensing v1: who it is licensed to; the email goes first, then the name is cut, if the
 			// line would run into the build stamp
 			const bool reg = baseController && baseController->licensed;
-			std::string lic = "UNLICENSED";
+			std::string lic = reg ? "" : "NOT REGISTERED";
 			if (reg) {
 				const license::License& li = baseController->licenseInfo;
 				std::string tag = li.kind == "dev" ? "  |  DEV" : (li.kind == "nfr" ? "  |  NFR" : "");
@@ -4326,12 +4358,79 @@ no viewindex at 153!*/
 					lic = "LICENSED TO " + name + "..." + tag;
 				}
 			}
+			// the result of a paste here (Paste license below) for a few seconds
+			bool good = reg;
+			if (baseController && !baseController->licenseMsg.empty() &&
+			    BaseController::licenseClock() < baseController->licenseMsgUntil) {
+				lic = baseController->licenseMsg;
+				for (char& ch : lic) ch = static_cast<char>(toupper(static_cast<unsigned char>(ch)));
+				good = baseController->licenseMsgOk;
+			}
 			nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
-			nvgFillColor(vg, reg ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 150, 80, 255));
+			nvgFillColor(vg, good ? nvgRGBA(120, 235, 170, 255) : nvgRGBA(255, 150, 80, 255));
 			nvgText(vg, tx, kInfoY, lic.c_str(), NULL);
 			nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
 			nvgFillColor(vg, nvgRGBA(150, 160, 185, 230));
 			nvgText(vg, tx + tw, kInfoY, fmt.c_str(), NULL);
+		}
+		if (baseController) {
+			// licence and update controls (AboutLinksView): Paste license (replaces the key), Check for
+			// updates; then the update line while a newer version is known (spec 1.8, 2.3)
+			const int hov = baseController->aboutHover;
+			nvgFontSize(vg, 10.0f);
+			{
+				const bool hot = hov == aboutLinks::kPasteLic;
+				const ImageRect& r = kPasteLic;
+				nvgBeginPath(vg);
+				nvgRect(vg, r.x + 0.5f, r.y + 0.5f, r.w - 1.0f, r.h - 1.0f);
+				nvgFillColor(vg, hot ? nvgRGBA(4, 186, 232, 60) : nvgRGBA(4, 186, 232, 18));
+				nvgFill(vg);
+				nvgStrokeColor(vg, nvgRGBA(4, 186, 232, hot ? 255 : 170));
+				nvgStrokeWidth(vg, 1.0f);
+				nvgStroke(vg);
+				nvgTextAlign(vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
+				nvgFillColor(vg, hot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(4, 186, 232, 255));
+				nvgText(vg, r.x + r.w * 0.5f, r.y + r.h * 0.5f + 0.5f, "PASTE LICENSE", NULL);
+			}
+			{
+				const bool hot = hov == aboutLinks::kUpdToggle;
+				const bool on = baseController->update.enabled;
+				const ImageRect& r = kUpdToggle;
+				const float bx = r.x + 2.0f, by = floorf(r.y + r.h * 0.5f - 4.5f);
+				nvgBeginPath(vg);
+				nvgRect(vg, bx + 0.5f, by + 0.5f, 9.0f, 9.0f);
+				nvgStrokeColor(vg, nvgRGBA(4, 186, 232, hot ? 255 : 190));
+				nvgStrokeWidth(vg, 1.0f);
+				nvgStroke(vg);
+				if (on) {
+					nvgBeginPath(vg);
+					nvgRect(vg, bx + 2.5f, by + 2.5f, 5.0f, 5.0f);
+					nvgFillColor(vg, nvgRGBA(4, 186, 232, 255));
+					nvgFill(vg);
+				}
+				nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+				nvgFillColor(vg, hot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(150, 160, 185, 255));
+				nvgText(vg, bx + 16.0f, r.y + r.h * 0.5f + 0.5f, "CHECK FOR UPDATES", NULL);
+			}
+			if (baseController->updateLineShown()) {
+				const std::string line = "UPDATE AVAILABLE: " + baseController->update.latest;
+				const bool hot = hov == aboutLinks::kUpdLink;
+				nvgTextAlign(vg, NVG_ALIGN_LEFT | NVG_ALIGN_MIDDLE);
+				nvgFillColor(vg, hot ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(120, 235, 170, 255));
+				nvgText(vg, kUpdLink.x, kUpdY, line.c_str(), NULL);
+				const float lw = nvgTextBounds(vg, 0, 0, line.c_str(), NULL, NULL);
+				nvgBeginPath(vg);
+				nvgMoveTo(vg, kUpdLink.x, floorf(kUpdY + 7.0f) + 0.5f);
+				nvgLineTo(vg, kUpdLink.x + lw, floorf(kUpdY + 7.0f) + 0.5f);
+				nvgStrokeColor(vg, hot ? nvgRGBA(220, 250, 255, 230) : nvgRGBA(120, 235, 170, 120));
+				nvgStroke(vg);
+				if (baseController->updateBadgeShown()) {
+					const bool hh = hov == aboutLinks::kUpdHide;
+					nvgTextAlign(vg, NVG_ALIGN_RIGHT | NVG_ALIGN_MIDDLE);
+					nvgFillColor(vg, hh ? nvgRGBA(220, 250, 255, 255) : nvgRGBA(150, 160, 185, 230));
+					nvgText(vg, kUpdHide.x + kUpdHide.w, kUpdY, "HIDE UNTIL THE NEXT VERSION", NULL);
+				}
+			}
 		}
 		}  // about page
 

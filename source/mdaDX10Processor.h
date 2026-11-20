@@ -19,6 +19,7 @@
 #include "hqDecimator.h"
 #include "fxStrip.h"
 #include "mdaBaseProcessor.h"
+#include "license.h"
 #include <math.h>
 
 
@@ -42,9 +43,12 @@ public:
 	void unLinkGenParams();
 	
 	// Licensing v1: set from the stored token (refreshLicense: constructor and CMSG_LICENSE_CHANGED_CHAR,
-	// main thread), read by noteOn on the audio thread. Nothing plays without it.
+	// main thread), read by noteOn on the audio thread. Nothing plays without it or the process-wide
+	// flag (license::sessionLicensed: a paste in another instance).
 	std::atomic<bool> regKeyLegit {false};
+	bool watchingLicense = false;  // holds the registry watch (license::watchAcquire)
 	void refreshLicense();
+	bool licensedNow() const { return regKeyLegit.load(std::memory_order_relaxed) || license::sessionLicensed(); }
 
 	//DXGenerator generators[GENCOUNT];
 

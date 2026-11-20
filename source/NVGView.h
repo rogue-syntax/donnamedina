@@ -944,6 +944,7 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		virtual void drawSineSymbol(RData& reIn) override;
 		void drawBeatModOn();
 		void drawBadReg();
+		void drawUpdateBadge();
 		void drawCtrlValueOutput();
 		void drawSelctedStepTarg();
 

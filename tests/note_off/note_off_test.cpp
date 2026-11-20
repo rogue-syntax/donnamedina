@@ -1160,6 +1160,8 @@ int hqRateProbe(int, char**) {
 }
 
 int main(int argc, char** argv) {
+	std::setvbuf(stdout, nullptr, _IONBF, 0);  // a crash keeps everything printed before it
+	updatecheck::suppressChecks(true);  // the controller tests open controllers: no network, no LastCheck write
 	if (argc > 1 && std::strcmp(argv[1], "hqrate") == 0) return hqRateProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "nanfuzz") == 0) return nanFuzzProbe(argc, argv);
 	if (argc > 1 && std::strcmp(argv[1], "lfo") == 0) return lfoProbe(argc, argv);

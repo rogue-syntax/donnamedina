@@ -1,7 +1,10 @@
 // Licensing v1, see license.h and docs/07-licensing.md.
 #include "license.h"
 
+#include <atomic>
 #include <cstring>
+#include <mutex>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -31,8 +34,9 @@ const PublicKey kKeys[] = {
 constexpr const char* kPrefix = "RS1.";
 constexpr size_t kMaxToken = 4096;  // a v1 token is at most ~1500 characters
 constexpr size_t kMaxPayload = 1024;
-const wchar_t* const kRegSubKey = L"Software\\Rogue-Syntax\\Registrations\\DonnaMedina";
 const wchar_t* const kRegValue = L"License";
+
+std::atomic<bool> gSessionLicensed {false};
 
 int b64val(char c) {
 	if (c >= 'A' && c <= 'Z') return c - 'A';
@@ -157,8 +161,11 @@ std::string toUtf8(const wchar_t* w, size_t len) {
 
 } // namespace
 
-bool verifyTokenWithKeys(const std::string& tokenIn, const PublicKey* keys, int keyCount, License& out) {
+bool verifyTokenWithKeys(const std::string& tokenIn, const PublicKey* keys, int keyCount, const char* expectedProduct,
+                         License& out) {
 	out = License();
+	if (!expectedProduct || !*expectedProduct)
+		return false;
 	if (tokenIn.size() > kMaxToken)
 		return false;
 	std::string token;
@@ -207,7 +214,7 @@ bool verifyTokenWithKeys(const std::string& tokenIn, const PublicKey* keys, int 
 	const std::string* issued = find(fields, "issued");
 	if (!v || !product || !lid || !kind || !name || !email || !issued)
 		return false;
-	if (*v != "1" || *product != kProduct || !validLid(*lid) || !validDate(*issued))
+	if (*v != "1" || *product != expectedProduct || !validLid(*lid) || !validDate(*issued))
 		return false;
 	if (*kind != "full" && *kind != "dev" && *kind != "nfr")
 		return false;
@@ -224,7 +231,34 @@ bool verifyTokenWithKeys(const std::string& tokenIn, const PublicKey* keys, int 
 }
 
 bool verifyToken(const std::string& token, License& out) {
-	return verifyTokenWithKeys(token, kKeys, int(sizeof(kKeys) / sizeof(kKeys[0])), out);
+	return verifyTokenWithKeys(token, kKeys, int(sizeof(kKeys) / sizeof(kKeys[0])), kProduct, out);
+}
+
+bool sessionLicensed() { return gSessionLicensed.load(std::memory_order_relaxed); }
+
+bool checkStored(License& out) {
+	const bool ok = verifyToken(loadStoredToken(), out);
+	if (ok)
+		gSessionLicensed.store(true);
+	return ok;
+}
+
+PasteResult acceptToken(const std::string& token, License& out) {
+	out = License();
+	bool blank = true;
+	for (char c : token)
+		if (c != ' ' && c != '\t' && c != '\r' && c != '\n' && c != '\v' && c != '\f')
+			blank = false;
+	if (blank)
+		return PasteResult::kEmpty;
+	if (!verifyToken(token, out))
+		return PasteResult::kInvalid;
+	if (!storeToken(token)) {
+		out = License();
+		return PasteResult::kNotSaved;
+	}
+	gSessionLicensed.store(true);
+	return PasteResult::kOk;
 }
 
 #ifdef _WIN32
@@ -260,10 +294,84 @@ std::string clipboardText() {
 	CloseClipboard();
 	return s;
 }
+
+namespace {
+// A holder that was never released (a leaked processor) leaves the thread running at exit; a joinable
+// std::thread destroyed there would call std::terminate, so the static detaches it instead.
+struct ExitSafeThread {
+	std::thread t;
+	~ExitSafeThread() {
+		if (t.joinable())
+			t.detach();
+	}
+};
+std::mutex gWatchMx;
+int gWatchCount = 0;
+ExitSafeThread gWatch;
+HANDLE gWatchStop = nullptr;
+
+// Waits for writes to the plugin's key (a paste or the installer in another process) and re-checks.
+void watchLoop(HANDLE stop) {
+	HKEY k = nullptr;
+	if (RegCreateKeyExW(HKEY_CURRENT_USER, kRegSubKey, 0, nullptr, 0, KEY_NOTIFY | KEY_QUERY_VALUE, nullptr, &k,
+	                    nullptr) != ERROR_SUCCESS)
+		return;
+	HANDLE changed = CreateEventW(nullptr, FALSE, FALSE, nullptr);
+	while (changed && !sessionLicensed()) {
+		if (RegNotifyChangeKeyValue(k, FALSE, REG_NOTIFY_CHANGE_LAST_SET, changed, TRUE) != ERROR_SUCCESS)
+			break;
+		License l;
+		if (checkStored(l))  // checked after arming, so a write just before it isn't missed
+			break;
+		HANDLE hs[2] = {stop, changed};
+		if (WaitForMultipleObjects(2, hs, FALSE, INFINITE) != WAIT_OBJECT_0 + 1)
+			break;  // stop, or an error
+	}
+	if (changed)
+		CloseHandle(changed);
+	RegCloseKey(k);
+}
+} // namespace
+
+void watchAcquire() {
+	std::lock_guard<std::mutex> g(gWatchMx);
+	if (gWatchCount++ > 0 || sessionLicensed())
+		return;
+	gWatchStop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
+	if (!gWatchStop)
+		return;
+	try {
+		gWatch.t = std::thread(watchLoop, gWatchStop);
+	} catch (...) {
+		CloseHandle(gWatchStop);
+		gWatchStop = nullptr;
+	}
+}
+
+void watchRelease() {
+	std::thread t;
+	HANDLE stop = nullptr;
+	{
+		std::lock_guard<std::mutex> g(gWatchMx);
+		if (gWatchCount == 0 || --gWatchCount > 0)
+			return;
+		t = std::move(gWatch.t);
+		stop = gWatchStop;
+		gWatchStop = nullptr;
+	}
+	if (stop)
+		SetEvent(stop);
+	if (t.joinable())
+		t.join();
+	if (stop)
+		CloseHandle(stop);
+}
 #else
-std::string loadStoredToken(const wchar_t* subKey) { return std::string(); }
-bool storeToken(const std::string&) { return false; }
+std::string loadStoredToken(const wchar_t*) { return std::string(); }
+bool storeToken(const std::string&, const wchar_t*) { return false; }
 std::string clipboardText() { return std::string(); }
+void watchAcquire() {}
+void watchRelease() {}
 #endif
 
 } // namespace license

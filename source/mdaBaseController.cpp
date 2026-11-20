@@ -14,6 +14,7 @@
 #include "vstgui/uidescription/delegationcontroller.h"
 
 #include "filter.h"
+#include "version.h"  // VERSION_STR, sent by the update check
 
 /*
 #include "regReader.h"
@@ -120,6 +121,11 @@ namespace rs {
 		}
 		*/
 		refreshLicense();  // licensing v1: this side's own check (the processor does its own)
+		// update check (spec 1.8): when the plugin opens, in the background, at most once a day
+		updatecheck::acquire();
+		updatecheck::startIfDue(license::kProduct, VERSION_STR);
+		update = updatecheck::loadState();
+		updateGen = updatecheck::generation();
 		return res;
 	}
 
@@ -704,6 +710,13 @@ VSTGUI::CView* BaseController::createCustomView(VSTGUI::UTF8StringPtr name, cons
 		attributes.getPointAttribute("size", size);
 		return new LicenseView(CRect(origin, size), this);
 	}
+	if (name && std::strcmp(name, "updateBadge") == 0) {
+		CPoint origin(editorLayout::kUpdateBadge.x, editorLayout::kUpdateBadge.y),
+		    size(editorLayout::kUpdateBadge.w, editorLayout::kUpdateBadge.h);
+		attributes.getPointAttribute("origin", origin);
+		attributes.getPointAttribute("size", size);
+		return new UpdateBadgeView(CRect(origin, size), this);
+	}
 	return nullptr;
 }
 
@@ -716,27 +729,128 @@ void BaseController::refreshLicense() {
 		licenseView->setMouseEnabled(!licensed);
 }
 
+double BaseController::licenseClock() {
+	using namespace std::chrono;
+	return duration<double>(steady_clock::now().time_since_epoch()).count();
+}
+
+// From the "Not registered" screen or the About screen (replaces the key). The result shows for a few
+// seconds; after a good paste the "Not registered" screen stays up that long with "Licensed to <name>".
 void BaseController::pasteLicense() {
-	const std::string text = license::clipboardText();
 	license::License l;
-	if (text.empty()) {
-		licenseMsg = "The clipboard is empty. Copy your license first.";
-		return;
+	const license::PasteResult r = license::acceptToken(license::clipboardText(), l);
+	licenseMsgOk = r == license::PasteResult::kOk;
+	licenseMsgUntil = licenseClock() + (licenseMsgOk ? 2.5 : 6.0);
+	switch (r) {
+	case license::PasteResult::kEmpty: licenseMsg = "The clipboard is empty. Copy your license first."; return;
+	case license::PasteResult::kInvalid: licenseMsg = "That license is not valid."; return;
+	case license::PasteResult::kNotSaved: licenseMsg = "The license is valid, but it could not be saved."; return;
+	case license::PasteResult::kOk: break;
 	}
-	if (!license::verifyToken(text, l)) {
-		licenseMsg = "That license is not valid.";
-		return;
-	}
-	if (!license::storeToken(text)) {
-		licenseMsg = "The license is valid, but it could not be saved.";
-		return;
-	}
+	licenseMsg = "Licensed to " + l.name;
+	if (!licensed)
+		licenseScreenUntil = licenseMsgUntil;  // pasted on the "Not registered" screen
 	licensed = true;
 	licenseInfo = l;
-	licenseMsg.clear();
 	if (licenseView)
 		licenseView->setMouseEnabled(false);
 	notifyLicenseChanged();
+}
+
+void BaseController::openShopPage() {
+#ifdef _WIN32
+	ShellExecuteW(nullptr, L"open", license::kShopUrl, nullptr, nullptr, SW_SHOWNORMAL);
+#endif
+}
+
+// ---- update check (updateCheck.h) ----
+void BaseController::refreshUpdate() {
+	const unsigned g = updatecheck::generation();
+	if (g == updateGen)
+		return;
+	updateGen = g;
+	update = updatecheck::loadState();
+	if (updateBadgeView)
+		updateBadgeView->setMouseEnabled(updateBadgeShown());
+}
+
+bool BaseController::updateBadgeShown() const { return updatecheck::badgeVisible(update, VERSION_STR); }
+bool BaseController::updateLineShown() const { return updatecheck::updateNewer(update, VERSION_STR); }
+
+void BaseController::openUpdateUrl() {
+	// only the store's answer, and only an https address (updatecheck::parseReply checked it)
+	if (!updateLineShown())
+		return;
+#ifdef _WIN32
+	const int n = MultiByteToWideChar(CP_UTF8, 0, update.url.c_str(), -1, nullptr, 0);
+	if (n <= 1)
+		return;
+	std::wstring w(size_t(n), L'\0');
+	MultiByteToWideChar(CP_UTF8, 0, update.url.c_str(), -1, &w[0], n);
+	ShellExecuteW(nullptr, L"open", w.c_str(), nullptr, nullptr, SW_SHOWNORMAL);
+#endif
+}
+
+void BaseController::hideUpdate() {
+	if (!updateLineShown())
+		return;
+	updatecheck::hideVersion(update.latest);
+	update.skip = update.latest;
+	badgeHover = false;
+	if (updateBadgeView)
+		updateBadgeView->setMouseEnabled(false);
+}
+
+void BaseController::toggleUpdateCheck() {
+	update.enabled = !update.enabled;
+	updatecheck::setEnabled(update.enabled);
+	if (updateBadgeView)
+		updateBadgeView->setMouseEnabled(updateBadgeShown());
+	if (update.enabled)
+		updatecheck::startIfDue(license::kProduct, VERSION_STR);
+}
+
+tresult PLUGIN_API BaseController::terminate() {
+	updatecheck::release();  // cancels a check in flight and joins its thread
+	return EditControllerEx1::terminate();
+}
+
+UpdateBadgeView::UpdateBadgeView(const CRect& size, BaseController* c) : CView(size), ctrl(c) {
+	setTransparency(true);
+	setWantsFocus(false);
+	setMouseEnabled(ctrl && ctrl->updateBadgeShown());
+	if (ctrl)
+		ctrl->updateBadgeView = this;
+}
+
+UpdateBadgeView::~UpdateBadgeView() {
+	if (ctrl) {
+		ctrl->badgeHover = false;
+		if (ctrl->updateBadgeView == this)
+			ctrl->updateBadgeView = nullptr;
+	}
+}
+
+CMouseEventResult UpdateBadgeView::onMouseEntered(CPoint&, const CButtonState&) {
+	if (ctrl)
+		ctrl->badgeHover = true;
+	if (CFrame* f = getFrame())
+		f->setCursor(kCursorHand);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult UpdateBadgeView::onMouseExited(CPoint&, const CButtonState&) {
+	if (ctrl)
+		ctrl->badgeHover = false;
+	if (CFrame* f = getFrame())
+		f->setCursor(kCursorDefault);
+	return kMouseEventHandled;
+}
+
+CMouseEventResult UpdateBadgeView::onMouseDown(CPoint&, const CButtonState& buttons) {
+	if (ctrl && buttons.isLeftButton() && ctrl->updateBadgeShown())
+		ctrl->openUpdateUrl();
+	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
 }
 
 // The processor checks the stored token itself; the message only says "look again".
@@ -799,11 +913,8 @@ CMouseEventResult LicenseView::onMouseDown(CPoint& where, const CButtonState& bu
 			if (CFrame* f = getFrame())
 				f->setCursor(kCursorDefault);
 		}
-	}
-#ifdef _WIN32
-	else if (z == licenseZone::kWeb)
-		ShellExecuteW(nullptr, L"open", aboutLinks::kUrl[0], nullptr, nullptr, SW_SHOWNORMAL);
-#endif
+	} else if (z == licenseZone::kBuy)
+		ctrl->openShopPage();
 	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
 }
 
@@ -828,8 +939,9 @@ int AboutLinksView::zoneFor(const CPoint& where) const {
 	// where is in the parent's coordinates (= window coordinates for the top-level template)
 	const CRect r = getViewSize();
 	using namespace editorLayout::about;
+	const bool line = ctrl && ctrl->updateLineShown();
 	return aboutLinks::zoneAt(float(where.x - r.left) + kView.x, float(where.y - r.top) + kView.y,
-	                          ctrl && ctrl->aboutCredits);
+	                          ctrl && ctrl->aboutCredits, line, line && ctrl->updateBadgeShown());
 }
 
 bool AboutLinksView::onWheel(const CPoint&, const CMouseWheelAxis& axis, const float& distance, const CButtonState&) {
@@ -871,9 +983,20 @@ CMouseEventResult AboutLinksView::onMouseDown(CPoint& where, const CButtonState&
 		ctrl->aboutHover = zoneFor(where);
 		return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
 	}
+	switch (z) {
+	case aboutLinks::kPasteLic: ctrl->pasteLicense(); break;
+	case aboutLinks::kUpdToggle: ctrl->toggleUpdateCheck(); break;
+	case aboutLinks::kUpdLink: ctrl->openUpdateUrl(); break;
+	case aboutLinks::kUpdHide: ctrl->hideUpdate(); break;
+	default:
 #ifdef _WIN32
-	ShellExecuteW(nullptr, L"open", aboutLinks::kUrl[z], nullptr, nullptr, SW_SHOWNORMAL);
+		ShellExecuteW(nullptr, L"open", aboutLinks::kUrl[z], nullptr, nullptr, SW_SHOWNORMAL);
 #endif
+		break;
+	}
+	ctrl->aboutHover = zoneFor(where);  // a zone may have gone (Hide, the update line)
+	if (CFrame* f = getFrame())
+		f->setCursor(ctrl->aboutHover >= 0 ? kCursorHand : kCursorDefault);
 	return kMouseDownEventHandledButDontNeedMovedOrUpEvents;
 }
 

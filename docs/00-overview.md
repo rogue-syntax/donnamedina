@@ -54,10 +54,11 @@ Special (non-GPARAMS) IDs are 4CC values in `mdaBaseController.h`: `kBypassParam
 
 ## Licensing gate (licensing v1, 2026-11-19)
 
-See `docs/07-licensing.md`. In short:
-- **Token:** an Ed25519-signed token (`RS1.` prefix) stored in `HKCU\Software\Rogue-Syntax\Registrations\DonnaMedina`, value `License`, written by the editor's **Paste license** button.
-- **Processor:** `DX10Processor::refreshLicense` (constructor, and on `CMSG_LICENSE_CHANGED_CHAR`) sets `regKeyLegit`. Only `noteOn` checks it, so unlicensed means silence.
-- **Controller:** `BaseController::refreshLicense` (`initialize`, every editor open) sets `licensed`. `NVGView` draws the license screen while it is false.
+See `docs/07-licensing.md` (spec: `docs/store/licensing-v1.md`, the store's). In short:
+- **Token:** an Ed25519-signed token (`RS1.` prefix) stored in `HKCU\Software\Rogue-Syntax\Registrations\DonnaMedina`, value `License`, written by the installer (from `license.txt`) or the editor's **Paste license** buttons.
+- **Processor:** `DX10Processor::refreshLicense` (constructor, and on `CMSG_LICENSE_CHANGED_CHAR`) sets `regKeyLegit`. Only `noteOn` checks it (`licensedNow()`: also the process-wide `license::sessionLicensed`, so a paste in one instance unlocks all), so unlicensed means silence. An unlicensed processor also watches the registry key (another process's paste).
+- **Controller:** `BaseController::refreshLicense` (`initialize`, every editor open) sets `licensed`. `NVGView` draws the "Not registered" screen (Buy, Paste license) while it is false.
+- **Update check** (2026-11-20, `source/updateCheck.*`): once a day, in the background, when the plugin opens; "Update available" badge and About line. Never affects licensing.
 - **Removed:** the old bcrypt check, its hard-coded password and `constants::isRegLegit`. The old `RSRegKey` value is ignored.
 
 ## Dead code candidates (confirm before deleting)

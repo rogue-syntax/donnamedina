@@ -65,14 +65,20 @@ private:
 // sits over panel controls). The hovered zone goes to BaseController::aboutHover (NVGView draws
 // it); a click opens the website or a mail to support.
 namespace aboutLinks {
-enum Zone { kNone = -1, kWeb = 0, kMail, kTabAbout, kTabCredits, kZoneCount };
-// x, y in window coordinates; the links only exist on the about page (not on the credits page)
-inline int zoneAt(float x, float y, bool creditsPage) {
+// kPasteLic .. kUpdHide (2026-11-20): Paste license, the Check for updates box and the update line
+enum Zone { kNone = -1, kWeb = 0, kMail, kTabAbout, kTabCredits, kPasteLic, kUpdToggle, kUpdLink, kUpdHide, kZoneCount };
+// x, y in window coordinates; the links and controls only exist on the about page (not on the
+// credits page); the update line's zones only while it is shown (updateLine)
+inline int zoneAt(float x, float y, bool creditsPage, bool updateLine = false, bool hideOption = false) {
 	using namespace editorLayout::about;
 	const editorLayout::ImageRect z[kZoneCount] = {kWebZone, kMailZone, editorLayout::about::kTabAbout,
-	                                               editorLayout::about::kTabCredits};
+	                                               editorLayout::about::kTabCredits, editorLayout::about::kPasteLic,
+	                                               editorLayout::about::kUpdToggle, editorLayout::about::kUpdLink,
+	                                               editorLayout::about::kUpdHide};
 	for (int i = 0; i < kZoneCount; i++) {
-		if (creditsPage && (i == kWeb || i == kMail))
+		if (creditsPage && i != kTabAbout && i != kTabCredits)
+			continue;
+		if ((i == kUpdLink && !updateLine) || (i == kUpdHide && !(updateLine && hideOption)))
 			continue;
 		if (x >= z[i].x && x < z[i].x + z[i].w && y >= z[i].y && y < z[i].y + z[i].h)
 			return i;
@@ -99,14 +105,14 @@ private:
 	BaseController* ctrl;
 };
 
-// Registration screen (licensing v1): an invisible view over editorLayout::licenseScreen::kBox, on top
-// of everything and mouse-enabled only while unlicensed. A click on the button pastes a license from
-// the clipboard (BaseController::pasteLicense); the link opens the website. NVGView draws it all.
+// "Not registered" screen (licensing v1): an invisible view over editorLayout::licenseScreen::kBox, on
+// top of everything and mouse-enabled only while unlicensed. Buy opens the shop page; Paste license
+// pastes a license from the clipboard (BaseController::pasteLicense). NVGView draws it all.
 namespace licenseZone {
-enum Zone { kNone = -1, kPaste = 0, kWeb, kZoneCount };
+enum Zone { kNone = -1, kBuy = 0, kPaste, kZoneCount };
 inline int zoneAt(float x, float y) {
 	using namespace editorLayout::licenseScreen;
-	const editorLayout::ImageRect z[kZoneCount] = {kPaste, kWeb};
+	const editorLayout::ImageRect z[kZoneCount] = {kBuy, kPaste};
 	for (int i = 0; i < kZoneCount; i++)
 		if (x >= z[i].x && x < z[i].x + z[i].w && y >= z[i].y && y < z[i].y + z[i].h)
 			return i;
@@ -126,6 +132,22 @@ public:
 
 private:
 	int zoneFor(const VSTGUI::CPoint& where) const;
+	BaseController* ctrl;
+};
+
+// "Update available" badge (update check): an invisible view over editorLayout::kUpdateBadge,
+// mouse-enabled only while the badge is shown (NVGView); a click opens the URL of the last answer.
+class UpdateBadgeView : public VSTGUI::CView {
+public:
+	UpdateBadgeView(const VSTGUI::CRect& size, BaseController* c);
+	~UpdateBadgeView() override;
+
+	VSTGUI::CMouseEventResult onMouseEntered(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseExited(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	VSTGUI::CMouseEventResult onMouseDown(VSTGUI::CPoint& where, const VSTGUI::CButtonState& buttons) override;
+	void draw(VSTGUI::CDrawContext*) override {}  // drawn by NVGView
+
+private:
 	BaseController* ctrl;
 };
 

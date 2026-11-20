@@ -12,4 +12,4 @@ Rules of thumb
 - Edits to SDK files affect all projects; log them in `docs/05-sdk-mods.md`.
 - Build check: `MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false` (the post-build step copies into Program Files).
 - Dependencies: `external/` (GLEW, Monocypher; libbcrypt is kept but no longer built) and `VST3_SDK/external/revent`. Never add absolute paths.
-- Licensing: signed `RS1.` tokens, `source/license.*`, spec `docs/07-licensing.md` (the store repo's `docs/licensing-v1.md` is the master). No bypasses or machine-ID checks; the developer uses a `kind=dev` license. Tests: `tests\license\build_and_run.bat`.
+- Licensing: signed `RS1.` tokens, `source/license.*`; update check `source/updateCheck.*`; installer `installer/` (store recipe, `installer\build.bat`). Spec: `docs/store/licensing-v1.md` (verbatim copy of the store's master; don't edit), how we meet it: `docs/07-licensing.md`. No bypasses or machine-ID licence checks; the developer uses a `kind=dev` license. Tests: `tests\license\build_and_run.bat`, `tests\update\build_and_run.bat`. The product is spelled "Donna Medina" (no tilde).

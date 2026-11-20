@@ -17,7 +17,8 @@ typedef unsigned int uint32;
 
 #ifndef __RSVERSION__
 #define __RSVERSION__
-const char* const RSVERSION = "Version 1.0.1"; // const pointer: internal linkage, one copy per TU is fine
+#include "version.h"  // the one version number: host, About screen and update check (2026-11-20)
+const char* const RSVERSION = "Version " VERSION_STR; // const pointer: internal linkage, one copy per TU is fine
 #endif
 
 //
