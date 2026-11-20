@@ -39,7 +39,8 @@ std::vector<char> writeState(const State& s);
 enum class Mode { kVariation, kFull };
 void randomize(State& s, const int* stepCounts, size_t count, Mode mode, uint32_t seed);
 
-// Documents\VST3 Presets\Rogue Syntax\Donna Medina (the standard VST3 user preset location).
+// Documents\VST3 Presets\Rogue Syntax Sound Design\Donna Medina (the standard VST3 user preset
+// location: <vendor>\<plugin name> as reported to the host, factory.cpp).
 std::wstring userPresetDir();
 
 // Every *.vstpreset under dir (subfolders included), sorted by file name (case-insensitive).

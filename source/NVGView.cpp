@@ -3857,7 +3857,7 @@ no viewindex at 153!*/
 
 		// Construct the result string
 		// the company name with the trademark sign (store checklist step 5), UTF-8 for NanoVG
-		std::string result = copyrightSymbol + yearStr + " Rogue Syntax Sound Design" TM_SIGN ", LLC.";
+		std::string result = copyrightSymbol + yearStr + " Rogue Syntax Sound Design" TM_SIGN " LLC";  // as in the installer and EULA
 
 		return result;
 	}

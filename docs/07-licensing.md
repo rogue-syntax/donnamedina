@@ -26,11 +26,13 @@ The plugin keeps its own copy of the product ID, registry subkey and shop page i
 **Names with the trademark sign** (checklist step 5): wherever the plugin draws its own name or the company's, it writes `Donna Medina™` and `Rogue Syntax Sound Design™` (`TM_SIGN`, UTF-8, in `source/constants.h`; the UI font DejaVu Sans Mono has the glyph):
 - the logo art (main window and About): a small ™ drawn after DONNA MEDINA (`NVGView::drawLogoTrademark`; the art itself is unchanged);
 - the readout on logo hover, `ABOUT DONNA MEDINA™` (the readout's scramble now works per UTF-8 character, `RandyTxt::scrambleFront`);
-- the About footer, `©<year> Rogue Syntax Sound Design™, LLC.`; the CREDITS page heading and first line (`tools/gen_notices.ps1` writes ™ into `licenses/THIRD-PARTY-NOTICES.txt` and `source/creditsText.h`);
+- the About footer, `©<year> Rogue Syntax Sound Design™ LLC` (the company as the installer and EULA write it); the CREDITS page heading and first line (`tools/gen_notices.ps1` writes ™ into `licenses/THIRD-PARTY-NOTICES.txt` and `source/creditsText.h`);
 - "Thank you. Donna Medina™ is ready to play." after a good paste;
 - the installer: the recipe adds ™ to the name and publisher itself (`PluginTitle`).
 
-Not changed, on purpose: the name and vendor the plugin reports to the host (`source/factory.cpp`: "Donna Medina", "Rogue Syntax"), which hosts show in their plugin lists and may use to find the plugin in saved projects and their plugin databases; to settle with the store owner before the first release. Also unchanged: file and folder names (`Documents\VST3 Presets\Rogue Syntax\Donna Medina`), and `stringLegalCopyright` in `version.h` (no resource uses it).
+- the plugin file's Windows properties (`RSSynth001donnaMedina.rc`): product and description `Donna Medina™`, company `Rogue Syntax Sound Design™ LLC`, copyright `© Rogue Syntax Sound Design™ LLC`, version from `source/version.h`.
+
+**The names the DAW shows** (2026-11-20, the developer's choice): `source/factory.cpp` reports "Donna Medina" by "Rogue Syntax Sound Design" (was "Rogue Syntax"), the full names without the ™, because hosts also build the user preset folder from them. The plugin's own preset folder follows: `Documents\VST3 Presets\Rogue Syntax Sound Design\Donna Medina` (`presetTools.cpp`, was `...\Rogue Syntax\Donna Medina`; presets saved in the old folder aren't listed any more). Nothing had shipped, so no customer's projects or presets refer to the old vendor. Not changed: the artwork (the Rogue Syntax logo on the About screen), web addresses, and technical names (product ID, registry key, the DLL file name).
 
 ## 2. Checking a licence (spec 1.2–1.6, 2.1)
 

@@ -57,13 +57,10 @@
 #define VERSION_STR MAJOR_VERSION_STR "." SUB_VERSION_STR "." RELEASE_NUMBER_STR
 
 #define stringOriginalFilename	"RSSynth001donnaMedina.vst3"
-#if PLATFORM_64
-#define stringFileDescription	"RSSynth001donnaMedina (64Bit)"
-#else
-#define stringFileDescription	"RSSynth001donnaMedina (32Bit)"
-#endif
-#define stringCompanyName		"www.rogue-syntax.com\0"
-#define stringLegalCopyright	"© 2024 Rogue Syntax Sound Design, LLC."
+// (not used by any resource or code; the file properties are in RSSynth001donnaMedina.rc)
+#define stringFileDescription	"Donna Medina\xE2\x84\xA2"
+#define stringCompanyName		"Rogue Syntax Sound Design\xE2\x84\xA2" " LLC"
+#define stringLegalCopyright	"\xC2\xA9 Rogue Syntax Sound Design\xE2\x84\xA2" " LLC"
 #define stringLegalTrademarks	"VST is a trademark of Steinberg Media Technologies GmbH"
 
 #endif //__version__

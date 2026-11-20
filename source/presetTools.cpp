@@ -263,7 +263,8 @@ std::wstring userPresetDir() {
 	if (p) CoTaskMemFree(p);
 	if (docs.empty())
 		return {};
-	return docs + L"\\VST3 Presets\\Rogue Syntax\\Donna Medina";
+	// <vendor>\<name> as the plugin reports them to the host (factory.cpp)
+	return docs + L"\\VST3 Presets\\Rogue Syntax Sound Design\\Donna Medina";
 }
 
 std::wstring parentDir(const std::wstring& path) {

@@ -1,6 +1,6 @@
 # Donna Medina (RSSynth001) – Overview
 
-VST3 instrument, vendor "Rogue Syntax". Built on Steinberg's **mda DX10 VST3 sample** (`mda*` files), heavily extended, with a custom NanoVG/OpenGL GUI on top of VSTGUI4. DSP classes derive from Will Pirkle book examples.
+VST3 instrument, vendor "Rogue Syntax Sound Design" (the plugin and installer show "Rogue Syntax Sound Design™ LLC"; see 07-licensing.md). Built on Steinberg's **mda DX10 VST3 sample** (`mda*` files), heavily extended, with a custom NanoVG/OpenGL GUI on top of VSTGUI4. DSP classes derive from Will Pirkle book examples.
 
 Status of this doc: pass 1 (skeleton) + pass 2 (params/state). Passes 3 (audio/DSP) and 4 (GUI/SDK mods) are not done yet. Items marked **[unverified]** come from reading only, not from running.
 

@@ -40,7 +40,7 @@ function Add($title, [string[]]$body) {
 # the trademark sign (store checklist step 5: "Donna Medina(TM)", "Rogue Syntax Sound Design(TM)")
 $tm = [string][char]0x2122
 Add ('DONNA MEDINA' + $tm + ' - THIRD-PARTY NOTICES') @(
-	('Donna Medina' + $tm + ' (c) Rogue Syntax Sound Design' + $tm + ', LLC. It includes the software and fonts listed below, used under the licences that follow.'))
+	('Donna Medina' + $tm + ' (c) Rogue Syntax Sound Design' + $tm + ' LLC. It includes the software and fonts listed below, used under the licences that follow.'))
 
 Add 'VST' @(
 	'VST PlugIn Technology by Steinberg Media Technologies GmbH.',

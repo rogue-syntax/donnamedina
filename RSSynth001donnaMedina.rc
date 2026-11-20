@@ -79,7 +79,8 @@ DMLOGO_SCREENRES.PNG    PNG                     "./resources/dmlogo_screenres.pn
 //
 
 // The version comes from source/version.h, the plugin's one version number (host, About screen,
-// update check, release package).
+// update check, release package). The names are the store's, with the TM sign (U+2122), written
+// as escapes in L"" strings so this file stays ASCII (code_page 1252).
 #include "source/version.h"
 VS_VERSION_INFO VERSIONINFO
  FILEVERSION MAJOR_VERSION_INT,SUB_VERSION_INT,RELEASE_NUMBER_INT,BUILD_NUMBER_INT
@@ -98,13 +99,13 @@ BEGIN
     BEGIN
         BLOCK "040004e4"
         BEGIN
-            VALUE "CompanyName", "Rogue Syntax"
-            VALUE "FileDescription", "RSSynth001donnaMedina"
+            VALUE "CompanyName", L"Rogue Syntax Sound Design\x2122 LLC"
+            VALUE "FileDescription", L"Donna Medina\x2122"
             VALUE "FileVersion", FULL_VERSION_STR
             VALUE "InternalName", "RSSynth001donnaMedina"
-            VALUE "LegalCopyright", "  Rogue Syntax"
+            VALUE "LegalCopyright", L"\x00A9 Rogue Syntax Sound Design\x2122 LLC"
             VALUE "OriginalFilename", "RSSynth001donnaMedina.vst3"
-            VALUE "ProductName", "RSSynth001donnaMedina"
+            VALUE "ProductName", L"Donna Medina\x2122"
             VALUE "ProductVersion", VERSION_STR
         END
     END

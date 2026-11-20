@@ -44,10 +44,14 @@
 #include "mdaDX10Controller.h"
 #include "version.h"	// for versioning
 
+// The names the DAW shows (plugin list, and Documents\VST3 Presets\<vendor>\<name>): the full product
+// and company names, without the TM sign (it is only in text the plugin draws itself, file properties
+// and the installer), so the preset folder stays plain. presetTools.cpp userPresetDir() uses the same.
 #define stringPluginName "Donna Medina"
+#define stringVendorName "Rogue Syntax Sound Design"
 
 
-BEGIN_FACTORY_DEF ("Rogue Syntax", 
+BEGIN_FACTORY_DEF (stringVendorName,
 				   "http://www.rogue-syntax.com", 
 				   "mailto:admin@rogue-syntax.com")
 

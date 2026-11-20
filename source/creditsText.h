@@ -6,7 +6,7 @@
 namespace credits {
 static const char* const kText[] = {
 	"## DONNA MEDINA\xE2\x84\xA2" " - THIRD-PARTY NOTICES",
-	"Donna Medina\xE2\x84\xA2" " (c) Rogue Syntax Sound Design\xE2\x84\xA2" ", LLC. It includes the software and fonts listed below, used under the licences that follow.",
+	"Donna Medina\xE2\x84\xA2" " (c) Rogue Syntax Sound Design\xE2\x84\xA2" " LLC. It includes the software and fonts listed below, used under the licences that follow.",
 	"## VST",
 	"VST PlugIn Technology by Steinberg Media Technologies GmbH. VST is a registered trademark of Steinberg Media Technologies GmbH. Built with the VST 3 SDK, used under the Steinberg VST 3 License.",
 	"## VSTGUI",
