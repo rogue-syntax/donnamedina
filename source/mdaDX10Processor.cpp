@@ -6,6 +6,13 @@
 #include "hqDecimator.h"
 
 #include "license.h"
+#include "factoryPresetFiles.h"
+#include "presetTools.h"
+
+#include "public.sdk/source/common/memorystream.h"
+#include "public.sdk/source/vst/vstpresetfile.h"
+
+#include <cstring>
 
 
 #define debugLog(...) fprintf(stderr, __VA_ARGS__)
@@ -83,6 +90,34 @@ DX10Processor::DX10Processor () : currentProgram (0) {
 
 	//setCurrentProgram(0);
 	//sendPidVal(&PMSG_SET_PARAM_NRML_CHAR, MOD_BEAT_, 0.087);
+}
+
+//-----------------------------------------------------------------------------
+static_assert (factoryPresetFiles::kBuiltIn + factoryPresetFiles::kCount == DX10Processor::kNumPrograms,
+               "kNumPrograms: the programs written in code plus factoryPresetFiles::kFiles");
+static_assert (DX10Processor::kNumPrograms <= 20, "programParams has 20 rows");
+
+// One embedded .vstpreset file (factoryPresetFiles.h) into a programParams row, the way setState
+// reads a state: globals stay as the row has them; parameters newer than the file get their defaults.
+static bool loadFactoryPresetFile (const char* resource, float* row) {
+	std::vector<char> file;
+	if (!presetTools::readResource (resource, file))
+		return false;
+	MemoryStream fs (file.data (), TSize (file.size ()));
+	PresetFile pf (&fs);
+	if (!pf.readChunkList () || pf.getClassID () != DX10Processor::uid)
+		return false;
+	const PresetFile::Entry* e = pf.getEntry (kComponentState);
+	if (!e || e->size <= 0 || e->offset < 0 || e->offset + e->size > TSize (file.size ()))
+		return false;
+	presetTools::State s;
+	if (!presetTools::parseState (file.data () + e->offset, size_t (e->size), s))
+		return false;
+	for (size_t i = 0; i < s.values.size () && i < size_t (GPARAMS); i++)
+		if (!isGlobalParam (int (i)) && std::isfinite (s.values[i]))
+			row[i] = static_cast<float> (s.values[i]);
+	applyNewParamDefaults (s.version ? s.version : 1, [row] (int pid, double v) { row[pid] = static_cast<float> (v); });
+	return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -621,6 +656,13 @@ void DX10Processor::fillFactoryPresets () {
 		programParams[p][MASTER_VOL] = static_cast<float> (DEFAULT_MASTER_VOL);
 		programParams[p][POLY_COUNT] = static_cast<float> (polyToNormalized (POLY_DEFAULT));  // global too
 		applyNewParamDefaults (0, [p] (int pid, double v) { programParams[p][pid] = static_cast<float> (v); });
+	}
+
+	// the factory preset files, after the programs above (a missing one plays as the first program)
+	for (int k = 0; k < factoryPresetFiles::kCount; k++) {
+		float* row = programParams[factoryPresetFiles::kBuiltIn + k];
+		if (!loadFactoryPresetFile (factoryPresetFiles::kFiles[k].resource, row))
+			std::memcpy (row, programParams[0], sizeof (programParams[0]));
 	}
 }
 

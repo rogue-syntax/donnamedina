@@ -85,7 +85,7 @@ public:
 
 	enum {
 		
-		kNumPrograms = 7,
+		kNumPrograms = 13,  // 7 written in code + the preset files (factoryPresetFiles.h)
 		//GENCOUNT = 2,
 		EVENTBUFFER = 1024,//expand?//or shrink?was 240
 		EVENTS_DONE = 99999999,

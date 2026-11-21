@@ -48,7 +48,7 @@ Support: `constants.h` (all param IDs + sizes), `pluginobjects.cpp` (Pirkle-styl
 | _GEN_STEP_PARAM_COUNT_ | 23 | "vertical switch" params (see vertSwitchPids) |
 | TOGGLE_COUNT | 7 | toggle buttons |
 | EVENTBUFFER | 1024 | note event slots per block (3 ints per event) |
-| kNumPrograms | 7 | factory presets (programParams is [20][GPARAMS]) |
+| kNumPrograms | 13 | factory presets: 7 written in code + 6 preset files (`factoryPresetFiles.h`); programParams is [20][GPARAMS] |
 
 Special (non-GPARAMS) IDs are 4CC values in `mdaBaseController.h`: `kBypassParam 'bpas'`, `kPresetParam 'prst'`, `kModWheelParam 'modw'`, pitch bend, `kLinkGen1Param 'lg1p'`.
 

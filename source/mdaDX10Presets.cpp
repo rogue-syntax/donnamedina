@@ -9,6 +9,7 @@
 #include "mdaDX10Controller.h"
 #include "presetTools.h"
 #include "presetBarView.h"
+#include "factoryPresetFiles.h"
 
 #include "public.sdk/source/common/memorystream.h"
 #include "public.sdk/source/vst/vstpresetfile.h"
@@ -29,10 +30,15 @@ const uint32 kCtrlStateVersion = 1;
 }
 
 const char* DX10Controller::factoryPresetName(int i) {
+	// the programs written in code, then the preset files (factoryPresetFiles.h)
 	static const char* names[] = {"Softly", "Prima Donna", "Perturb", "Polycrystalline", "Skillsaw",
 	                              "Brooding Sky Arp", "Brooding Sea Strings"};
-	static_assert(sizeof(names) / sizeof(names[0]) == DX10Processor::kNumPrograms, "factory names");
-	return (i >= 0 && i < DX10Processor::kNumPrograms) ? names[i] : "";
+	static_assert(sizeof(names) / sizeof(names[0]) == factoryPresetFiles::kBuiltIn, "factory names");
+	if (i >= 0 && i < factoryPresetFiles::kBuiltIn)
+		return names[i];
+	if (i >= factoryPresetFiles::kBuiltIn && i < DX10Processor::kNumPrograms)
+		return factoryPresetFiles::kFiles[i - factoryPresetFiles::kBuiltIn].name;
+	return "";
 }
 
 void DX10Controller::rescanPresets() {

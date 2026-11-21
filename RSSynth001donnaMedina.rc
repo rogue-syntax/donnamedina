@@ -15,6 +15,14 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_US
 
 VSTGUI.UIDESC           DATA                    "./resources/vstgui.uidesc"
 
+// FACTORY PRESET FILES (names and order: source/factoryPresetFiles.h)
+PRESET_303_1             RCDATA                  "./presets/factory/303-1.vstpreset"
+PRESET_303_2             RCDATA                  "./presets/factory/303-2.vstpreset"
+PRESET_303_3             RCDATA                  "./presets/factory/303-3.vstpreset"
+PRESET_POLYCRYSTALLINE_2 RCDATA                  "./presets/factory/Polycrystalline-2.vstpreset"
+PRESET_TAIKO_1           RCDATA                  "./presets/factory/taiko-1.vstpreset"
+PRESET_TEARDROP_1        RCDATA                  "./presets/factory/Teardrop-1.vstpreset"
+
 
 /////////////////////////////////////////////////////////////////////////////
 //

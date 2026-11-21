@@ -141,19 +141,7 @@ namespace rs {
 		OBJ_METHODS (MasterVolParameter, Parameter)
 	};
 
-//-----------------------------------------------------------------------------
-static const char* presetNames[] = 
-{
-	"Softly",
-	"Prima Donna",
-	"Perturb",
-	"Polycrystalline",
-	"Skillsaw",
-	"Brooding Sky Arp",
-	"Brooding Sea Strings",
-
-	NULL
-};
+// (the factory preset names: factoryPresetName, mdaDX10Presets.cpp)
 
 //-----------------------------------------------------------------------------
 FUID DX10Controller::uid (0xD304372E, 0x393E4A29, 0xB6D72C58, 0xD268FD90 );
@@ -765,7 +753,7 @@ tresult PLUGIN_API DX10Controller::initialize (FUnknown* context)
 		    ParameterInfo::kCanAutomate | ParameterInfo::kIsProgramChange | ParameterInfo::kIsList,
 		    kPresetParam);
 		for (int32 i = 0; i < DX10Processor::kNumPrograms; i++) {
-			presetParam->setIndexString(i, UString128(presetNames[i]));
+			presetParam->setIndexString(i, UString128(factoryPresetName(i)));
 			
 		}
 			

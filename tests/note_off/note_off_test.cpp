@@ -12,6 +12,7 @@
 #include "../../source/mdaDX10Controller.h"  // B-01/B-02 controller test
 #include "../../source/paramDisplay.h"
 #include "../../source/presetTools.h"
+#include "../../source/factoryPresetFiles.h"
 #include "../../source/lfoShape.h"
 #include "public.sdk/source/vst/vstpresetfile.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
@@ -536,7 +537,10 @@ static void renderPresetPoly(int preset, int poly, double filter, const std::vec
 	Options o;
 	o.keepPatchEnvelopes = true;
 	o.params = {{0.0, {rs::BaseController::kPresetParam, (preset + 0.5) / rs::DX10Processor::kNumPrograms}},
-	            {0.01, {POLY_COUNT, polyToNormalized(poly)}}};
+	            {0.01, {POLY_COUNT, polyToNormalized(poly)}},
+	            // the default fade length (21 ms): some presets set Snap to 2 ms (the 303s), where the
+	            // fade itself changes the old note by ~10 % in 16 samples; this probe looks for a jump
+	            {0.015, {SNAP_TIME, snapToNormalized(SNAP_DEFAULT_MS)}}};
 	if (filter >= 0.0) o.params.push_back({0.02, {FILTER_, filter}});
 	static HostApplication chost;
 	auto* ctrl = new rs::DX10Controller();
@@ -1659,6 +1663,65 @@ int main(int argc, char** argv) {
 			check("truncated state", r == kResultFalse && !p->isBypassed(), buf);
 			done(p);
 		}
+	}
+
+	// ---- factory preset files (presets/factory, embedded as resources; needs the plugin's .res) ----
+	{
+		std::printf("\nFactory preset files\n");
+		static HostApplication fhost;
+		rs::DX10Processor::ensureFactoryPresets();
+		const std::string here = __FILE__;
+		const std::string dir = here.substr(0, here.find_last_of("\\/") + 1) + "..\\..\\presets\\factory\\";
+		for (int k = 0; k < factoryPresetFiles::kCount; k++) {
+			const int prog = factoryPresetFiles::kBuiltIn + k;
+			const std::string path = dir + factoryPresetFiles::kFiles[k].name + ".vstpreset";
+			std::vector<char> file;
+			presetTools::State s;
+			bool ok = presetTools::readFile(presetTools::fromUtf8(path), file) && !file.empty();
+			if (ok) {
+				MemoryStream fs(file.data(), TSize(file.size()));
+				PresetFile pf(&fs);
+				const PresetFile::Entry* e = pf.readChunkList() ? pf.getEntry(kComponentState) : nullptr;
+				ok = e && presetTools::parseState(file.data() + e->offset, size_t(e->size), s);
+			}
+			// the table row holds the file's values (globals excepted)
+			int diffs = 0, compared = 0;
+			for (size_t i = 0; ok && i < s.values.size() && i < size_t(GPARAMS); i++) {
+				if (isGlobalParam(int(i))) continue;
+				compared++;
+				if (rs::DX10Processor::programParams[prog][i] != static_cast<float>(s.values[i])) diffs++;
+			}
+			// and a processor switched to that program plays it
+			auto* p = new rs::DX10Processor();
+			p->initialize(&fhost);
+			p->setCurrentProgram(uint32(prog));
+			int procDiffs = 0;
+			for (size_t i = 0; ok && i < s.values.size() && i < size_t(GPARAMS); i++)
+				if (!isGlobalParam(int(i)) && std::fabs(p->floatParams[i] - static_cast<float>(s.values[i])) > 1e-6) procDiffs++;
+			p->terminate();
+			p->release();
+			const bool pass = ok && compared > 100 && diffs == 0 && procDiffs == 0;
+			if (!pass) failures++;
+			std::printf("  program %2d %-20s %d values, %d differ in the table, %d in the processor   %s\n", prog,
+			            factoryPresetFiles::kFiles[k].name, compared, diffs, procDiffs, pass ? "PASS" : "FAIL");
+		}
+		// the host's program list names them
+		auto* ctrl = new rs::DX10Controller();
+		ctrl->initialize(&fhost);
+		int wrong = 0;
+		std::string last;
+		for (int prog = 0; prog < rs::DX10Processor::kNumPrograms; prog++) {
+			String128 s16 = {};
+			ctrl->getParamStringByValue(rs::BaseController::kPresetParam, double(prog) / (rs::DX10Processor::kNumPrograms - 1), s16);
+			last = presetTools::toUtf8(std::wstring(reinterpret_cast<const wchar_t*>(s16)));
+			const std::string want = prog < factoryPresetFiles::kBuiltIn ? last : factoryPresetFiles::kFiles[prog - factoryPresetFiles::kBuiltIn].name;
+			if (last != want || last.empty()) wrong++;
+		}
+		ctrl->terminate();
+		ctrl->release();
+		if (wrong) failures++;
+		std::printf("  host program list: %d names, %d wrong, last \"%s\"%*s%s\n", rs::DX10Processor::kNumPrograms, wrong,
+		            last.c_str(), 30, "", wrong ? "FAIL" : "PASS");
 	}
 
 	// ---- B-01 / B-02: controller with the editor closed (no view, as when the GUI is not open) ----

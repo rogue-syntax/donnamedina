@@ -357,6 +357,21 @@ bool readFile(const std::wstring& path, std::vector<char>& out) {
 	return ok;
 }
 
+bool readResource(const char* name, std::vector<char>& out) {
+	HMODULE mod = nullptr;
+	if (!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+	                        reinterpret_cast<LPCWSTR>(&readResource), &mod))
+		return false;
+	HRSRC r = FindResourceA(mod, name, MAKEINTRESOURCEA(10));  // RT_RCDATA
+	HGLOBAL g = r ? LoadResource(mod, r) : nullptr;
+	const void* p = g ? LockResource(g) : nullptr;
+	const DWORD n = r ? SizeofResource(mod, r) : 0;
+	if (!p || n == 0)
+		return false;
+	out.assign(static_cast<const char*>(p), static_cast<const char*>(p) + n);
+	return true;
+}
+
 bool writeFile(const std::wstring& path, const std::vector<char>& data) {
 	const std::wstring dir = parentDir(path);
 	if (!dir.empty())

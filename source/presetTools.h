@@ -55,6 +55,9 @@ bool hasExtension(const std::wstring& path, const wchar_t* ext);  // ext like L"
 bool ensureDir(const std::wstring& dir);                 // creates missing folders
 
 bool readFile(const std::wstring& path, std::vector<char>& out);
+// An RCDATA resource of the module this code is linked into (the plugin DLL; a test exe that links
+// the plugin's .res has them too). False when it is missing.
+bool readResource(const char* name, std::vector<char>& out);
 bool writeFile(const std::wstring& path, const std::vector<char>& data);  // creates folders
 
 std::string toUtf8(const std::wstring& w);
