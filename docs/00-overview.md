@@ -77,6 +77,7 @@ See `docs/07-licensing.md` (spec: `docs/store/licensing-v1.md`, the store's). In
 - `BUGS.md` — ledger with verification log
 - `06-note-event-trace.md` — host event to voice trace, ghost-note timing model (pass 5)
 - `TRIAGE.md` — all findings grouped as "look into / possibly fix" (no fixes scheduled)
+- `08-video.md` — film tool and video material (never shipped)
 
 ## Next passes
 - (done) 02 voices & DSP, 03 modulation

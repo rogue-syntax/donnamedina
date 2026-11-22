@@ -1041,6 +1041,8 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 		};
 		void advanceFrame();
 		void drawScene(unsigned layers);
+		// The film tool draws into its own framebuffer with this view's GL context and NanoVG (vg).
+		bool makeGLCurrent() { IPlatformOpenGLView* p = getPlatformOpenGLView(); return p && p->makeContextCurrent(); }
 
 		void hideGen2();
 

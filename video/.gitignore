@@ -1,2 +1,4 @@
 # captures and renders (rebuilt by the scripts)
 /out/
+# the film tool's build output (video\film\build.bat)
+/film/bin/
