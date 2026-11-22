@@ -71,6 +71,9 @@ tresult PLUGIN_API BaseProcessor::initialize (FUnknown* context)
 //-----------------------------------------------------------------------------
 tresult PLUGIN_API BaseProcessor::terminate ()
 {
+#ifdef RS_VIDEO_RECORD
+	videoRecorder.finish (false);
+#endif
 	if (msgTimer) {
 		msgTimer->stop ();
 		msgTimer->release ();
@@ -327,6 +330,9 @@ tresult PLUGIN_API BaseProcessor::process (ProcessData& data)
 	const unsigned int savedCsr = _mm_getcsr ();
 	_mm_setcsr (savedCsr | 0x8040);  // bit 15 FTZ, bit 6 DAZ
 
+#ifdef RS_VIDEO_RECORD
+	videoRecorder.block (data, processSetup, *this);  // what the host sends, before the engine sees it
+#endif
 	tl_inProcess = true;  // B-10: messages sent from here on are queued, not sent
 	preProcess(data);
 	tl_inProcess = false;
@@ -666,6 +672,10 @@ tresult PLUGIN_API BaseProcessor::setActive (TBool state)
 	}
 	if (state)
 		scope.setSampleRate (getSampleRate ());
+#ifdef RS_VIDEO_RECORD
+	if (!state)
+		videoRecorder.finish (false);  // the export is over (main thread)
+#endif
 
 	return AudioEffect::setActive (state);
 }

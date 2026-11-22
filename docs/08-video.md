@@ -11,7 +11,7 @@ release package, and the plugin behaves the same with or without it.
 | Demo MIDI (4 bars, 120 BPM, bass, chords, melody, mod wheel) | `video/film/demo.mid` (from `make_demo_mid.py`) | |
 | Blender test shot (UI capture on a plane, camera push-in) | `video/test01/pushin.py` | test only |
 | Blender importer (layers on planes, data as keyframes, audio) | `video/blender/import_film.py` | step 2, working |
-| Record-for-video (log a DAW export, replay it in the film tool) | behind a compile switch, never in a release | step 3, not started |
+| Record-for-video (log a DAW export, replay it in the film tool) | `source/videoRecord.*` behind a commented-out `#define`, `film.exe --record` | step 3, working (not yet tried in FL Studio) |
 
 Renders go to `video/out/` (ignored by git).
 
@@ -24,6 +24,9 @@ Renders go to `video/out/` (ignored by git).
   `kLayerDisplays`, `kLayerArt`, `kLayerControls`, `kLayerOverlays`, `kLayerWindows`) and moves
   nothing on while the clock stands still. The editor calls both with all layers.
 - `NVGView::makeGLCurrent()`: the film tool draws with the editor's GL context into its own framebuffer.
+- `source/videoRecord.h/.cpp` and three `#ifdef RS_VIDEO_RECORD` spots (`BaseProcessor::process`,
+  `setActive`, `terminate`; the light in `NVGView::drawScene`): compiled to nothing unless the
+  recording build is switched on (below).
 
 ## Using the film tool
 
@@ -76,6 +79,49 @@ Checked (2026-11-21, demo.mid, 2 s, 30 fps, scale 2, FILTER automated 0.1 -> 0.9
 
 Speed: about 16 PNGs per second at scale 2 (5 layers x 30 fps: about 10 s per second of video), about
 7 per second at scale 3.
+
+## Record-for-video (recording build)
+
+For filming a real song: the notes, knob automation and tempo as the DAW plays them, not a MIDI file.
+
+1. In `source/videoRecord.h` uncomment `// #define RS_VIDEO_RECORD`, build Release|x64 (it deploys as
+   usual). The editor shows a small light after the GENERATOR CONTROL title: dim red = recording build,
+   bright red = recording now.
+2. In the DAW, export (render) the song. While the host renders offline (`processMode == kOffline`)
+   each instance logs the processor's state at the start, then every block's transport (tempo, song
+   position, time signature), parameter changes and note events with their sample offsets. Playing
+   in real time records nothing. The take is written when the export ends (the host switches back
+   to real time, deactivates or closes the plugin): `Documents\Donna Medina video\take-<date>-<time>-<n>.rsrec`
+   (`%DONNA_VIDEO_DIR%` instead, if set), one per instance and export.
+3. `video\film\bin\film.exe --record take.rsrec --fps 30 --scale 3`: the state is restored as a host
+   restores a project, then the host's blocks are replayed in order (a block that a frame falls inside
+   is cut there: events keep their sample positions, the block's parameter changes go to its first
+   piece), and each change also goes to the controller, as the host sends it. `--start` / `--end` are
+   take seconds; `song.*` in the data is the DAW's song position, tempo and quarters.
+4. Comment the `#define` out again and rebuild. `installer\release.ps1` refuses a release while the
+   line is uncommented, or when the built plugin contains the recording build's marker text
+   (`DONNA-MEDINA-VIDEO-RECORD-BUILD`, written into every take).
+
+With the line commented out none of it is compiled (the light, the recorder, the hook in
+`BaseProcessor::process`). An offline render has no real-time deadline, so a take is collected in
+memory on the audio thread and written on a thread of its own.
+
+The film tool's WAV of a take is the synth alone; line the DAW's full mix up with it at frame 0 (the
+take starts where the export started). The time-seeded `rand()` in the oscillators (above) applies.
+
+Checked (2026-11-22; the film tool stands in for the host: `--offline` makes a recording build record
+the MIDI render as a take):
+- demo.mid, 2 s, FILTER automated, 256-sample blocks: the replay of the take (no MIDI, no
+  `--automate`) gives the same WAV byte for byte and the same PNG in all five layers for all 60
+  frames; the data are equal (the MIDI run also lists pitches it plays after the 2 s);
+- recorded with 1000-sample blocks at 7 fps, replayed at 30 fps (blocks cut at new places): the WAV
+  is identical sample for sample (384000), the held-note count equal at every recorded frame;
+- the replay itself records nothing (it runs in real-time mode);
+- the light (recording build, no take): dim red dot at (863, 20) after the title; the film tool's
+  frames don't show it;
+- `release.ps1` stops with the line uncommented, and with it commented out but the recording DLL
+  still built; the normal build has no marker.
+Not yet checked: whether FL Studio renders in offline mode (if it doesn't, no take appears).
 
 ## Blender importer
 

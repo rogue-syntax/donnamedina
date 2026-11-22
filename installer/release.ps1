@@ -7,7 +7,8 @@
 #   - the plugin's identity (source\license.h) must equal the store's (product.json): the store
 #     checks the manifest against product.json only, so it can't see a plugin built with other IDs;
 #   - the plugin is installed as DonnaMedinaVST64.vst3 (the name it has always had);
-#   - ISCC.exe is also looked for in a per-user Inno Setup install.
+#   - ISCC.exe is also looked for in a per-user Inno Setup install;
+#   - it refuses a recording build (record-for-video, source\videoRecord.h).
 param([string]$Iscc = "")
 $ErrorActionPreference = "Stop"
 $here = $PSScriptRoot
@@ -45,6 +46,16 @@ if (-not (Test-Path -LiteralPath $vst)) { throw "$vst not found: build Release|x
 $in = Join-Path $here "in"
 New-Item -ItemType Directory -Force $in | Out-Null
 $plugin = Join-Path $in "DonnaMedinaVST64.vst3"
+
+# ---- never a recording build (record-for-video, source\videoRecord.h, docs\08-video.md)
+$vr = Get-Content -Raw -LiteralPath (Join-Path $proj "source\videoRecord.h")
+if ($vr -match '(?m)^[ \t]*#[ \t]*define[ \t]+RS_VIDEO_RECORD\b') {
+  throw "source\videoRecord.h has RS_VIDEO_RECORD switched on: comment the #define out and rebuild Release|x64."
+}
+$bytes = [IO.File]::ReadAllBytes($vst)
+if ([Text.Encoding]::GetEncoding(28591).GetString($bytes).Contains("DONNA-MEDINA-VIDEO-RECORD-BUILD")) {
+  throw "$vst is a recording build (record-for-video): rebuild Release|x64 with RS_VIDEO_RECORD commented out."
+}
 Copy-Item -LiteralPath $vst -Destination $plugin -Force
 
 # ---- Inno Setup

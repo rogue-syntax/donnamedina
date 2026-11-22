@@ -13,6 +13,7 @@
 #include "pluginterfaces/vst/ivstparameterchanges.h"
 #include "constants.h"
 #include "scopeCapture.h"
+#include "videoRecord.h"
 #include <atomic>
 #include <math.h>
 
@@ -94,6 +95,10 @@ public:
 	};
 
 	int64 myInstanceId = 0;
+
+#ifdef RS_VIDEO_RECORD
+	videorec::Recorder videoRecorder;  // recording builds only (videoRecord.h)
+#endif
 
 	ParamValue* params;
 	ParamValue floatParams[GPARAMS];

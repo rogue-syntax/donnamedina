@@ -5,6 +5,9 @@
 //   film.exe song.mid [--out DIR] [--fps 30] [--scale 2] [--preset NAME | --preset-file FILE.vstpreset]
 //            [--track N] [--channel N] [--start SEC] [--end SEC] [--tail SEC] [--sr 48000]
 //            [--layers base,displays,art,controls,overlays | all] [--automate ID:T0:V0:T1:V1]...
+//   film.exe --record take.rsrec [same options but --preset*, --track, --channel]
+//     replays a take from a recording build of the plugin (source/videoRecord.h): the state, notes,
+//     automation and transport as the host sent them during an export.
 //
 // Everything is driven by the frame clock: audio is rendered up to each frame's sample position,
 // then the processor's message timer runs once (scope, voices, playheads, peak go to the editor),
@@ -24,6 +27,8 @@
 #include "../../source/updateCheck.h"
 #include "../../source/license.h"
 #include "../../source/editorLayout.h"
+#include "../../source/videoRecord.h"
+#include "public.sdk/source/common/memorystream.h"
 #include "public.sdk/source/vst/hosting/eventlist.h"
 #include "public.sdk/source/vst/hosting/parameterchanges.h"
 #include "public.sdk/source/vst/hosting/hostclasses.h"
@@ -73,7 +78,9 @@ const LayerDef kLayers[] = {
 };
 
 struct Options {
-	std::wstring midi, out, presetFile;
+	std::wstring midi, record, out, presetFile;
+	bool offline = false;  // --offline: process in offline mode (a recording build then records a take)
+	int block = 256;       // --block: MIDI block size (a take keeps the host's)
 	std::string presetName;
 	int fps = 30;
 	double scale = 2.0;
@@ -89,8 +96,10 @@ std::string narrow(const std::wstring& s) { return presetTools::toUtf8(s); }
 
 void usage() {
 	std::printf(
-	    "film.exe song.mid [options]\n"
-	    "  --out DIR             output folder (default video\\out\\film\\<midi name>)\n"
+	    "film.exe song.mid [options]       or   film.exe --record take.rsrec [options]\n"
+	    "  --record FILE         replay a take from a recording build (notes, automation, tempo and the\n"
+	    "                        sound as the host sent them); --start/--end are then take seconds\n"
+	    "  --out DIR             output folder (default video\\out\\film\\<input name>)\n"
 	    "  --fps N               frames per second (default 30)\n"
 	    "  --scale S             editor scale, 1..4 (default 2: 2496 x 1084)\n"
 	    "  --preset NAME         a factory preset (default the first)\n"
@@ -101,7 +110,9 @@ void usage() {
 	    "  --sr HZ               sample rate (default 48000)\n"
 	    "  --layers LIST|all     base,displays,art,controls,overlays (default all five, one folder each);\n"
 	    "                        'all' = one folder with the whole editor in one pass\n"
-	    "  --automate ID:T0:V0:T1:V1  ramp parameter ID (normalized V0 -> V1, seconds T0 -> T1); repeatable\n");
+	    "  --automate ID:T0:V0:T1:V1  ramp parameter ID (normalized V0 -> V1, seconds T0 -> T1); repeatable\n"
+	    "  --offline             tell the processor it renders offline (tests the recorder of a recording build)\n"
+	    "  --block N             MIDI: samples per process() call (default 256; a frame also ends a block)\n");
 }
 
 bool parseArgs(int argc, wchar_t** argv, Options& o) {
@@ -146,15 +157,84 @@ bool parseArgs(int argc, wchar_t** argv, Options& o) {
 			}
 			x.id = id;
 			o.automation.push_back(x);
-		} else if (a == L"--help" || a == L"-h") return false;
+		} else if (a == L"--record") o.record = next();
+		else if (a == L"--offline") o.offline = true;
+		else if (a == L"--block") o.block = std::max(16, std::min(8192, _wtoi(next().c_str())));
+		else if (a == L"--help" || a == L"-h") return false;
 		else if (!a.empty() && a[0] != L'-' && o.midi.empty()) o.midi = a;
 		else { std::printf("unknown option %s\n", narrow(a).c_str()); return false; }
 	}
-	if (o.midi.empty()) return false;
+	if (o.midi.empty() == o.record.empty()) {
+		if (!o.midi.empty()) std::printf("give a MIDI file or --record, not both\n");
+		return false;
+	}
+	if (!o.record.empty() && (!o.presetName.empty() || !o.presetFile.empty() || o.track >= 0 || o.channel >= 0)) {
+		std::printf("--record replays the recorded sound and notes: no --preset, --preset-file, --track, --channel\n");
+		return false;
+	}
 	if (o.fps < 1 || o.fps > 240) { std::printf("--fps 1..240\n"); return false; }
 	if (!(o.scale >= 1.0 && o.scale <= 4.0)) { std::printf("--scale 1..4\n"); return false; }
 	if (!(o.sampleRate >= 22050.0 && o.sampleRate <= 192000.0)) { std::printf("--sr 22050..192000\n"); return false; }
 	return true;
+}
+
+// ---- a recorded take (source/videoRecord.h) -----------------------------------------------------
+
+struct RecBlock {
+	videorec::BlockHeader h{};
+	std::vector<videorec::ParamPoint> params;
+	std::vector<videorec::NoteEvent> events;
+	int64 at = 0;  // take sample where the block starts
+};
+struct Take {
+	bool ok = false;
+	std::string error, writer;
+	videorec::FileHeader h{};
+	std::vector<uint8_t> state;
+	std::vector<RecBlock> blocks;
+	int64 length = 0;   // samples
+	int32 maxBlock = 0;  // longest block
+};
+
+Take readTake(const std::wstring& path) {
+	Take t;
+	FILE* f = _wfopen(path.c_str(), L"rb");
+	if (!f) { t.error = "cannot open"; return t; }
+	std::vector<uint8_t> d;
+	uint8_t chunk[65536];
+	for (size_t n; (n = std::fread(chunk, 1, sizeof(chunk), f)) > 0;) d.insert(d.end(), chunk, chunk + n);
+	std::fclose(f);
+	size_t p = 0;
+	auto take = [&](void* dst, size_t n) { if (p + n > d.size()) return false; std::memcpy(dst, d.data() + p, n); p += n; return true; };
+	char writer[32] = {};
+	if (!take(&t.h, sizeof(t.h)) || std::memcmp(t.h.magic, videorec::kMagic, sizeof(videorec::kMagic)) != 0) { t.error = "not a take file"; return t; }
+	if (t.h.version != videorec::kVersion) { t.error = "take version " + std::to_string(t.h.version) + ", this tool reads " + std::to_string(videorec::kVersion); return t; }
+	if (!take(writer, sizeof(writer))) { t.error = "truncated header"; return t; }
+	writer[31] = 0;
+	t.writer = writer;
+	t.state.resize(t.h.stateSize);
+	if (t.h.stateSize && !take(t.state.data(), t.h.stateSize)) { t.error = "truncated state"; return t; }
+	while (p < d.size()) {
+		RecBlock b;
+		if (!take(&b.h, sizeof(b.h)) || b.h.numParams < 0 || b.h.numEvents < 0 || b.h.numSamples < 0) { t.error = "truncated block"; return t; }
+		b.params.resize(size_t(b.h.numParams));
+		b.events.resize(size_t(b.h.numEvents));
+		if ((b.h.numParams && !take(b.params.data(), b.params.size() * sizeof(videorec::ParamPoint))) ||
+		    (b.h.numEvents && !take(b.events.data(), b.events.size() * sizeof(videorec::NoteEvent)))) { t.error = "truncated block"; return t; }
+		b.at = t.length;
+		t.length += b.h.numSamples;
+		t.maxBlock = std::max<int32>(t.maxBlock, b.h.numSamples);
+		t.blocks.push_back(std::move(b));
+	}
+	t.ok = true;
+	return t;
+}
+
+// the recorded block that holds take sample s
+const RecBlock* blockAt(const Take& t, int64 s) {
+	if (t.blocks.empty()) return nullptr;
+	auto it = std::upper_bound(t.blocks.begin(), t.blocks.end(), s, [](int64 v, const RecBlock& b) { return v < b.at; });
+	return it == t.blocks.begin() ? &t.blocks.front() : &*(it - 1);
 }
 
 // ---- files ------------------------------------------------------------------------------------
@@ -267,23 +347,62 @@ int wmain(int argc, wchar_t** argv) {
 	Options opt;
 	if (!parseArgs(argc, argv, opt)) { usage(); return 1; }
 
-	// ---- the MIDI file ----
-	midifile::File midi = midifile::read(opt.midi);
-	if (!midi.ok) { std::printf("%s: %s\n", narrow(opt.midi).c_str(), midi.error.c_str()); return 1; }
+	// ---- the input: a MIDI file, or a take recorded by a recording build ----
+	const bool rec = !opt.record.empty();
+	const std::wstring input = rec ? opt.record : opt.midi;
+	midifile::File midi;
+	Take take;
 	std::vector<midifile::Event> events;
 	std::vector<int> pitchUsed(128, 0);
-	for (const midifile::Event& e : midi.events) {
-		if (opt.track >= 0 && e.track != opt.track) continue;
-		if (opt.channel >= 0 && e.channel() != opt.channel) continue;
-		events.push_back(e);
-		if (e.isNoteOn()) pitchUsed[e.d1] = 1;
+	double endSec = 0.0;
+	if (rec) {
+		take = readTake(opt.record);
+		if (!take.ok) { std::printf("%s: %s\n", narrow(opt.record).c_str(), take.error.c_str()); return 1; }
+		if (!(take.h.sampleRate >= 8000.0 && take.h.sampleRate <= 384000.0)) { std::printf("take sample rate %g?\n", take.h.sampleRate); return 1; }
+		opt.sampleRate = take.h.sampleRate;
+		size_t notes = 0, points = 0;
+		for (const RecBlock& b : take.blocks) {
+			points += b.params.size();
+			for (const videorec::NoteEvent& e : b.events)
+				if (e.type == Event::kNoteOnEvent) { pitchUsed[e.pitch & 127] = 1; notes++; }
+		}
+		const double len = double(take.length) / opt.sampleRate;
+		endSec = opt.end > 0.0 ? std::min(opt.end, len) : len;  // the export already has its tail
+		std::printf("Take: %.3f s at %g Hz in %zu blocks (up to %d samples), %zu notes, %zu parameter points; filming %.3f .. %.3f s\n",
+		            len, opt.sampleRate, take.blocks.size(), take.maxBlock, notes, points, opt.start, endSec);
+	} else {
+		midi = midifile::read(opt.midi);
+		if (!midi.ok) { std::printf("%s: %s\n", narrow(opt.midi).c_str(), midi.error.c_str()); return 1; }
+		for (const midifile::Event& e : midi.events) {
+			if (opt.track >= 0 && e.track != opt.track) continue;
+			if (opt.channel >= 0 && e.channel() != opt.channel) continue;
+			events.push_back(e);
+			if (e.isNoteOn()) pitchUsed[e.d1] = 1;
+		}
+		double lastSec = 0.0;
+		for (const midifile::Event& e : events) lastSec = std::max(lastSec, e.sec);
+		endSec = opt.end > 0.0 ? opt.end : lastSec + opt.tail;
+		std::printf("MIDI: %zu events (of %zu), %d track(s), %.1f BPM at the start; filming %.3f .. %.3f s\n", events.size(),
+		            midi.events.size(), midi.tracks, midi.bpmAtSec(0.0), opt.start, endSec);
 	}
-	double lastSec = 0.0;
-	for (const midifile::Event& e : events) lastSec = std::max(lastSec, e.sec);
-	const double endSec = opt.end > 0.0 ? opt.end : lastSec + opt.tail;
 	if (endSec <= opt.start) { std::printf("nothing to film: end %.3f s <= start %.3f s\n", endSec, opt.start); return 1; }
-	std::printf("MIDI: %zu events (of %zu), %d track(s), %.1f BPM at the start; filming %.3f .. %.3f s\n", events.size(),
-	            midi.events.size(), midi.tracks, midi.bpmAtSec(0.0), opt.start, endSec);
+	// the song at timeline time t (MIDI: song seconds; take: seconds from the start of the take)
+	auto songSeconds = [&](double t) {
+		if (!rec) return t;
+		const RecBlock* b = blockAt(take, int64(std::llround(t * opt.sampleRate)));
+		return b ? (double(b->h.projectTimeSamples) + (t * opt.sampleRate - double(b->at))) / opt.sampleRate : t;
+	};
+	auto songBpm = [&](double t) {
+		if (!rec) return midi.bpmAtSec(t);
+		const RecBlock* b = blockAt(take, int64(std::llround(t * opt.sampleRate)));
+		return b && (b->h.ctxState & ProcessContext::kTempoValid) ? b->h.tempo : 0.0;
+	};
+	auto songQuarters = [&](double t) {
+		if (!rec) return midi.quartersAtSec(t);
+		const RecBlock* b = blockAt(take, int64(std::llround(t * opt.sampleRate)));
+		if (!b || !(b->h.ctxState & ProcessContext::kProjectTimeMusicValid)) return 0.0;
+		return b->h.projectTimeMusic + (t * opt.sampleRate - double(b->at)) / opt.sampleRate * b->h.tempo / 60.0;
+	};
 
 	// ---- the licence: the same check the plugin makes ----
 	{
@@ -306,7 +425,7 @@ int wmain(int argc, wchar_t** argv) {
 	// ---- output folders ----
 	std::wstring out = opt.out;
 	if (out.empty()) {
-		std::wstring stem = opt.midi.substr(opt.midi.find_last_of(L"\\/") + 1);
+		std::wstring stem = input.substr(input.find_last_of(L"\\/") + 1);
 		stem = stem.substr(0, stem.find_last_of(L'.'));
 		out = L"video\\out\\film\\" + stem;
 	}
@@ -324,14 +443,25 @@ int wmain(int argc, wchar_t** argv) {
 	if (proc->initialize(&host) != kResultTrue || ctrl->initialize(&host) != kResultTrue) { std::printf("initialize failed\n"); return 1; }
 	static_cast<Vst::IConnectionPoint*>(proc)->connect(static_cast<Vst::IConnectionPoint*>(ctrl));
 	static_cast<Vst::IConnectionPoint*>(ctrl)->connect(static_cast<Vst::IConnectionPoint*>(proc));
-	constexpr int32 kMaxBlock = 256;
-	ProcessSetup setup{kRealtime, kSample32, kMaxBlock, opt.sampleRate};
+	const int32 kMaxBlock = opt.block;  // MIDI: the block size; a take keeps the host's blocks
+	const int32 maxBlock = std::max<int32>(kMaxBlock, rec ? std::max<int32>(take.maxBlock, take.h.maxBlock) : 0);
+	const ProcessModes mode = opt.offline ? kOffline : kRealtime;
+	ProcessSetup setup{mode, kSample32, maxBlock, opt.sampleRate};
 	proc->setupProcessing(setup);
 	proc->setActive(true);
 
 	// ---- the sound ----
 	std::string presetLabel;
-	if (!opt.presetFile.empty()) {
+	if (rec) {  // the processor's state at the start of the export, as a host restores a project
+		MemoryStream a(take.state.data(), TSize(take.state.size()));
+		MemoryStream b(take.state.data(), TSize(take.state.size()));
+		if (take.state.empty() || static_cast<IComponent*>(proc)->setState(&a) != kResultTrue ||
+		    ctrl->setComponentState(&b) != kResultTrue) {
+			std::printf("cannot restore the recorded state\n");
+			return 1;
+		}
+		presetLabel = "recorded state";
+	} else if (!opt.presetFile.empty()) {
 		if (!ctrl->loadPresetFile(opt.presetFile)) { std::printf("cannot load %s\n", narrow(opt.presetFile).c_str()); return 1; }
 		presetLabel = narrow(opt.presetFile);
 	} else {
@@ -435,7 +565,7 @@ int wmain(int argc, wchar_t** argv) {
 
 	// ---- render ----
 	const double sr = opt.sampleRate;
-	std::vector<float> L(kMaxBlock), R(kMaxBlock), wavL, wavR;
+	std::vector<float> L(maxBlock), R(maxBlock), wavL, wavR;
 	float* chans[2] = {L.data(), R.data()};
 	AudioBusBuffers outBus{};
 	outBus.numChannels = 2;
@@ -449,16 +579,112 @@ int wmain(int argc, wchar_t** argv) {
 	double frameSq = 0.0;
 	int64 frameSamples = 0;
 
-	auto renderTo = [&](int64 target, bool keep) {
+	auto addChange = [](ParameterChanges& changes, ParamID id, int32 offset, double v) {
+		int32 idx = 0;
+		if (auto* q = changes.addParameterData(id, idx)) { int32 p = 0; q->addPoint(offset, v, p); }
+	};
+	// --automate ramps, at the start of each block
+	auto addAutomation = [&](ParameterChanges& changes, double t0) {
+		for (const Automation& a : opt.automation) {
+			const double v = a.at(t0);
+			auto it = autoSent.find(a.id);
+			if (it == autoSent.end() || it->second != v) {
+				addChange(changes, a.id, 0, v);
+				ctrl->setParamNormalized(a.id, v);  // the host tells the controller too
+				autoSent[a.id] = v;
+			}
+		}
+	};
+	// one process() call of n samples; keep: the output goes to the WAV and the frame's level
+	auto runBlock = [&](int32 n, EventList& evList, ParameterChanges& changes, ProcessContext* ctx, bool keep) {
+		ProcessData data{};
+		data.processMode = mode;
+		data.symbolicSampleSize = kSample32;
+		data.numSamples = n;
+		data.numOutputs = 1;
+		data.outputs = &outBus;
+		data.inputEvents = &evList;
+		data.inputParameterChanges = &changes;
+		data.processContext = ctx;
+		std::fill(L.begin(), L.end(), 0.0f);
+		std::fill(R.begin(), R.end(), 0.0f);
+		proc->process(data);
+		if (keep) {
+			wavL.insert(wavL.end(), L.begin(), L.begin() + n);
+			wavR.insert(wavR.end(), R.begin(), R.begin() + n);
+			for (int32 i = 0; i < n; i++) {
+				framePeak = std::max(framePeak, std::max(std::fabs(L[i]), std::fabs(R[i])));
+				frameSq += 0.5 * (double(L[i]) * L[i] + double(R[i]) * R[i]);
+			}
+			frameSamples += n;
+		}
+		songSample += n;
+	};
+
+	// A take: the host's blocks as recorded, cut where a frame falls inside one. Events keep their
+	// sample positions; a block's parameter changes all go to its first piece (where the host put them).
+	size_t recBlock = 0;
+	int32 recOff = 0;  // samples of take.blocks[recBlock] already rendered
+	auto renderTake = [&](int64 target, bool keep) {
+		while (recBlock < take.blocks.size()) {
+			const RecBlock& b = take.blocks[recBlock];
+			if (b.h.numSamples > 0 && songSample >= target) break;  // empty blocks run as soon as they are reached
+			const int32 n = int32(std::min<int64>(b.h.numSamples - recOff, std::max<int64>(0, target - songSample)));
+			const bool last = recOff + n >= b.h.numSamples;
+			EventList evList;
+			ParameterChanges changes;
+			if (recOff == 0)
+				for (const videorec::ParamPoint& p : b.params) {
+					addChange(changes, p.id, std::min<int32>(p.offset, std::max<int32>(0, n - 1)), p.value);
+					ctrl->setParamNormalized(p.id, p.value);  // as the host does
+				}
+			addAutomation(changes, double(songSample) / sr);
+			for (const videorec::NoteEvent& e : b.events) {
+				if (e.offset < recOff || (e.offset >= recOff + n && !last)) continue;
+				Event ev{};
+				ev.type = uint16(e.type);
+				ev.sampleOffset = std::max<int32>(0, std::min<int32>(e.offset - recOff, n - 1));
+				const int pitch = e.pitch & 127;
+				if (e.type == Event::kNoteOnEvent) {
+					ev.noteOn.channel = e.channel; ev.noteOn.pitch = e.pitch; ev.noteOn.velocity = e.value;
+					ev.noteOn.noteId = e.noteId; ev.noteOn.tuning = e.tuning; ev.noteOn.length = e.length;
+					if (e.value > 0.0f) {
+						if (!noteOn[pitch]) notesHeld++;
+						noteOn[pitch] = 1;
+						noteVel[pitch] = int(std::lround(e.value * 127.0f));
+					}
+				} else if (e.type == Event::kNoteOffEvent) {
+					ev.noteOff.channel = e.channel; ev.noteOff.pitch = e.pitch; ev.noteOff.velocity = e.value;
+					ev.noteOff.noteId = e.noteId; ev.noteOff.tuning = e.tuning;
+					if (noteOn[pitch]) notesHeld--;
+					noteOn[pitch] = 0;
+				} else {
+					ev.polyPressure.channel = e.channel; ev.polyPressure.pitch = e.pitch;
+					ev.polyPressure.pressure = e.value; ev.polyPressure.noteId = e.noteId;
+				}
+				evList.addEvent(ev);
+			}
+			ProcessContext ctx{};
+			ctx.sampleRate = sr;
+			ctx.state = b.h.ctxState;
+			ctx.tempo = b.h.tempo;
+			ctx.projectTimeSamples = b.h.projectTimeSamples + recOff;
+			ctx.projectTimeMusic = b.h.projectTimeMusic + double(recOff) / sr * b.h.tempo / 60.0;
+			ctx.barPositionMusic = b.h.barPositionMusic;
+			ctx.timeSigNumerator = b.h.timeSigNum;
+			ctx.timeSigDenominator = b.h.timeSigDen;
+			runBlock(n, evList, changes, b.h.ctxState ? &ctx : nullptr, keep);
+			recOff += n;
+			if (recOff >= b.h.numSamples) { recBlock++; recOff = 0; }
+		}
+	};
+
+	auto renderMidi = [&](int64 target, bool keep) {
 		while (songSample < target) {
 			const int32 n = int32(std::min<int64>(kMaxBlock, target - songSample));
 			const double t0 = double(songSample) / sr, t1 = double(songSample + n) / sr;
 			EventList evList;
 			ParameterChanges changes;
-			auto addChange = [&](ParamID id, int32 offset, double v) {
-				int32 idx = 0;
-				if (auto* q = changes.addParameterData(id, idx)) { int32 p = 0; q->addPoint(offset, v, p); }
-			};
 			while (nextEvent < events.size() && events[nextEvent].sec < t1) {
 				const midifile::Event& e = events[nextEvent++];
 				const int32 off = std::max<int32>(0, std::min<int32>(n - 1, int32(std::llround((e.sec - t0) * sr))));
@@ -491,20 +717,12 @@ int wmain(int argc, wchar_t** argv) {
 					else if (e.type() == 0xD0) { cc = kAfterTouch; v = e.d1 / 127.0; }
 					ParamID tag = 0;
 					if (cc >= 0 && ctrl->getMidiControllerAssignment(0, int16(e.channel()), cc, tag) == kResultTrue) {
-						addChange(tag, off, v);
+						addChange(changes, tag, off, v);
 						ctrl->setParamNormalized(tag, v);
 					}
 				}
 			}
-			for (const Automation& a : opt.automation) {
-				const double v = a.at(t0);
-				auto it = autoSent.find(a.id);
-				if (it == autoSent.end() || it->second != v) {
-					addChange(a.id, 0, v);
-					ctrl->setParamNormalized(a.id, v);  // the host tells the controller too
-					autoSent[a.id] = v;
-				}
-			}
+			addAutomation(changes, t0);
 			ProcessContext ctx{};
 			ctx.sampleRate = sr;
 			ctx.tempo = midi.bpmAtSec(t0);
@@ -516,29 +734,16 @@ int wmain(int argc, wchar_t** argv) {
 			ctx.barPositionMusic = std::floor(ctx.projectTimeMusic / bar) * bar;
 			ctx.state = ProcessContext::kPlaying | ProcessContext::kTempoValid | ProcessContext::kProjectTimeMusicValid |
 			            ProcessContext::kBarPositionValid | ProcessContext::kTimeSigValid;
-			ProcessData data{};
-			data.processMode = kRealtime;
-			data.symbolicSampleSize = kSample32;
-			data.numSamples = n;
-			data.numOutputs = 1;
-			data.outputs = &outBus;
-			data.inputEvents = &evList;
-			data.inputParameterChanges = &changes;
-			data.processContext = &ctx;
-			std::fill(L.begin(), L.end(), 0.0f);
-			std::fill(R.begin(), R.end(), 0.0f);
-			proc->process(data);
-			if (keep) {
-				wavL.insert(wavL.end(), L.begin(), L.begin() + n);
-				wavR.insert(wavR.end(), R.begin(), R.begin() + n);
-				for (int32 i = 0; i < n; i++) {
-					framePeak = std::max(framePeak, std::max(std::fabs(L[i]), std::fabs(R[i])));
-					frameSq += 0.5 * (double(L[i]) * L[i] + double(R[i]) * R[i]);
-				}
-				frameSamples += n;
-			}
-			songSample += n;
+			runBlock(n, evList, changes, &ctx, keep);
 		}
+	};
+	auto renderTo = [&](int64 target, bool keep) {
+		if (!rec) { renderMidi(target, keep); return; }
+		renderTake(target, keep);
+		// a block that starts right at the frame: its start-of-block values are what the host shows now
+		if (recBlock < take.blocks.size() && recOff == 0)
+			for (const videorec::ParamPoint& p : take.blocks[recBlock].params)
+				if (p.offset == 0) ctrl->setParamNormalized(p.id, p.value);
 	};
 
 	// pre-roll from song time 0 to --start: notes and controllers before it are in place
@@ -573,9 +778,9 @@ int wmain(int argc, wchar_t** argv) {
 
 		// data for this frame
 		table.set(f, "time", float(t));
-		table.set(f, "song.seconds", float(opt.start + t));
-		table.set(f, "song.quarters", float(midi.quartersAtSec(opt.start + t)));
-		table.set(f, "song.bpm", float(midi.bpmAtSec(opt.start + t)));
+		table.set(f, "song.seconds", float(songSeconds(opt.start + t)));
+		table.set(f, "song.quarters", float(songQuarters(opt.start + t)));
+		table.set(f, "song.bpm", float(songBpm(opt.start + t)));
 		table.set(f, "audio.peak", framePeak);
 		table.set(f, "audio.rms", frameSamples ? float(std::sqrt(frameSq / double(frameSamples))) : 0.0f);
 		framePeak = 0.0f; frameSq = 0.0; frameSamples = 0;
@@ -615,11 +820,11 @@ int wmain(int argc, wchar_t** argv) {
 	std::string layerList;
 	for (const LayerDef& d : opt.layers) layerList += std::string(layerList.empty() ? "" : ", ") + jsonStr(d.name);
 	std::snprintf(header, sizeof(header),
-	              "  \"tool\": \"Donna Medina film tool\",\n  \"midi\": %s,\n  \"preset\": %s,\n  \"fps\": %d,\n  \"frames\": %d,\n"
+	              "  \"tool\": \"Donna Medina film tool\",\n  \"input\": %s,\n  \"preset\": %s,\n  \"fps\": %d,\n  \"frames\": %d,\n"
 	              "  \"start_seconds\": %.6f,\n  \"sample_rate\": %d,\n  \"scale\": %.4g,\n  \"width\": %d,\n  \"height\": %d,\n"
 	              "  \"layers\": [%s],\n  \"layer_order\": \"bottom to top as listed; PNG, straight alpha; frame N is at start_seconds + N / fps\",\n"
 	              "  \"audio\": \"audio.wav: float32 stereo from start_seconds\"",
-	              jsonStr(narrow(opt.midi)).c_str(), jsonStr(presetLabel).c_str(), opt.fps, frames, opt.start, int(sr), opt.scale, PW, PH,
+	              jsonStr(narrow(input)).c_str(), jsonStr(presetLabel).c_str(), opt.fps, frames, opt.start, int(sr), opt.scale, PW, PH,
 	              layerList.c_str());
 	table.write(out + L"\\data.json", frames, header);
 
