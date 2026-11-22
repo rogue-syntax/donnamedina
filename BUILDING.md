@@ -32,8 +32,8 @@ Build stamp: a pre-build step (`tools\buildstamp.ps1`, PowerShell + git) writes 
     `/GL` changed no output sample; AVX2 changes the output by at most 7e-5 (113 dB below the signal: fused multiply-add rounding). The voice loop (`DXGenerator::singleVoiceProcessing` and the oscillators, ~80 % of the time) is scalar, one voice and one sample at a time, so the compiler cannot vectorise it; bigger gains need that loop restructured (several voices per SIMD register), not flags.
 
 ## Deploy (post-build, every build)
-Copies the plugin to `%CommonProgramW6432%\VST3\DonnaMedinaVST64.vst3` (Debug also copies the `.pdb`). Writing there needs Visual Studio **run as administrator**, and the host must not have the plugin loaded; otherwise the build fails with "Deploy failed".
-- Build without deploying: add `/p:PostBuildEventUseInBuild=false`.
+Copies the plugin to `%CommonProgramW6432%\VST3\DonnaMedinaVST64.vst3` (Debug also copies the `.pdb`), the file the host loads, so every build is the one you test. The host must not have the plugin loaded; otherwise the build fails with "Deploy failed" (close the project or the host and build again). Writing there needs write access to that folder: on the development machine the `Users` group has it; on a standard Windows install run Visual Studio **as administrator**.
+- Build without deploying (only when a host must stay open): add `/p:PostBuildEventUseInBuild=false`. The host then keeps running the previous build.
 - Deploy somewhere else: `/p:CommonProgramW6432=D:\SomeFolder` (the plugin goes to `D:\SomeFolder\VST3\`).
 - Quick build + install without Visual Studio: run `build_and_install.bat` (double-click or any prompt). It asks for admin rights, builds Release|x64, keeps the first installed plugin once as `DonnaMedinaVST64.vst3.original`, and copies the new build over it. Close the host first.
 

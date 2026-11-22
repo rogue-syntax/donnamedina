@@ -111,8 +111,10 @@ private:
 namespace licenseZone {
 enum Zone { kNone = -1, kBuy = 0, kPaste, kZoneCount };
 inline int zoneAt(float x, float y) {
-	using namespace editorLayout::licenseScreen;
-	const editorLayout::ImageRect z[kZoneCount] = {kBuy, kPaste};
+	// Spelled out: inside this namespace kBuy / kPaste are the Zone values (0, 1). With a using-directive
+	// those won the lookup, the rectangles became {0, 1, 0, 0}, and Buy / Paste license never took a
+	// click (fixed 2026-11-21).
+	const editorLayout::ImageRect z[kZoneCount] = {editorLayout::licenseScreen::kBuy, editorLayout::licenseScreen::kPaste};
 	for (int i = 0; i < kZoneCount; i++)
 		if (x >= z[i].x && x < z[i].x + z[i].w && y >= z[i].y && y < z[i].y + z[i].h)
 			return i;

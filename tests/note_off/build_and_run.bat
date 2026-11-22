@@ -1,6 +1,6 @@
 @echo off
 rem Builds and runs the note-off regression test against the plugin's Release|x64 object files.
-rem Build the plugin first:  MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false
+rem Build the plugin first:  MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64
 setlocal
 set HERE=%~dp0
 set PROJ=%HERE%..\..

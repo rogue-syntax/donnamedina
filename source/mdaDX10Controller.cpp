@@ -204,6 +204,12 @@ IController* DX10Controller::createSubController(const char* name, const IUIDesc
 		refreshLicense();
 		if (licensed)
 			notifyLicenseChanged();
+		// The click views (licensePanel, updateBadge) come earlier in the editor template, and the
+		// .uidesc gives them mouse-enabled="false" after creation; this is the first point where they
+		// exist. refreshLicense set the license panel above; the badge needs the same, or a badge already
+		// known when the editor opens can't be clicked (fixed 2026-11-21).
+		if (updateBadgeView)
+			updateBadgeView->setMouseEnabled(updateBadgeShown());
 
 		modTypeNrml = EditController::getParamNormalized(MOD_TYPE_);
 		EditController::getParamStringByValue(MOD_TYPE_, modTypeNrml, modTypeCtrlTChar);//is there  beeter way to get string than like 15 lines of code?..

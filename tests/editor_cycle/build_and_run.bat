@@ -1,6 +1,6 @@
 @echo off
 rem Builds and runs the editor open/close cycle test against the plugin's Release|x64 object files.
-rem Build the plugin first:  MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false
+rem Build the plugin first:  MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64
 rem Usage: build_and_run.bat [cycles]   (default 20)
 setlocal
 set HERE=%~dp0

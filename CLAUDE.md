@@ -10,6 +10,6 @@ Rules of thumb
 - Author notes live in `C:\vst3sdk\*.txt` (todos, issues, customviewNotes, revents).
 - Statements in docs marked "unverified" come from reading code only.
 - Edits to SDK files affect all projects; log them in `docs/05-sdk-mods.md`.
-- Build check: `MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64 /p:PostBuildEventUseInBuild=false` (the post-build step copies into Program Files).
+- Build: `MSBuild RSSynth001donnaMedina.sln /p:Configuration=Release /p:Platform=x64`. The post-build step copies the plugin to `Common Files\VST3\DonnaMedinaVST64.vst3`, the file FL Studio loads, so the developer always tests the latest build (on this machine Users can write there, no admin needed). Always deploy: never add `/p:PostBuildEventUseInBuild=false` unless asked. If the deploy fails because a host has the plugin loaded, say so plainly (FL Studio is still on the old build) and don't close the host.
 - Dependencies: `external/` (GLEW, Monocypher; libbcrypt is kept but no longer built) and `VST3_SDK/external/revent`. Never add absolute paths.
 - Licensing: signed `RS1.` tokens, `source/license.*`; update check `source/updateCheck.*`; installer `installer/` (store recipe, `installer\build.bat`). Spec: `docs/store/licensing-v1.md` (verbatim copy of the store's master; don't edit), how we meet it: `docs/07-licensing.md`. No bypasses or machine-ID licence checks; the developer uses a `kind=dev` license. Tests: `tests\license\build_and_run.bat`, `tests\update\build_and_run.bat`. The product is spelled "Donna Medina" (no tilde).

@@ -457,6 +457,116 @@ double privateMB() {
 }
 }  // namespace
 
+// ---- clicks on the "Not registered" screen and the update badge (2026-11-21) ----
+// Until 2026-11-21 Buy and Paste license did nothing in a host: licenseZone::zoneAt built its button
+// rectangles from its own enum values (0, 1), so no click or hover matched a button, and the earlier
+// checks set the hover state in code instead of moving or clicking. Here the editor is open on
+// screen as in a host, and the mouse goes in as a host delivers it: messages to the frame's window.
+static std::wstring clipboardGet() {
+	std::wstring s;
+	if (!OpenClipboard(nullptr)) return s;
+	if (HANDLE h = GetClipboardData(CF_UNICODETEXT))
+		if (const wchar_t* p = static_cast<const wchar_t*>(GlobalLock(h))) { s = p; GlobalUnlock(h); }
+	CloseClipboard();
+	return s;
+}
+static void clipboardSet(const std::wstring& s) {
+	if (!OpenClipboard(nullptr)) return;
+	EmptyClipboard();
+	if (HGLOBAL g = GlobalAlloc(GMEM_MOVEABLE, (s.size() + 1) * sizeof(wchar_t))) {
+		std::memcpy(GlobalLock(g), s.c_str(), (s.size() + 1) * sizeof(wchar_t));
+		GlobalUnlock(g);
+		SetClipboardData(CF_UNICODETEXT, g);
+	}
+	CloseClipboard();
+}
+
+int licenseClickTest(rs::DX10Controller* ctrl) {
+	int fails = 0;
+	auto check = [&](const char* name, bool ok, const std::string& detail) {
+		if (!ok) fails++;
+		std::printf("  %-46s %-52s %s\n", name, detail.c_str(), ok ? "PASS" : "FAIL");
+	};
+	std::printf("\nlicense screen and update badge clicks (editor on screen, clicks via the frame window)\n");
+	// an update the store announced, known before the editor opens (as on a second open in a host)
+	ctrl->update.enabled = true;
+	ctrl->update.latest = "9.9.9";
+	ctrl->update.url = "https://rogue-syntax.com/";
+	ctrl->update.skip.clear();
+	ctrl->updateGen = updatecheck::generation();  // keep it (no reload from the registry)
+	IPlugView* view = ctrl->createView(ViewType::kEditor);
+	if (!view) { std::printf("createView failed\n"); return 1; }
+	ViewRect vr;
+	view->getSize(&vr);
+	const int w = vr.getWidth(), h = vr.getHeight();
+	RECT r{0, 0, w, h};
+	AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
+	HWND hwnd = CreateWindowExW(0, L"STATIC", L"DonnaMedina license click test", WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN,
+	                            0, 0, r.right - r.left, r.bottom - r.top, nullptr, nullptr, GetModuleHandle(nullptr), nullptr);
+	ShowWindow(hwnd, SW_SHOWNOACTIVATE);
+	pumpFor(100);
+	if (view->attached(hwnd, kPlatformTypeHWND) != kResultTrue) { std::printf("attached failed\n"); return 1; }
+	ViewRect tmp(0, 0, w - 1, h - 1);
+	view->onSize(&tmp);
+	view->onSize(&vr);
+	const SIZE editorSize{w, h};
+	EnumChildWindows(hwnd, [](HWND c, LPARAM lp) -> BOOL {
+		RECT cr{};
+		GetWindowRect(c, &cr);
+		if (cr.right - cr.left == 0) {
+			const SIZE* sz = reinterpret_cast<const SIZE*>(lp);
+			SetWindowPos(c, nullptr, 0, 0, sz->cx, sz->cy, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE);
+		}
+		return TRUE;
+	}, reinterpret_cast<LPARAM>(&editorSize));
+
+	// the screen a customer sees first (this machine may be licensed)
+	ctrl->licensed = false;
+	if (ctrl->licenseView)
+		ctrl->licenseView->setMouseEnabled(true);  // as BaseController::refreshLicense does while unlicensed
+	pumpFor(800);  // frames drawn
+
+	rs::NVGView* nv = ctrl->nvgViewController ? ctrl->nvgViewController->nvgView : nullptr;
+	CFrame* fr = nv ? nv->getFrame() : nullptr;
+	HWND frameWnd = fr ? static_cast<HWND>(fr->getPlatformFrame()->getPlatformRepresentation()) : nullptr;
+	if (!fr || !frameWnd) {
+		check("editor frame", false, "no frame window");
+	} else {
+		auto viewAt = [&](const editorLayout::ImageRect& z) -> std::string {
+			CView* hit = fr->getViewAt(CPoint(z.x + z.w / 2, z.y + z.h / 2), GetViewOptions().deep().mouseEnabled());
+			return hit ? typeid(*hit).name() : std::string("nothing");
+		};
+		using namespace editorLayout::licenseScreen;
+		const std::string buy = viewAt(kBuy), paste = viewAt(kPaste);
+		check("Buy: the click goes to the license screen", buy.find("LicenseView") != std::string::npos, buy);
+		check("Paste license: the click goes to the license screen", paste.find("LicenseView") != std::string::npos, paste);
+		const std::string badge = viewAt(editorLayout::kUpdateBadge);
+		check("update badge: the click goes to the badge", badge.find("UpdateBadgeView") != std::string::npos, badge);
+
+		// a real click on Paste license with text that is not a license: the screen says so
+		const std::wstring saved = clipboardGet();
+		clipboardSet(L"this is not a license");
+		ctrl->licenseMsg.clear();
+		const LPARAM at = MAKELPARAM(kPaste.x + kPaste.w / 2, kPaste.y + kPaste.h / 2);
+		// (Buy is not clicked here: it opens the browser. Hover is not checked: moves sent this way don't
+		// reach the view's onMouseMoved in this bare host.)
+		SendMessage(frameWnd, WM_MOUSEMOVE, 0, at);
+		SendMessage(frameWnd, WM_LBUTTONDOWN, MK_LBUTTON, at);
+		SendMessage(frameWnd, WM_LBUTTONUP, 0, at);
+		pumpFor(200);
+		clipboardSet(saved);  // the clipboard as it was
+		check("Paste license clicked (clipboard: not a license)", ctrl->licenseMsg == "That license is not valid.",
+		      "message \"" + ctrl->licenseMsg + "\"");
+		check("still unlicensed, screen still takes clicks", !ctrl->licensed && ctrl->licenseView && ctrl->licenseView->getMouseEnabled(), "");
+	}
+	view->removed();
+	view->release();
+	DestroyWindow(hwnd);
+	pumpFor(100);
+	ctrl->refreshLicense();  // back to this machine's real state
+	return fails;
+}
+
 int main(int argc, char** argv) {
 	const int cycles = argc > 1 ? std::atoi(argv[1]) : 20;
 	const bool verbose = argc > 2;
@@ -516,6 +626,8 @@ int main(int argc, char** argv) {
 
 	if (const char* shot = std::getenv("EDITOR_SHOT"))
 		return takeEditorShot(ctrl, shot);
+
+	const int clickFails = licenseClickTest(ctrl);
 
 	// B-59: opening the editor replays the reset buttons' values, which re-centred WIDTH/TUNE/FINE
 	// (and the MOD ones) with performEdit. Off-centre values must survive the open, and the preset
@@ -641,7 +753,7 @@ int main(int argc, char** argv) {
 	            held ? (dangling ? "points to a FREED object" : "points to a live object") : "nullptr",
 	            track::nLiveCtl, dangling ? "FAIL (dangling)" : "PASS");
 	int result = 0;
-	if (track::nLive != 0 || dangling || mallocPerCycle > 0.05 || b11fail || b59fail) result = 1;
+	if (track::nLive != 0 || dangling || mallocPerCycle > 0.05 || b11fail || b59fail || clickFails) result = 1;
 
 	std::printf("malloc growth %.4f MB/cycle (limit 0.05)  %s\n", mallocPerCycle, mallocPerCycle > 0.05 ? "FAIL" : "PASS");
 	std::printf("\n%s\n", result == 0 ? "0 failure(s)" : "FAILED");
