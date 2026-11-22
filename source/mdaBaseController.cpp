@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstring>
 #include "scopeCapture.h"
+#include "uiClock.h"
 #include "presetBarView.h"
 #include "vstgui/uidescription/uiattributes.h"
 #include <cmath>
@@ -400,7 +401,7 @@ tresult PLUGIN_API BaseController::notify (IMessage* message){
 		if (message->getAttributes()->getBinary("data", data, size) == kResultTrue && data
 			&& size == sizeof(playheads)) {
 			std::memcpy(playheads, data, size);
-			playheadTime = std::chrono::steady_clock::now();
+			playheadTime = uiClock::now();  // the editor's clock (uiClock.h)
 			playheadFrames++;
 		}
 		return kResultTrue;

@@ -1027,6 +1027,21 @@ class NVGView : public COpenGLView, public Animation::IAnimationTarget, public R
 
 		void drawOpenGLThreaded();
 
+		// The frame, in two parts (2026-11-21, for the film tool in video/film): advanceFrame moves the
+		// frame-based animations on (once per frame); drawScene draws the chosen layers inside an open
+		// NanoVG frame. drawOpenGL calls both with every layer.
+		enum Layer : unsigned {
+			kLayerBase = 1u << 0,      // grid, dark display windows
+			kLayerDisplays = 1u << 1,  // envelope and LFO displays, playheads
+			kLayerArt = 1u << 2,       // panel art, right column (preset bar, scope, ...), block hover
+			kLayerControls = 1u << 3,  // knobs, buttons, sliders, switches
+			kLayerOverlays = 1u << 4,  // modulation, step badges, value readout, logo
+			kLayerWindows = 1u << 5,   // update badge, about window, registration screen
+			kAllLayers = 0x3Fu
+		};
+		void advanceFrame();
+		void drawScene(unsigned layers);
+
 		void hideGen2();
 
 		void showGen2();
