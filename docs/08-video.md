@@ -10,7 +10,7 @@ release package, and the plugin behaves the same with or without it.
 | Film tool: MIDI in; editor layers, WAV and per-frame data out | `video/film/` (`film.cpp`, `midiFile.h`, `build.bat`) | step 1, working |
 | Demo MIDI (4 bars, 120 BPM, bass, chords, melody, mod wheel) | `video/film/demo.mid` (from `make_demo_mid.py`) | |
 | Blender test shot (UI capture on a plane, camera push-in) | `video/test01/pushin.py` | test only |
-| Blender importer (layers on planes, data as keyframes) | | step 2, not started |
+| Blender importer (layers on planes, data as keyframes, audio) | `video/blender/import_film.py` | step 2, working |
 | Record-for-video (log a DAW export, replay it in the film tool) | behind a compile switch, never in a release | step 3, not started |
 
 Renders go to `video/out/` (ignored by git).
@@ -76,6 +76,34 @@ Checked (2026-11-21, demo.mid, 2 s, 30 fps, scale 2, FILTER automated 0.1 -> 0.9
 
 Speed: about 16 PNGs per second at scale 2 (5 layers x 30 fps: about 10 s per second of video), about
 7 per second at scale 3.
+
+## Blender importer
+
+`blender -P video/blender/import_film.py -- video/out/film/NAME` opens Blender with the film in the
+scene (`-b ... --save shot.blend` does it without a window; from the Text editor set `FILM_DIR` and run).
+It adds, in a collection named after the folder:
+- `UI`: an empty with one plane per layer, each an image sequence (straight alpha, emission, so the UI
+  shines like a screen). 2 m wide (`--width`), standing up facing -Y, `--gap` metres apart (default
+  2 mm), base at the back. Move or animate the planes to pull the layers apart.
+- `Film data`: an empty with every data channel as a custom property keyed on every frame
+  (`["audio.rms"]`, `["note.60.on"]`, `["playhead.0.env1"]`, `["param.42.FILTER__1"]`; on/held/pitch/
+  velocity channels hold their value between frames, the rest are linear). Constants are plain
+  properties. Use them through drivers: right-click a value > Add Driver, variable type Single Property,
+  ID the `Film data` object, path `["audio.rms"]`.
+- `audio.wav` as a sound strip at the first frame; the scene's fps and frame range (film frame N is
+  scene frame `--frame-start` + N, default 1); an orthographic `Flat camera` if the scene has none.
+
+Colour: the default (sRGB textures, Standard view) blends the layers' soft edges and glows in linear
+light, a little brighter than the plugin, where NanoVG blends sRGB numbers. `--raw` (Non-Color textures,
+Raw view) blends as the plugin does, but then lights and other objects in the scene work on sRGB numbers
+too. A one-pass film (`--layers all`) is exact either way.
+
+Checked (2026-11-22, Blender 5.2, the 2 s film above, flat camera at the film's size, pixel filter off):
+- frame 31 matches film frame 30 best (frame mapping); flat colours exact, no pixel offset;
+- default: mean 7/255 brighter than the plugin's stack, 0.2/255 from the same stack blended in linear
+  light; `--raw`: every pixel within 1/255;
+- all 3780 keyed values equal the data within 1e-7, the 190 constants are there, the sound strip runs
+  frames 1-60, and a driver on `["audio.rms"]` reads the frame's value. The import takes about 2 s.
 
 Not covered yet: the about/registration windows (`kLayerWindows`) are never filmed; the scope and preset
 bar are in the art layer; hover effects (no mouse in the tool).
